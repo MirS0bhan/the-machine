@@ -48,7 +48,7 @@ The Event Bus wakes the agent independently of user input:
 |--------|-----------|---------|
 | Timers / cron | `event.schedule` | `@every 30s` heartbeat |
 | Heartbeat | Built-in loop in event-bus | `scheduler.heartbeat.tick` with environment snapshot |
-| D-Bus signals | `event-bus` dbus adapter | `desktop.notify`, `login.prepare_sleep` |
+| D-Bus signals | `event-bus` dbus adapter (`zbus` system bus) | `desktop.notify`, `login.prepare_sleep` |
 | Filesystem events | `event-bus` inotify adapter | `fs.change.<pattern>` |
 | Audio | `event-bus` audio adapter | `pipewire.state` |
 
@@ -76,4 +76,4 @@ Rust binaries ship in the initramfs for boot. Python servers remain the referenc
 
 ## Remaining Work
 
-See [Gap Analysis](./gap-analysis.md) and [Expansion Proposal](./expansion-proposal.md). Platform polish items (G7, G12–G14, G17 wlroots session) remain; critical path gaps G1/G6/G16 are closed.
+See [Gap Analysis](./gap-analysis.md) and [Expansion Proposal](./expansion-proposal.md). Platform polish items (G12–G14, G17 wlroots session) remain; critical path gaps G1/G6/G16 and G7 are closed.
