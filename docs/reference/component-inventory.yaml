@@ -1,0 +1,109 @@
+# Canonical component inventory — verified by scripts/verify-docs-code.sh
+# Update this file when adding/removing boot services or Rust crates.
+
+version: 1
+
+rust_crates:
+  - system-daemon
+  - mcp-bus
+  - policy-broker
+  - state-store
+  - event-bus
+  - lambda-server
+  - agent-core
+  - ui-runtime
+  - compositor
+  - fallback-shell
+  - local-model-daemon
+  - marketplace
+  - common
+  - lambda-examples
+
+boot_services:
+  - system-daemon
+  - mcp-bus
+  - policy-broker
+  - state-store
+  - event-bus
+  - lambda-server
+  - local-model-daemon
+  - agent-core
+  - ui-runtime
+  - compositor
+  - fallback-shell
+  - marketplace
+
+python_packages:
+  - lambda-server
+  - policy-broker
+  - state-store
+  - event-bus
+  - local-model
+  - ui-engine
+
+env_vars:
+  - THE_MACHINE_SOCKET_DIR
+  - THE_MACHINE_RUNTIME
+  - STATE_STORE_BACKEND
+  - STATE_STORE_PATH
+  - LOCAL_MODEL_PATH
+  - LOCAL_MODEL_HTTP_URL
+  - WAYLAND_DISPLAY
+  - THE_MACHINE_LAMBDA_DIR
+  - OPENAI_API_KEY
+  - RUST_LOG
+
+mcp_services:
+  system-daemon:
+    - power.get_profile
+    - power.set_profile
+    - display.get_modes
+    - display.set_mode
+    - net.list_interfaces
+    - net.set_interface_state
+  policy-broker:
+    - policy.check
+    - policy.register
+    - policy.audit
+    - policy.confirm
+    - policy.validate_register
+  state-store:
+    - state.get
+    - state.set
+    - state.patch
+    - state.watch
+    - state.list
+  event-bus:
+    - event.publish
+    - event.subscribe
+    - event.schedule
+    - event.register_handler
+  lambda-server:
+    - lambda.register
+    - lambda.invoke
+    - lambda.search
+    - lambda.deprecate
+  local-model-daemon:
+    - localmodel.health
+    - localmodel.complete
+    - localmodel.classify_intent
+    - localmodel.embed
+  ui-runtime:
+    - ui.patch
+    - ui.get
+    - ui.tree
+    - ui.event
+    - ui.status
+  compositor:
+    - compositor.present
+    - compositor.surface
+    - compositor.confirmation.set_active
+  mcp-bus:
+    - bus.resolve
+    - bus.list_routes
+    - _bus.register
+    - _bus.deregister
+  marketplace:
+    - marketplace.list
+    - marketplace.install
+    - marketplace.installed

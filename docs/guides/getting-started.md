@@ -14,6 +14,7 @@ This guide walks through building, testing, and running **The Machine** on a Lin
 | busybox-static | any | Initramfs `/bin/sh` |
 | grub-pc-bin, xorriso | any | ISO image creation |
 | pytest, pytest-asyncio | any | Integration tests |
+| cargo-llvm-cov | optional | `make coverage` |
 
 Install system packages on Debian/Ubuntu:
 
@@ -26,26 +27,26 @@ Install Python packages:
 ```bash
 pip install -e lambda-server -e policy-broker -e state-store -e local-model \
             -e ui-engine -e event-bus
-pip install pytest pytest-asyncio markdown
+pip install pytest pytest-asyncio markdown pyyaml
 ```
 
 ## Build
 
 ```bash
-# All Rust crates
+# All Rust crates (12 services + common + examples)
 make build
 
 # Release binaries (for ISO)
 make build-release
 
-# Bootable initramfs + ISO
+# Bootable initramfs + ISO (fetches GGUF model via build/fetch-model.sh)
 make iso
 ```
 
 ## Run (development)
 
 ```bash
-# Rust daemons (matches ISO boot)
+# Rust daemons (matches ISO boot — default)
 make services-start
 
 # Rust bus + Python policy/lambda (full rule engine, separate storage)
@@ -57,21 +58,31 @@ THE_MACHINE_RUNTIME=python ./scripts/start-services.sh
 make services-stop
 ```
 
-Or start individual Rust daemons:
+Boot services started by `scripts/start-services.sh` (rust mode):
 
-```bash
-export THE_MACHINE_SOCKET_DIR=/tmp/the-machine/run
-mkdir -p $THE_MACHINE_SOCKET_DIR
-cargo run --bin mcp-bus &
-cargo run --bin event-bus &
-cargo run --bin agent-core &
-```
+`system-daemon` → `mcp-bus` → `policy-broker` → `state-store` → `event-bus` → `lambda-server` → `local-model-daemon` → `marketplace` → `agent-core` → `ui-runtime` → `compositor`
+
+### Environment variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `THE_MACHINE_SOCKET_DIR` | `/tmp/the-machine/run` | Unix socket directory |
+| `THE_MACHINE_RUNTIME` | `rust` | `rust` \| `hybrid` \| `python` |
+| `STATE_STORE_BACKEND` | `memory` (dev), `sled` (boot) | Persistence backend |
+| `STATE_STORE_PATH` | — | sled database path |
+| `LOCAL_MODEL_PATH` | `/models/machine-tiny.gguf` (boot) | GGUF model file |
+| `LOCAL_MODEL_HTTP_URL` | — | Proxy to Python llama.cpp server |
+| `OPENAI_API_KEY` | — | Cloud LLM fallback for agent-core |
+| `WAYLAND_DISPLAY` | `wayland-0` (boot) | Compositor display |
+| `RUST_LOG` | `info` | Tracing filter |
 
 ## Test
 
 ```bash
-make test-all      # Everything
+make test-all      # Rust workspace + Python suites
 make verify        # Full verification: tests + builds + docs + inventory
+make verify-docs   # Cross-check docs against component-inventory.yaml
+make coverage      # Rust coverage via cargo llvm-cov
 ```
 
 ## Boot in QEMU
@@ -89,3 +100,5 @@ Set `KERNEL=/path/to/vmlinuz` if auto-detection fails.
 make docs          # build docs/build/index.html
 make -C docs serve # http://localhost:8000
 ```
+
+Canonical component list: [`docs/reference/component-inventory.yaml`](../reference/component-inventory.yaml).

@@ -55,6 +55,48 @@ jobs:
       - name: Python tests
         run: make test-python
 
+      - name: Verify documentation ↔ code
+        run: make verify-docs
+
+  coverage:
+    name: Rust coverage
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.0"
+          components: llvm-tools-preview
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov
+
+      - name: Generate coverage
+        run: |
+          mkdir -p build
+          cargo llvm-cov --workspace --lcov --output-path build/coverage.lcov
+          cargo llvm-cov --workspace --summary-only
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-coverage
+          path: build/coverage.lcov
+          if-no-files-found: error
+          retention-days: 30
+
   build-rust-components:
     name: Rust — ${{ matrix.component }}
     needs: test
@@ -69,6 +111,8 @@ jobs:
           - state-store
           - event-bus
           - lambda-server
+          - local-model-daemon
+          - marketplace
           - agent-core
           - ui-runtime
           - compositor

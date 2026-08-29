@@ -22,7 +22,8 @@ pass "Rust workspace builds"
 
 RUST_BINS=(
   system-daemon mcp-bus policy-broker state-store event-bus
-  lambda-server agent-core ui-runtime compositor fallback-shell
+  lambda-server local-model-daemon marketplace agent-core
+  ui-runtime compositor fallback-shell
 )
 for bin in "${RUST_BINS[@]}"; do
   [[ -x "target/release/${bin}" ]] || fail "Missing Rust binary: ${bin}"
@@ -69,7 +70,8 @@ errors = []
 
 RUST = [
     "system-daemon", "mcp-bus", "policy-broker", "state-store", "event-bus",
-    "lambda-server", "agent-core", "ui-runtime", "compositor", "fallback-shell",
+    "lambda-server", "local-model-daemon", "marketplace", "agent-core",
+    "ui-runtime", "compositor", "fallback-shell",
 ]
 PYTHON = ["lambda-server", "policy-broker", "state-store", "event-bus", "local-model", "ui-engine"]
 
@@ -100,7 +102,12 @@ print(f"  {len(RUST)} Rust + {len(PYTHON)} Python components verified")
 PY
 pass "Component inventory matches documentation"
 
-# --- 7. Initramfs (release) ---
+# --- 7. Documentation ↔ code ---
+echo "--- Documentation ↔ code ---"
+bash scripts/verify-docs-code.sh
+pass "Documentation matches codebase"
+
+# --- 8. Initramfs (release) ---
 echo "--- Initramfs ---"
 make initramfs-release
 [[ -f build/initramfs.cpio.gz ]] || fail "initramfs.cpio.gz missing"
