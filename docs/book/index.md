@@ -51,7 +51,7 @@ cd lambda-server && uv run python -m lambda_server.server      # HTTP + MCP API
 cd state-store    && uv run python -m state_store.mcp_server
 cd policy-broker  && uv run python -m policy_broker.mcp_server
 cd event-bus      && uv run python -m event_bus.mcp_server
-cd agent          && uv run python -m agent.mcp_server
+cd agent-core     && cargo run --bin agent-core
 cd local-model    && uv run python -m local_model.mcp_server
 cd ui-engine      && uv run python -m ui_engine.server
 ```
@@ -117,10 +117,10 @@ system auditable: every action the agent takes is a logged MCP call.
 | L4 | Local Model Interface | **Implemented** | Engine, privacy tagging, embedding backend, MCP server |
 | L5 | UI Engine | **Implemented** | AUIL/ASL parser, runtime, patch protocol, renderer, models |
 | L5 | UI Engine Demo | **Implemented** | Terminal `AbstractRenderer`, `demo.auil`, input loop, tests |
-| L3 | MCP Bus | Design draft | Spec complete; not yet a standalone process |
-| L0 | System Daemon | Design draft | Spec complete; not yet implemented |
-| L5 | Wayland Compositor | Design draft | Spec complete; `wlroots` integration planned |
-| L3.7 | Fallback Shell | Design draft | Spec complete; not yet implemented |
+| L3 | MCP Bus | **Implemented** | Rust daemon with method registry + socket forwarding |
+| L0 | System Daemon | **Implemented** | Rust daemon (mock kernel ops for dev) |
+| L5 | Wayland Compositor | **Partial** | Rust logical model; wlroots integration planned |
+| L3.7 | Fallback Shell | **Implemented** | Rust console recovery mode |
 
 The architecture, broker, state store, event bus, agent core, local model, and UI
 engine specs are carried forward verbatim in their chapters with live implementation

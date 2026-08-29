@@ -2,14 +2,17 @@
 
 CARGO      ?= cargo
 QEMU       ?= qemu-system-x86_64
-KERNEL     ?= /boot/vmlinuz-7.1.8
+KERNEL     ?= $(shell ls -1 /boot/vmlinuz-* 2>/dev/null | sort -V | tail -1)
 INITRAMFS  ?= build/initramfs.cpio.gz
 ISO        ?= build/the-machine.iso
 MEM        ?= 1G
+PYTHON     ?= python3
 
-.PHONY: all build build-release initramfs iso qemu run run-console clean test docs help
+.PHONY: all build build-release initramfs iso qemu run run-console clean \
+        test test-rust test-python test-all docs help \
+        services-start services-stop
 
-all: build iso docs
+all: build initramfs iso docs
 
 build:
 	$(CARGO) build --workspace
@@ -20,6 +23,9 @@ build-release:
 # Assemble the bootable initramfs (busybox + our Rust services).
 initramfs:
 	bash build/mkinitramfs.sh debug
+
+initramfs-release:
+	bash build/mkinitramfs.sh release
 
 # Build a bootable ISO (GRUB) that loads the kernel + initramfs.
 iso: initramfs
@@ -41,24 +47,45 @@ clean:
 	$(CARGO) clean
 	rm -rf build/initramfs.stage build/initramfs.cpio.gz build/the-machine.iso build/iso
 
-test:
+test: test-all
+
+test-rust:
 	$(CARGO) test --workspace
 
+test-python:
+	$(PYTHON) -m pytest tests/integration/ -v
+	$(PYTHON) -m pytest ui-engine/test_engine.py -v
+	$(PYTHON) -m pytest ui-engine-demo/test_demo.py -v
+	$(PYTHON) -m pytest policy-broker/tests/ -v
+	$(PYTHON) -m pytest local-model/tests/ -v
+	cd lambda-server && $(PYTHON) test_server.py
+
+test-all: test-rust test-python
+
 docs:
-	make -C docs html
+	$(MAKE) -C docs html
+
+services-start:
+	bash scripts/start-services.sh
+
+services-stop:
+	bash scripts/stop-services.sh
 
 help:
 	@echo "The Machine — Build System"
 	@echo ""
 	@echo "Targets:"
-	@echo "  all          - Build crates, ISO, and docs"
-	@echo "  build        - Build all Rust crates"
-	@echo "  build-release- Build release binaries"
-	@echo "  initramfs    - Assemble the initramfs (busybox + services)"
-	@echo "  iso          - Build the bootable ISO image"
-	@echo "  qemu         - Boot kernel+initramfs directly in QEMU"
-	@echo "  run          - Boot the ISO in QEMU"
-	@echo "  run-console  - Same as run, serial console to stdout"
-	@echo "  clean        - Remove build artifacts"
-	@echo "  test         - Run tests"
-	@echo "  docs         - Build documentation"
+	@echo "  all            - Build crates, initramfs, ISO, and docs"
+	@echo "  build          - Build all Rust crates"
+	@echo "  build-release  - Build release binaries"
+	@echo "  initramfs      - Assemble the initramfs (busybox + services)"
+	@echo "  iso            - Build the bootable ISO image"
+	@echo "  qemu           - Boot kernel+initramfs directly in QEMU"
+	@echo "  run            - Boot the ISO in QEMU"
+	@echo "  test           - Run all tests (Rust + Python)"
+	@echo "  test-rust      - Run Rust workspace tests"
+	@echo "  test-python    - Run Python unit + integration tests"
+	@echo "  docs           - Build documentation"
+	@echo "  services-start - Start all services (dev harness)"
+	@echo "  services-stop  - Stop dev harness services"
+	@echo "  clean          - Remove build artifacts"

@@ -9,9 +9,6 @@ app = FastAPI(title="L2Policy Broker")
 state_store = StateStoreClient()
 interpreter = PolicyInterpreter(state_store)
 
-# Load default policies on startup
-load_default_policies()
-
 
 def load_default_policies() -> None:
     """Load default policies into the interpreter."""
@@ -38,6 +35,9 @@ def load_default_policies() -> None:
         ]
     )
     interpreter.register(default_policies)
+
+
+load_default_policies()
 
 
 @app.post("/policy/check", response_model=CheckResponse)

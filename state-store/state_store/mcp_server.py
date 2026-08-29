@@ -1,15 +1,29 @@
 import asyncio
 import json
+import os
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from typing import AsyncGenerator, List, Optional
 from .models import PatchOp, WatchRequest, StateResponse
-from .rocksdb_backend import RocksDBBackend
 from .policy import policy_check, CAP_STATE_READ, CAP_STATE_WRITE
 
 
+def _create_backend():
+    backend = os.environ.get("STATE_STORE_BACKEND", "auto")
+    db_path = os.environ.get("STATE_STORE_PATH", "/var/lib/state-store")
+    if backend == "memory":
+        from .memory_backend import MemoryBackend
+        return MemoryBackend(db_path)
+    try:
+        from .rocksdb_backend import RocksDBBackend
+        return RocksDBBackend(db_path)
+    except Exception:
+        from .memory_backend import MemoryBackend
+        return MemoryBackend(db_path)
+
+
 app = FastAPI(title="L1State Store MCP Server")
-db = RocksDBBackend("/var/lib/state-store")
+db = _create_backend()
 
 
 @app.get("/state.get")

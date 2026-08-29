@@ -15,15 +15,17 @@ def test_allow_rule(interpreter: PolicyInterpreter):
         path="lambda.*",
         method="*",
         decision="ALLOW",
-        capabilities=["CAP_IPC_CALL"]
+        capabilities=["CAP_IPC_CALL"],
     )
     policy_doc = PolicyDoc(rules=[rule])
     interpreter.register(policy_doc)
 
     request = CheckRequest(
+        capability="CAP_IPC_CALL",
+        path="lambda.register",
         method="lambda.register",
-        request={"name": "calc.multiply"},
-        provenance="agent"
+        principal="agent-core",
+        provenance="agent",
     )
     response = interpreter.check(request)
     assert response.decision == "ALLOW"
@@ -34,15 +36,17 @@ def test_deny_rule(interpreter: PolicyInterpreter):
         path="state.*",
         method="*",
         decision="DENY",
-        capabilities=["CAP_STATE_WRITE"]
+        capabilities=["CAP_STATE_WRITE"],
     )
     policy_doc = PolicyDoc(rules=[rule])
     interpreter.register(policy_doc)
 
     request = CheckRequest(
+        capability="CAP_STATE_WRITE",
+        path="ui.theme",
         method="state.set",
-        request={"key": "ui.theme", "value": "dark"},
-        provenance="agent"
+        principal="agent-core",
+        provenance="agent",
     )
     response = interpreter.check(request)
     assert response.decision == "DENY"
@@ -53,21 +57,23 @@ def test_first_match_wins(interpreter: PolicyInterpreter):
         path="lambda.*",
         method="*",
         decision="ALLOW",
-        capabilities=["CAP_IPC_CALL"]
+        capabilities=["CAP_IPC_CALL"],
     )
     deny_rule = Rule(
         path="lambda.*",
         method="lambda.register",
         decision="DENY",
-        capabilities=[]
+        capabilities=["CAP_IPC_CALL"],
     )
     policy_doc = PolicyDoc(rules=[allow_rule, deny_rule])
     interpreter.register(policy_doc)
 
     request = CheckRequest(
+        capability="CAP_IPC_CALL",
+        path="lambda.register",
         method="lambda.register",
-        request={"name": "calc.multiply"},
-        provenance="agent"
+        principal="agent-core",
+        provenance="agent",
     )
     response = interpreter.check(request)
     assert response.decision == "ALLOW"
@@ -75,9 +81,11 @@ def test_first_match_wins(interpreter: PolicyInterpreter):
 
 def test_default_deny(interpreter: PolicyInterpreter):
     request = CheckRequest(
+        capability="CAP_UNKNOWN",
+        path="unknown",
         method="unknown.method",
-        request={},
-        provenance="agent"
+        principal="agent-core",
+        provenance="agent",
     )
     response = interpreter.check(request)
     assert response.decision == "DENY"

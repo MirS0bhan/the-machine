@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # Patch operation patterns
 PATCH_PATTERNS = {
     PatchOp.UPDATE: re.compile(r'^~(\w[\w/-]*)\(([^)]*)\)$'),
-    PatchOp.INSERT: re.compile(r'^\+(\w[\w/-]*)(?::\s*(.*))?$'),
+    PatchOp.INSERT: re.compile(r'^\+([\w/-]+)(?::\s*(.*))?$'),
     PatchOp.REMOVE: re.compile(r'^-(\w[\w/-]*)$'),
     PatchOp.REPLACE: re.compile(r'^!(\w[\w/-]*):\s*(.+)$'),
     PatchOp.MOVE: re.compile(r'^@(\w[\w/-]*)\s*→\s*(.+)$'),
@@ -136,10 +136,8 @@ class PatchParser:
         
         properties = {}
         if props_str:
-            for part in props_str.split():
-                if '=' in part:
-                    key, value = part.split('=', 1)
-                    properties[key] = self._parse_value(value)
+            for key, value in self._tokenize_properties(props_str):
+                properties[key] = self._parse_value(value)
         
         return PatchOperation(
             op=PatchOp.UPDATE,
@@ -159,11 +157,17 @@ class PatchParser:
         """
         match = PATCH_PATTERNS[PatchOp.INSERT].match(line)
         if not match:
-            self._errors.append(f"Line {self._line_number}: Invalid insert syntax: {line}")
-            return None
-        
-        target = match.group(1)
-        node_str = match.group(2)
+            # Also accept +anchor/path node-def without colon separator.
+            alt = re.match(r'^\+([\w/-]+)\s+(.+)$', line)
+            if alt:
+                target = alt.group(1)
+                node_str = alt.group(2)
+            else:
+                self._errors.append(f"Line {self._line_number}: Invalid insert syntax: {line}")
+                return None
+        else:
+            target = match.group(1)
+            node_str = match.group(2)
         
         node = None
         if node_str:
@@ -294,6 +298,31 @@ class PatchParser:
             text_content=text_content,
         )
     
+    def _tokenize_properties(self, props_str: str) -> List[Tuple[str, str]]:
+        """Tokenize key=value pairs, respecting quoted values with spaces."""
+        tokens: List[str] = []
+        current: List[str] = []
+        in_quotes = False
+        for char in props_str:
+            if char == '"':
+                in_quotes = not in_quotes
+                current.append(char)
+            elif char == ' ' and not in_quotes:
+                if current:
+                    tokens.append(''.join(current))
+                    current = []
+            else:
+                current.append(char)
+        if current:
+            tokens.append(''.join(current))
+
+        pairs: List[Tuple[str, str]] = []
+        for token in tokens:
+            if '=' in token:
+                key, value = token.split('=', 1)
+                pairs.append((key, value))
+        return pairs
+
     def _parse_value(self, value: str) -> Any:
         """
         Parse a value string.
@@ -304,6 +333,9 @@ class PatchParser:
         Returns:
             Parsed value
         """
+        if value.startswith('"') and value.endswith('"'):
+            value = value[1:-1]
+
         # Check for references
         if value.startswith(("$lambda:", "mcp:", "@")):
             return {"type": "reference", "value": value}

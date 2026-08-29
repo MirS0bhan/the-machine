@@ -42,7 +42,7 @@ SOURCES = [
     ("state-store/docs/spec.md", "state-store"),
     ("event-bus/docs/spec.md", "event-bus"),
     ("policy-broker/docs/spec.md", "policy-broker"),
-    ("agent/docs/spec.md", "agent"),
+    ("docs/agent-core-spec.md", "agent-core"),
     ("local-model/docs/spec.md", "local-model"),
     ("ui-engine/docs/spec.md", "ui-engine"),
     ("docs/book/ui-engine-demo.md", "ui-engine-demo"),

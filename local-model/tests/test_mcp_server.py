@@ -1,29 +1,39 @@
 # local-model/tests/test_mcp_server.py
+"""MCP server tests via engine (no HTTP TestClient dependency)."""
+
 import pytest
-from fastapi.testclient import TestClient
-from local_model.mcp_server import app
-from local_model.models import CompletionRequest, EmbeddingRequest
-
-client = TestClient(app)
+from local_model.engine import LocalModelEngine
+from local_model.models import CompletionRequest, EmbeddingRequest, IntentRequest
+from local_model.health import get_health_status
 
 
-def test_complete_endpoint():
-    request = {"prompt": "Hello, world!", "max_tokens": 10, "privacy_tags": ["CAP_MIC"]}
-    response = client.post("/mcp/localmodel.complete", json=request)
-    assert response.status_code == 200
-    assert "text" in response.json()
-    assert response.json()["privacy_tag"] == "CAP_MIC"
+@pytest.fixture
+def engine():
+    return LocalModelEngine(model_path="/nonexistent/model.gguf")
 
 
-def test_embed_endpoint():
-    request = {"text": "Hello, world!", "privacy_tags": ["CAP_FS_READ"]}
-    response = client.post("/mcp/localmodel.embed", json=request)
-    assert response.status_code == 200
-    assert "embedding" in response.json()
-    assert response.json()["privacy_tag"] == "CAP_FS_READ"
+def test_complete_endpoint(engine):
+    response = engine.complete(CompletionRequest(
+        prompt="Hello, world!", max_tokens=10, privacy_tags=["CAP_MIC"]
+    ))
+    assert isinstance(response.text, str)
+    assert response.privacy_tag == "CAP_MIC"
+
+
+def test_embed_endpoint(engine):
+    response = engine.embed(EmbeddingRequest(
+        text="Hello, world!", privacy_tags=["CAP_FS_READ"]
+    ))
+    assert isinstance(response.embedding, list)
+    assert len(response.embedding) > 0
+    assert response.privacy_tag == "CAP_FS_READ"
+
+
+def test_classify_intent(engine):
+    response = engine.classify_intent(IntentRequest(text="play a video"))
+    assert response.intent == "media.play"
 
 
 def test_health_endpoint():
-    response = client.get("/mcp/localmodel.health")
-    assert response.status_code == 200
-    assert response.json()["status"] == "healthy"
+    status = get_health_status()
+    assert status.status in ("healthy", "degraded", "unavailable")

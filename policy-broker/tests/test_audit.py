@@ -1,6 +1,7 @@
 import pytest
 from policy_broker.audit import AuditLogger
-from policy_broker.models import AuditEntry,from policy_broker.state_store import StateStoreClient
+from policy_broker.models import AuditEntry
+from policy_broker.state_store import StateStoreClient
 from datetime import datetime
 
 
