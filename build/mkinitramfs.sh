@@ -65,6 +65,12 @@ if [[ -f "${MODEL_SRC}" ]]; then
   export LOCAL_MODEL_PATH="/models/machine-tiny.gguf"
 fi
 
+# Boot AUIL layout (G6) + secrets directory (G1).
+mkdir -p "${STAGE}/etc/the-machine" "${STAGE}/run/the-machine/secrets"
+if [[ -f "${ROOT}/build/boot.auil" ]]; then
+  cp "${ROOT}/build/boot.auil" "${STAGE}/etc/the-machine/boot.auil"
+fi
+
 # Init script: start services in boot order (L0 → L3 → L1 → L4 → L5).
 cat > "${STAGE}/init" <<'INIT'
 #!/bin/sh
@@ -76,7 +82,9 @@ export STATE_STORE_BACKEND=sled
 export STATE_STORE_PATH=/var/the-machine/state
 export THE_MACHINE_LAMBDA_DIR=/var/the-machine/lambdas
 export LOCAL_MODEL_PATH=/models/machine-tiny.gguf
-mkdir -p /var/the-machine/state /var/the-machine/lambdas /models
+export THE_MACHINE_BOOT_AUIL=/etc/the-machine/boot.auil
+export THE_MACHINE_COMPOSITOR_BACKEND=auto
+mkdir -p /var/the-machine/state /var/the-machine/lambdas /models /run/the-machine/secrets /etc/the-machine
 
 mount -t proc proc /proc
 mount -t sysfs sys /sys

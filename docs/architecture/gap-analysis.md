@@ -26,15 +26,18 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 - [x] **G5** Real evdev input with provenance markers (`system-daemon/src/input.rs`)
 - [x] **G11** GGUF bundling in initramfs (`build/fetch-model.sh` + `/models/machine-tiny.gguf`)
 - [x] **G15** Broker confirmation UI surface (`confirmation_ui.rs` + compositor exclusivity)
+- [x] **G1** Production cloud API key management (`agent-core/secrets.rs`, file + env, policy-gated)
+- [x] **G6** Rust AUIL parser in boot path (`ui-runtime/auil.rs`, `build/boot.auil`, `ui.auil.load`)
+- [x] **G16** DRM/KMS compositor backend (`compositor/drm.rs`, auto-select via `THE_MACHINE_COMPOSITOR_BACKEND`)
+- [x] **D3** MCP wire protocol docs aligned to NDJSON (`docs/components/mcp-bus.md`)
+- [x] **D4** README/runtime-model sync (`make verify-docs` + component-inventory.yaml)
+- [x] **C1** CI release bundle rust-coverage artifact trap (`build/assemble-release.sh`)
 
 ---
 
 ## Open — Critical Path
 
-| ID | Gap | Component | Priority |
-|----|-----|-----------|----------|
-| G1 | Agent cloud path needs live API key in production | agent-core | P0 |
-| G6 | Python AUIL parser not embedded in boot path | ui-engine → ui-runtime | P1 |
+_None — all P0/P1 gaps from the expansion campaign are closed._
 
 ---
 
@@ -46,22 +49,19 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 | G12 | `bus.lease` metadata only (no socket fast-path yet) | mcp-bus | P3 |
 | G13 | Rootfs installer needs debootstrap + kernel on target HW | build | P3 |
 | G14 | system-daemon kernel stubs (display/net/audio) | system-daemon | P3 |
-| G16 | Full wlroots DRM/KMS compositor (framebuffer works today) | compositor | P3 |
+| G17 | Full wlroots Wayland session (DRM dumb buffer works today) | compositor | P3 |
 
 ---
 
 ## Open — Documentation
 
-| ID | Gap | Location |
-|----|-----|----------|
-| D3 | Wire protocol section describes length-prefix; impl uses newline JSON | docs/components/mcp-bus.md |
-| D4 | ~~README/runtime-model stale post-Phase-7~~ | **Closed** — `make verify-docs` + component-inventory.yaml |
+_None._
 
 ---
 
 ## How to Use
 
-1. Pick a gap ID from the critical path.
+1. Pick a gap ID from the platform table.
 2. Implement + test + update this checklist.
 3. Reference the gap ID in PR description.
 4. See [Expansion Proposal](./expansion-proposal.md) for phased roadmap.

@@ -60,9 +60,20 @@ The MCP Bus is the **uniform protocol connecting every layer** of The Machine. N
 
 ## Wire Protocol
 
-### Framing
+### Framing (as implemented)
 
-Length-prefixed, similar to Cap'n Proto or gRPC:
+All MCP daemons communicate over **Unix domain sockets** using **newline-delimited JSON** (NDJSON). Each request or response is a single JSON object terminated by `\n`. There is no length prefix or binary header in the current boot path.
+
+```
+Client → Server:  {"id":"…","kind":"Request","method":"state.get","params":{…}}\n
+Server → Client:  {"id":"…","kind":"Response","result":{…}}\n
+```
+
+This matches every Rust service binary (`mcp-bus`, `state-store`, `policy-broker`, `agent-core`, `ui-runtime`, `compositor`, etc.) and the Python reference servers used in integration tests.
+
+### Future: length-prefixed binary framing
+
+A binary framing layer (length prefix + optional MessagePack payload) remains a **planned optimization** for high-throughput streams and fast-path leases. The reserved header layout:
 
 ```
 +--------+--------+--------+--------+--------+--------+--------+
@@ -73,9 +84,11 @@ Length-prefixed, similar to Cap'n Proto or gRPC:
 
 - `magic`: `0x4D4350` ("MCP") as 3 bytes, 1 byte reserved
 - `version`: 1 byte, currently `0x01`
-- `flags`: 1 byte, currently unused (reserved for future extensions)
-- `length`: 32-bit big-endian length of the payload (not including header)
+- `flags`: 1 byte, reserved for extensions
+- `length`: 32-bit big-endian payload length (excluding header)
 - `payload`: JSON or MessagePack serialized MCP call/response
+
+Until a component negotiates binary framing, **NDJSON is authoritative**.
 
 ### Message Structure
 

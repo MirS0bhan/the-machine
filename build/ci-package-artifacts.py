@@ -36,6 +36,11 @@ def main() -> None:
             for name in ("initramfs.cpio.gz", "the-machine.iso")
             if (out / "iso" / name).exists()
         ],
+        "coverage": [
+            file_entry(p)
+            for p in sorted((out / "coverage").glob("*.lcov"))
+            if p.is_file()
+        ],
     }
     with open(out / "manifest.json", "w") as f:
         json.dump(manifest, f, indent=2)

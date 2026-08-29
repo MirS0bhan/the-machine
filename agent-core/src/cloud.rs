@@ -2,6 +2,7 @@
 
 use crate::client::{mcp_call, trace_id};
 use crate::planner::PlanStep;
+use crate::secrets::{load_cloud_api_key, cloud_key_status};
 use serde_json::{json, Value};
 
 pub struct CloudRouter {
@@ -9,13 +10,12 @@ pub struct CloudRouter {
     base_url: String,
     api_key: String,
     model: String,
+    key_source: String,
 }
 
 impl CloudRouter {
     pub fn from_env() -> Option<Self> {
-        let api_key = std::env::var("OPENAI_API_KEY")
-            .or_else(|_| std::env::var("THE_MACHINE_CLOUD_API_KEY"))
-            .ok()?;
+        let secret = load_cloud_api_key()?;
         let base_url = std::env::var("OPENAI_BASE_URL")
             .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
         let model = std::env::var("THE_MACHINE_CLOUD_MODEL")
@@ -27,9 +27,14 @@ impl CloudRouter {
         Some(CloudRouter {
             client,
             base_url,
-            api_key,
+            api_key: secret.api_key,
             model,
+            key_source: secret.source,
         })
+    }
+
+    pub fn key_source(&self) -> &str {
+        &self.key_source
     }
 
     pub async fn plan(
@@ -39,6 +44,10 @@ impl CloudRouter {
         payload: &Value,
         provenance_trace: &str,
     ) -> Option<Vec<PlanStep>> {
+        if !cloud_policy_allowed().await {
+            tracing::warn!("cloud plan blocked by policy broker");
+            return None;
+        }
         let body = json!({
             "model": self.model,
             "messages": [
@@ -58,6 +67,10 @@ impl CloudRouter {
             .send()
             .await
             .ok()?;
+        if !resp.status().is_success() {
+            tracing::warn!("cloud API returned {}", resp.status());
+            return None;
+        }
         let v: Value = resp.json().await.ok()?;
         let content = v
             .get("choices")?
@@ -89,8 +102,8 @@ impl CloudRouter {
             .await
             .and_then(|v| v.get("value").cloned())
             .unwrap_or(json!({ "calls": 0, "tokens": 0, "traces": [] }));
-        let mut calls = existing.get("calls").and_then(|v| v.as_u64()).unwrap_or(0) + 1;
-        let mut total_tokens = existing.get("tokens").and_then(|v| v.as_u64()).unwrap_or(0) + tokens;
+        let calls = existing.get("calls").and_then(|v| v.as_u64()).unwrap_or(0) + 1;
+        let total_tokens = existing.get("tokens").and_then(|v| v.as_u64()).unwrap_or(0) + tokens;
         let mut traces = existing
             .get("traces")
             .and_then(|v| v.as_array())
@@ -102,7 +115,7 @@ impl CloudRouter {
         }
         let _ = mcp_call(
             "state.set",
-            json!({ "path": path, "value": { "calls": calls, "tokens": total_tokens, "traces": traces } }),
+            json!({ "path": path, "value": { "calls": calls, "tokens": total_tokens, "traces": traces, "key_source": self.key_source } }),
         )
         .await;
     }
@@ -110,4 +123,21 @@ impl CloudRouter {
 
 pub fn new_trace() -> String {
     trace_id()
+}
+
+pub fn status() -> Value {
+    cloud_key_status()
+}
+
+async fn cloud_policy_allowed() -> bool {
+    mcp_call(
+        "policy.check",
+        json!({
+            "capability": "CAP_CLOUD_INFERENCE",
+            "request": { "principal": "agent-core", "action": "cloud.plan" },
+        }),
+    )
+    .await
+    .and_then(|v| v.get("decision").and_then(|d| d.as_str().map(|s| s == "ALLOW")))
+    .unwrap_or(true)
 }

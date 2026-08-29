@@ -1,6 +1,7 @@
 //! Compositor — surface model + real pixel output (framebuffer / wlroots).
 
 mod model;
+mod drm;
 mod pixel;
 mod wayland_backend;
 
@@ -189,7 +190,7 @@ async fn handle_request(
                     "surfaces": c.surfaces.len(),
                     "pixels": true,
                     "confirmation_active": c.confirmation_active,
-                    "backend": "framebuffer",
+                    "backend": pixels.lock().await.backend_name(),
                 }),
             )
         }
@@ -200,6 +201,7 @@ async fn handle_request(
         }
         "compositor.status" => {
             let c = comp.lock().await;
+            let backend = pixels.lock().await.backend_name();
             success_response(
                 &id,
                 serde_json::json!({
@@ -208,6 +210,7 @@ async fn handle_request(
                     "focused": c.focused,
                     "pixels": true,
                     "confirmation_active": c.confirmation_active,
+                    "backend": backend,
                 }),
             )
         }

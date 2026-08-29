@@ -81,7 +81,7 @@ Every push to `main` runs [`.github/workflows/build.yml`](.github/workflows/buil
 | Job | Artifact | Contents |
 |-----|----------|----------|
 | `test` | — | Rust + Python tests, doc verification |
-| `coverage` | `rust-coverage` | LCOV report |
+| `coverage` | `coverage-lcov` | LCOV report |
 | `build-rust-components` | `rust-<name>` × 12 | Release binary per Rust daemon |
 | `build-rust-examples` | `rust-lambda-examples` | `fn-add`, `fn-bad` |
 | `build-python-components` | `python-<pkg>` × 6 | Wheel per Python package |

@@ -94,6 +94,11 @@ mcp_services:
     - ui.tree
     - ui.event
     - ui.status
+    - ui.auil.parse
+    - ui.auil.load
+  agent-core:
+    - agent.status
+    - agent.cloud.status
   compositor:
     - compositor.present
     - compositor.surface

@@ -1,5 +1,6 @@
 //! UI Runtime - declarative renderer for the UI State Tree (AUIL) with ASL styling.
 
+mod auil;
 mod renderer;
 
 use common::*;
@@ -128,6 +129,11 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting UI Runtime");
     let tree: SharedTree = Arc::new(Mutex::new(UiTree::new()));
+
+    // Load boot AUIL layout if present (G6 — parser embedded in Rust boot path).
+    if let Err(e) = load_boot_auil(&tree).await {
+        warn!("boot AUIL not loaded: {}", e);
+    }
 
     // Subscribe to external ui.root changes via state.watch (best-effort).
     {
@@ -299,7 +305,52 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, tree:
                 "status": "running",
                 "revision": t.revision,
                 "nodes": t.nodes.len(),
+                "auil_parser": "rust",
             }))
+        }
+        "ui.auil.parse" => {
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let source = params
+                .get("source")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            match auil::parse_auil(source) {
+                Ok(root) => {
+                    let ops = auil::auil_to_patch_ops(&root, "ui.root");
+                    success_response(
+                        &id,
+                        serde_json::json!({
+                            "root_id": root.id,
+                            "ops": ops,
+                            "children": root.children.len(),
+                        }),
+                    )
+                }
+                Err(e) => error_response(&id, "E_AUIL_PARSE", &e),
+            }
+        }
+        "ui.auil.load" => {
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let source = if let Some(s) = params.get("source").and_then(|v| v.as_str()) {
+                s.to_string()
+            } else if let Some(path) = params.get("path").and_then(|v| v.as_str()) {
+                std::fs::read_to_string(path).map_err(|e| e.to_string()).unwrap_or_default()
+            } else {
+                String::new()
+            };
+            match auil::parse_auil(&source) {
+                Ok(root) => {
+                    let ops = auil::auil_to_patch_ops(&root, "ui.root");
+                    match apply_patch(tree, ops).await {
+                        Ok(rev) => success_response(
+                            &id,
+                            serde_json::json!({ "revision": rev, "loaded": true }),
+                        ),
+                        Err(e) => error_response(&id, "E_PATCH_FAILED", &e),
+                    }
+                }
+                Err(e) => error_response(&id, "E_AUIL_PARSE", &e),
+            }
         }
         _ => error_response(&id, "E_NOT_FOUND", &format!("Unknown method: {}", method)),
     }
@@ -449,6 +500,20 @@ async fn reflect_to_state(root: &UiNode) -> Option<()> {
     let serialized = serde_json::to_value(root).ok()?;
     mcp_call("state.set", serde_json::json!({ "path": "ui.root", "value": serialized })).await?;
     Some(())
+}
+
+async fn load_boot_auil(tree: &SharedTree) -> Result<(), String> {
+    let path = std::env::var("THE_MACHINE_BOOT_AUIL")
+        .unwrap_or_else(|_| "/etc/the-machine/boot.auil".into());
+    if !std::path::Path::new(&path).exists() {
+        return Err(format!("no boot AUIL at {path}"));
+    }
+    let source = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let root = auil::parse_auil(&source)?;
+    let ops = auil::auil_to_patch_ops(&root, "ui.root");
+    apply_patch(tree, ops).await?;
+    info!("loaded boot AUIL from {}", path);
+    Ok(())
 }
 
 /// Execute a widget binding: `mcp:method` invokes via bus; `state:path` reads/writes state.

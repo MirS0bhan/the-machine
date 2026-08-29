@@ -1,4 +1,6 @@
-//! Framebuffer / memory pixel backend — paints real RGB pixels for surfaces.
+//! Framebuffer / DRM / memory pixel backends — paints real RGB pixels for surfaces.
+
+use crate::drm::DrmBackend;
 
 use std::fs::{File, OpenOptions};
 use std::io::Write;
@@ -6,13 +8,21 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use tracing::{info, warn};
 
+pub enum BackendKind {
+    Drm,
+    Framebuffer,
+    Memory,
+}
+
 pub struct PixelBackend {
+    kind: BackendKind,
     width: u32,
     height: u32,
     stride: u32,
     bpp: u32,
     buffer: Vec<u8>,
     fb_mmap: Option<MmapFb>,
+    drm: Option<DrmBackend>,
     dump_path: Option<String>,
 }
 
@@ -26,30 +36,73 @@ unsafe impl Send for MmapFb {}
 
 impl PixelBackend {
     pub fn open() -> Self {
-        let fb_path = std::env::var("THE_MACHINE_FB_DEVICE").unwrap_or_else(|_| "/dev/fb0".into());
+        let backend_pref = std::env::var("THE_MACHINE_COMPOSITOR_BACKEND")
+            .unwrap_or_else(|_| "auto".into());
         let dump_path = std::env::var("THE_MACHINE_FB_DUMP").ok();
-        let (width, height, stride, bpp, fb_mmap) = match open_framebuffer(&fb_path) {
-            Some(fb) => {
+
+        if matches!(backend_pref.as_str(), "auto" | "drm") {
+            if let Some(drm) = DrmBackend::open() {
+                let width = drm.width();
+                let height = drm.height();
+                let len = (width * height * 4) as usize;
+                return PixelBackend {
+                    kind: BackendKind::Drm,
+                    width,
+                    height,
+                    stride: width * 4,
+                    bpp: 32,
+                    buffer: vec![0u8; len],
+                    fb_mmap: None,
+                    drm: Some(drm),
+                    dump_path,
+                };
+            }
+            if backend_pref == "drm" {
+                warn!("DRM backend requested but unavailable — using memory buffer");
+            }
+        }
+
+        let fb_path = std::env::var("THE_MACHINE_FB_DEVICE").unwrap_or_else(|_| "/dev/fb0".into());
+        if matches!(backend_pref.as_str(), "auto" | "framebuffer") {
+            if let Some(fb) = open_framebuffer(&fb_path) {
                 info!(
                     "pixel backend: framebuffer {}x{} stride={} bpp={}",
                     fb.width, fb.height, fb.stride, fb.bpp
                 );
-                (fb.width, fb.height, fb.stride, fb.bpp, Some(fb.mmap))
+                let len = (fb.stride * fb.height) as usize;
+                return PixelBackend {
+                    kind: BackendKind::Framebuffer,
+                    width: fb.width,
+                    height: fb.height,
+                    stride: fb.stride,
+                    bpp: fb.bpp,
+                    buffer: vec![0u8; len],
+                    fb_mmap: Some(fb.mmap),
+                    drm: None,
+                    dump_path,
+                };
             }
-            None => {
-                warn!("pixel backend: no framebuffer — using 1280x720 memory buffer");
-                (1280, 720, 1280 * 4, 32, None)
-            }
-        };
-        let len = (stride * height) as usize;
+        }
+
+        warn!("pixel backend: using 1280x720 memory buffer");
         PixelBackend {
-            width,
-            height,
-            stride,
-            bpp,
-            buffer: vec![0u8; len],
-            fb_mmap,
+            kind: BackendKind::Memory,
+            width: 1280,
+            height: 720,
+            stride: 1280 * 4,
+            bpp: 32,
+            buffer: vec![0u8; 1280 * 720 * 4],
+            fb_mmap: None,
+            drm: None,
             dump_path,
+        }
+    }
+
+    pub fn backend_name(&self) -> &'static str {
+        match self.kind {
+            BackendKind::Drm => "drm-kms",
+            BackendKind::Framebuffer => "framebuffer",
+            BackendKind::Memory => "memory",
         }
     }
 
@@ -72,14 +125,25 @@ impl PixelBackend {
     }
 
     pub fn present(&mut self) {
-        if let Some(fb) = &self.fb_mmap {
-            unsafe {
-                std::ptr::copy_nonoverlapping(
-                    self.buffer.as_ptr(),
-                    fb.ptr,
-                    self.buffer.len().min(fb.len),
-                );
+        match self.kind {
+            BackendKind::Drm => {
+                if let Some(drm) = &mut self.drm {
+                    drm.buffer_mut().copy_from_slice(&self.buffer);
+                    drm.present();
+                }
             }
+            BackendKind::Framebuffer => {
+                if let Some(fb) = &self.fb_mmap {
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            self.buffer.as_ptr(),
+                            fb.ptr,
+                            self.buffer.len().min(fb.len),
+                        );
+                    }
+                }
+            }
+            BackendKind::Memory => {}
         }
         if let Some(path) = &self.dump_path {
             let _ = write_ppm(path, self.width, self.height, &self.buffer);
@@ -205,8 +269,10 @@ mod tests {
 
     #[test]
     fn memory_buffer_paints_pixels() {
+        std::env::set_var("THE_MACHINE_COMPOSITOR_BACKEND", "memory");
         std::env::set_var("THE_MACHINE_FB_DUMP", "/tmp/compositor-test.ppm");
         let mut px = PixelBackend::open();
+        assert_eq!(px.backend_name(), "memory");
         px.clear(0, 0, 0);
         px.fill_rect(10, 10, 50, 30, 255, 0, 0);
         px.present();
