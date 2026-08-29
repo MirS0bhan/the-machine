@@ -504,7 +504,41 @@ fn parse_when(spec: &str, now: i64) -> Result<(i64, Option<i64>), String> {
     }
 }
 
-// ----- MCP request handling -----
+async fn gather_environment_snapshot() -> Value {
+    let uptime = std::fs::read_to_string("/proc/uptime")
+        .ok()
+        .and_then(|s| s.split_whitespace().next().map(|v| v.to_string()))
+        .unwrap_or_else(|| "0".into());
+    json!({
+        "timestamp_ms": now_ms(),
+        "uptime_secs": uptime,
+        "hostname": std::env::var("HOSTNAME").unwrap_or_else(|_| "the-machine".into()),
+    })
+}
+
+/// Emit periodic heartbeat events with environment snapshots to wake the agent proactively.
+async fn heartbeat_loop(state: State) {
+    loop {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        let environment = gather_environment_snapshot().await;
+        let payload = json!({
+            "kind": "heartbeat",
+            "environment": environment,
+        });
+        let event = Event {
+            id: Uuid::new_v4(),
+            category: "scheduler".into(),
+            pattern: "heartbeat.tick".into(),
+            source: "event-bus".into(),
+            payload,
+            timestamp: now_ms(),
+            state_revision: 0,
+            requires_decision: true,
+            coalesced: false,
+        };
+        route_event(state.clone(), event).await;
+    }
+}
 
 fn ok(id: Value, result: Value) -> Value {
     json!({ "id": id, "result": result })
@@ -863,6 +897,14 @@ async fn main() -> anyhow::Result<()> {
         let s = state.clone();
         tokio::spawn(async move {
             scheduler_loop(s).await;
+        });
+    }
+
+    // Proactive heartbeat with environment snapshot.
+    {
+        let s = state.clone();
+        tokio::spawn(async move {
+            heartbeat_loop(s).await;
         });
     }
 

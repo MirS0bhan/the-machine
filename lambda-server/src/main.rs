@@ -60,6 +60,8 @@ struct FunctionRecord {
 
 struct AppState {
     functions: Mutex<HashMap<String, FunctionRecord>>,
+    /// MCP pattern → lambda function name (e.g. "calc.*" → "calc.eval").
+    mcp_exposures: Mutex<HashMap<String, String>>,
     /// Per-group IPC namespace fd (shared across functions in a group).
     ipc_groups: Mutex<HashMap<String, i32>>,
     /// Active leases: lease_id -> persistent sandboxed process.
@@ -70,6 +72,7 @@ impl AppState {
     fn new() -> Self {
         Self {
             functions: Mutex::new(HashMap::new()),
+            mcp_exposures: Mutex::new(HashMap::new()),
             ipc_groups: Mutex::new(HashMap::new()),
             leases: Mutex::new(HashMap::new()),
         }
@@ -195,6 +198,25 @@ async fn handle_request(value: Value, state: Arc<AppState>) -> Value {
     };
     let params = value.get("params").cloned();
 
+    // Bus-proxied mcp-intent call (calc.add → lambda.invoke under the hood).
+    if let Some(p) = &params {
+        if let (Some(lambda_name), Some(route_method)) = (
+            p.get("_route_lambda").and_then(|v| v.as_str()),
+            p.get("_route_method").and_then(|v| v.as_str()),
+        ) {
+            let mut invoke_params = p.clone();
+            if let Some(obj) = invoke_params.as_object_mut() {
+                obj.remove("_route_lambda");
+                obj.remove("_route_method");
+                obj.insert("name".into(), json!(lambda_name));
+                if !obj.contains_key("payload") {
+                    obj.insert("payload".into(), json!({ "method": route_method }));
+                }
+            }
+            return invoke(Some(invoke_params), state, id).await;
+        }
+    }
+
     match method.as_str() {
         "hello" => ok(id, json!({"status": "ok"})),
         "lambda.register" => register(params, state, id).await,
@@ -243,6 +265,17 @@ async fn register(params: Option<Value>, state: Arc<AppState>, id: Value) -> Val
         .insert(rec.name.clone(), rec);
 
     info!("registered function '{}'", manifest.name);
+
+    // Register MCP intent routes with the bus (side effect per mcp-bus-spec §3).
+    for exposure in parse_exposes_mcp(&manifest) {
+        register_bus_route(&manifest.name, &exposure).await;
+        state
+            .mcp_exposures
+            .lock()
+            .await
+            .insert(exposure, manifest.name.clone());
+    }
+
     ok(
         id,
         json!({ "name": manifest.name, "version": 1, "status": "Ready" }),
@@ -464,5 +497,42 @@ async fn stop(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value {
             ok(id, json!({ "stopped": true }))
         }
         None => err(id, "E_NOT_FOUND", "unknown lease_id"),
+    }
+}
+
+/// Parse `exposes_mcp` from a manifest (string or array of strings).
+fn parse_exposes_mcp(manifest: &Manifest) -> Vec<String> {
+    let mut out = Vec::new();
+    for v in &manifest.exposes_mcp {
+        if let Some(s) = v.as_str() {
+            if !s.is_empty() {
+                out.push(s.to_string());
+            }
+        }
+    }
+    out
+}
+
+/// Tell the MCP Bus to add an mcp-intent route for this lambda.
+async fn register_bus_route(lambda_name: &str, pattern: &str) {
+    let path = std::env::var("THE_MACHINE_SOCKET_DIR")
+        .map(|d| format!("{}/mcp-bus.sock", d))
+        .unwrap_or_else(|_| "/run/the-machine/mcp-bus.sock".into());
+    let req = json!({
+        "id": 1,
+        "kind": "Request",
+        "method": "_bus.register",
+        "params": {
+            "namespace": "mcp-intent",
+            "pattern": pattern,
+            "handler": "lambda-server",
+            "registered_by": "lambda-server",
+            "manifest_ref": lambda_name,
+        }
+    });
+    if let Ok(mut stream) = tokio::net::UnixStream::connect(&path).await {
+        let mut buf = serde_json::to_vec(&req).unwrap_or_default();
+        buf.push(b'\n');
+        let _ = stream.write_all(&buf).await;
     }
 }

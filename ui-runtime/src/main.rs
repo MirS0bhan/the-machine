@@ -236,6 +236,29 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, tree:
                 error_response(&id, "E_NOT_FOUND", "node not found")
             }
         }
+        "ui.event" => {
+            // Widget event: execute bindings on the target node.
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let nid = params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let event = params
+                .get("event")
+                .and_then(|v| v.as_str())
+                .unwrap_or("press")
+                .to_string();
+            let event_payload = params.get("payload").cloned().unwrap_or(serde_json::Value::Null);
+            let bindings = {
+                let t = tree.lock().await;
+                t.get(&nid)
+                    .map(|n| n.bindings.clone())
+                    .unwrap_or_default()
+            };
+            let mut results = Vec::new();
+            for b in &bindings {
+                let r = execute_binding(b, &event, &event_payload).await;
+                results.push(serde_json::json!({ "target": b.target, "result": r }));
+            }
+            success_response(&id, serde_json::json!({ "handled": results.len(), "results": results }))
+        }
         "ui.theme.set" => {
             let params = params.unwrap_or(serde_json::Value::Null);
             let theme = params.get("theme").cloned().unwrap_or(serde_json::Value::Null);
@@ -389,6 +412,29 @@ async fn reflect_to_state(root: &UiNode) -> Option<()> {
     let serialized = serde_json::to_value(root).ok()?;
     mcp_call("state.set", serde_json::json!({ "path": "ui.root", "value": serialized })).await?;
     Some(())
+}
+
+/// Execute a widget binding: `mcp:method` invokes via bus; `state:path` reads/writes state.
+async fn execute_binding(
+    binding: &Binding,
+    event: &str,
+    payload: &serde_json::Value,
+) -> Option<serde_json::Value> {
+    match binding.kind.as_str() {
+        "mcp" => {
+            mcp_call(
+                &binding.target,
+                serde_json::json!({ "event": event, "payload": payload }),
+            )
+            .await
+        }
+        "state" => {
+            mcp_call("state.get", serde_json::json!({ "path": binding.target }))
+                .await
+                .and_then(|v| v.get("value").cloned())
+        }
+        _ => None,
+    }
 }
 
 // ---------------------------------------------------------------------------
