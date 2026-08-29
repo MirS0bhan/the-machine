@@ -55,6 +55,9 @@ jobs:
       - name: Python tests
         run: make test-python
 
+      - name: Build-script tests
+        run: make test-build-scripts
+
       - name: Verify documentation ↔ code
         run: make verify-docs
 
@@ -92,7 +95,8 @@ jobs:
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
-          name: rust-coverage
+          # Do not name this rust-* — package-release used to glob rust-* as binaries.
+          name: coverage-lcov
           path: build/coverage.lcov
           if-no-files-found: error
           retention-days: 30
@@ -286,33 +290,7 @@ jobs:
         run: |
           set -euo pipefail
           OUT=artifacts/the-machine-release
-          mkdir -p "${OUT}/rust" "${OUT}/rust/examples" "${OUT}/python/wheels" "${OUT}/iso"
-
-          # Rust service binaries (artifact name: rust-<component>)
-          for dir in artifacts/in/rust-*/; do
-            [[ -d "${dir}" ]] || continue
-            comp="$(basename "${dir}")"
-            comp="${comp#rust-}"
-            [[ "${comp}" == "lambda-examples" ]] && continue
-            install -m 0755 "${dir}/${comp}" "${OUT}/rust/${comp}"
-          done
-
-          # Lambda examples
-          if [[ -d artifacts/in/rust-lambda-examples ]]; then
-            install -m 0755 artifacts/in/rust-lambda-examples/fn-add "${OUT}/rust/examples/fn-add"
-            install -m 0755 artifacts/in/rust-lambda-examples/fn-bad "${OUT}/rust/examples/fn-bad"
-          fi
-
-          # Python wheels
-          for dir in artifacts/in/python-*/; do
-            [[ -d "${dir}" ]] || continue
-            cp "${dir}"/*.whl "${OUT}/python/wheels/"
-          done
-
-          # Boot artifacts
-          install -m 0644 artifacts/in/boot-initramfs/initramfs.cpio.gz "${OUT}/iso/initramfs.cpio.gz"
-          install -m 0644 artifacts/in/boot-iso/the-machine.iso "${OUT}/iso/the-machine.iso"
-
+          bash build/assemble-release.sh artifacts/in "${OUT}"
           python3 build/ci-package-artifacts.py "${OUT}"
           tar -czf artifacts/the-machine-release.tar.gz -C artifacts the-machine-release
           ls -lh artifacts/the-machine-release.tar.gz

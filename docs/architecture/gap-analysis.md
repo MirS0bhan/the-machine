@@ -56,6 +56,7 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 |----|-----|----------|
 | D3 | Wire protocol section describes length-prefix; impl uses newline JSON | docs/components/mcp-bus.md |
 | D4 | ~~README/runtime-model stale post-Phase-7~~ | **Closed** — `make verify-docs` + component-inventory.yaml |
+| C1 | ~~`package-release` globbed `rust-*` and treated `rust-coverage` as a binary~~ | **Closed** — allowlist assemble + `coverage-lcov` artifact |
 
 ---
 

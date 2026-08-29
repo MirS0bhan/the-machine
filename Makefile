@@ -9,7 +9,7 @@ MEM        ?= 1G
 PYTHON     ?= python3
 
 .PHONY: all build build-release initramfs initramfs-release iso iso-release qemu run run-console clean \
-        test test-rust test-python test-all verify verify-docs coverage docs help \
+        test test-rust test-python test-all test-build-scripts verify verify-docs coverage docs help \
         services-start services-stop ci-package
 
 all: build initramfs iso docs
@@ -55,6 +55,9 @@ clean:
 
 test: test-all
 
+test-build-scripts:
+	bash build/test-assemble-release.sh
+
 test-rust:
 	$(CARGO) test --workspace
 
@@ -67,7 +70,7 @@ test-python:
 	$(PYTHON) -m pytest local-model/tests/ -v
 	cd lambda-server && $(PYTHON) test_server.py
 
-test-all: test-rust test-python
+test-all: test-rust test-python test-build-scripts
 
 verify:
 	bash scripts/verify-all.sh
@@ -113,7 +116,8 @@ help:
 	@echo "  iso            - Build the bootable ISO image"
 	@echo "  qemu           - Boot kernel+initramfs directly in QEMU"
 	@echo "  run            - Boot the ISO in QEMU"
-	@echo "  test           - Run all tests (Rust + Python)"
+	@echo "  test           - Run all tests (Rust + Python + build scripts)"
+	@echo "  test-build-scripts - Release assemble regression (CI rust-* glob)"
 	@echo "  verify         - Full verification (tests + builds + docs + inventory)"
 	@echo "  verify-docs    - Cross-check docs against component-inventory.yaml"
 	@echo "  coverage       - Rust test coverage (llvm-cov → build/coverage.lcov)"
