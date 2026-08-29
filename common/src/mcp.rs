@@ -1,6 +1,6 @@
+use super::error::McpError;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::error::McpError;
 
 /// MCP message structure
 #[derive(Debug, Serialize, Deserialize)]

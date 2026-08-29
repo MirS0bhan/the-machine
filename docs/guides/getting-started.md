@@ -94,7 +94,8 @@ make run           # boot the ISO (graphical if $DISPLAY is set)
 make run-console   # boot the ISO on the serial console (always nographic)
 ```
 
-Set `KERNEL=/path/to/vmlinuz` if auto-detection fails.
+QEMU uses KVM when `/dev/kvm` is readable, otherwise TCG. Set
+`KERNEL=/path/to/vmlinuz` if auto-detection fails.
 
 ## Documentation
 

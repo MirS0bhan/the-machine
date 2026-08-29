@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use hmac::{Hmac, Mac};
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
+use uuid::Uuid;
 
 /// Grant token for capability checks
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,7 +39,10 @@ impl TokenVerifier {
 
     pub fn verify(&self, token: &GrantToken) -> bool {
         // Simplified: just check if signature matches a HMAC of the token data
-        let data = format!("{}{}{}{}", token.token_id, token.issued_at, token.expires_at, token.scope.method);
+        let data = format!(
+            "{}{}{}{}",
+            token.token_id, token.issued_at, token.expires_at, token.scope.method
+        );
         let mut hasher = Hmac::<Sha256>::new_from_slice(&self.secret).unwrap();
         hasher.update(data.as_bytes());
         let result = hasher.finalize().into_bytes();

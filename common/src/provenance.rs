@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use hmac::{Hmac, Mac};
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 
 const HMAC_SECRET_SIZE: usize = 32;

@@ -477,7 +477,7 @@ async fn lease(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value 
         .insert(lid.clone(), persistent);
     ok(
         id,
-        json!({ "lease_id": lid, "socket_path": format!("/run/the-machine/leases/{}", lid) }),
+        json!({ "lease_id": lid, "socket_path": common::lease_socket(&lid) }),
     )
 }
 

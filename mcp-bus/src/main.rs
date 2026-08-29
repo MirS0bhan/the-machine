@@ -10,7 +10,7 @@ mod external;
 mod lease;
 mod registry;
 mod telemetry;
-use auth::{authorize_register, authorize_registrar, RegisterAuthError};
+use auth::{authorize_deregister, authorize_register, RegisterAuthError};
 use external::ExternalRegistry;
 use lease::LeaseManager;
 use registry::{infer_namespace, Namespace, Registry, RouteEntry};
@@ -200,9 +200,7 @@ async fn main() -> anyhow::Result<()> {
     // Rebuild dynamic routes persisted in State Store (Phase 3).
     reload_routes_from_state(&state).await;
 
-    let socket_path =
-        std::env::var("THE_MACHINE_SOCKET_DIR").unwrap_or_else(|_| "/run/the-machine".to_string());
-    let socket_path = format!("{}/mcp-bus.sock", socket_path);
+    let socket_path = common::bus_socket();
 
     if let Some(parent) = std::path::Path::new(&socket_path).parent() {
         tokio::fs::create_dir_all(parent).await?;
@@ -472,7 +470,7 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
                 .get("registered_by")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");
-            if !authorize_registrar(registered_by) {
+            if let Err(RegisterAuthError::Forbidden) = authorize_deregister(registered_by) {
                 warn!("rejected _bus.deregister from {}", registered_by);
                 return error_bytes(id, "E_FORBIDDEN", "deregistration not allowed");
             }
@@ -571,7 +569,7 @@ async fn forward_to(
     state: &AppState,
 ) -> Option<Vec<u8>> {
     let started = Instant::now();
-    let path = format!("/run/the-machine/{}.sock", handler_id);
+    let path = common::component_socket(handler_id);
     let mut stream = UnixStream::connect(&path).await.ok()?;
 
     let mut payload = raw.to_vec();
@@ -651,7 +649,7 @@ fn prefix_handler(method: &str) -> Option<String> {
     let id = match prefix {
         "event" | "bus" => "event-bus",
         "lambda" => "lambda-server",
-        "policy" => "policy-broker",
+        "policy" | "systemd" => "policy-broker",
         "ui" => "ui-runtime",
         "compositor" => "compositor",
         "agent" => "agent-core",
@@ -678,9 +676,7 @@ async fn persist_route(entry: &RouteEntry) {
         "registered_by": entry.registered_by,
         "manifest_ref": entry.manifest_ref,
     });
-    let sock = std::env::var("THE_MACHINE_SOCKET_DIR")
-        .map(|d| format!("{}/state-store.sock", d))
-        .unwrap_or_else(|_| "/run/the-machine/state-store.sock".into());
+    let sock = common::component_socket("state-store");
     let req = serde_json::json!({
         "id": 0,
         "kind": "Request",
@@ -700,9 +696,7 @@ async fn delete_persisted_route(namespace: Namespace, pattern: &str) {
         namespace.as_str().replace('-', "_"),
         pattern.replace('.', "_")
     );
-    let sock = std::env::var("THE_MACHINE_SOCKET_DIR")
-        .map(|d| format!("{}/state-store.sock", d))
-        .unwrap_or_else(|_| "/run/the-machine/state-store.sock".into());
+    let sock = common::component_socket("state-store");
     let req = serde_json::json!({
         "id": 0,
         "kind": "Request",
@@ -717,9 +711,7 @@ async fn delete_persisted_route(namespace: Namespace, pattern: &str) {
 }
 
 async fn reload_routes_from_state(state: &AppState) {
-    let sock = std::env::var("THE_MACHINE_SOCKET_DIR")
-        .map(|d| format!("{}/state-store.sock", d))
-        .unwrap_or_else(|_| "/run/the-machine/state-store.sock".into());
+    let sock = common::component_socket("state-store");
     let req = serde_json::json!({
         "id": 0,
         "kind": "Request",
@@ -829,9 +821,7 @@ async fn policy_allows(method: &str, params: Option<&serde_json::Value>) -> bool
         })
         .unwrap_or("mcp-bus");
 
-    let sock = std::env::var("THE_MACHINE_SOCKET_DIR")
-        .map(|d| format!("{}/policy-broker.sock", d))
-        .unwrap_or_else(|_| "/run/the-machine/policy-broker.sock".into());
+    let sock = common::component_socket("policy-broker");
     let req = serde_json::json!({
         "id": 1,
         "kind": "Request",
@@ -865,9 +855,7 @@ async fn policy_allows(method: &str, params: Option<&serde_json::Value>) -> bool
 }
 
 async fn validate_registration(params: &serde_json::Value) -> bool {
-    let sock = std::env::var("THE_MACHINE_SOCKET_DIR")
-        .map(|d| format!("{}/policy-broker.sock", d))
-        .unwrap_or_else(|_| "/run/the-machine/policy-broker.sock".into());
+    let sock = common::component_socket("policy-broker");
     let req = serde_json::json!({
         "id": 2,
         "kind": "Request",
@@ -945,8 +933,20 @@ mod tests {
             Some("marketplace")
         );
         assert_eq!(
-            prefix_handler("display.set_mode").as_deref(),
+            prefix_handler("display.get_modes").as_deref(),
             Some("system-daemon")
+        );
+        assert_eq!(
+            prefix_handler("net.list_interfaces").as_deref(),
+            Some("system-daemon")
+        );
+        assert_eq!(
+            prefix_handler("audio.list_devices").as_deref(),
+            Some("system-daemon")
+        );
+        assert_eq!(
+            prefix_handler("systemd.stop").as_deref(),
+            Some("policy-broker")
         );
     }
 }

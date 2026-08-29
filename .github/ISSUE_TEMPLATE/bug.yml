@@ -19,12 +19,13 @@ body:
     attributes:
       label: Area
       options:
-        - mcp-bus
-        - agent-core
+        - mcp-bus / sockets
+        - system-daemon
+        - agent-core / local-model
         - policy-broker
-        - lambda-server
         - state-store
         - event-bus
+        - lambda-server
         - ui / compositor
         - build / CI / ISO
         - documentation
@@ -41,5 +42,5 @@ body:
     id: repro
     attributes:
       label: Reproduction
-      description: Commands, logs, or a minimal sequence.
+      description: Commands, logs, or a minimal sequence (include socket paths and THE_MACHINE_* env vars).
       render: bash

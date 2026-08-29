@@ -4,7 +4,6 @@ use common::ProvenanceMarker;
 use serde_json::json;
 use std::fs::{File, OpenOptions};
 use std::io::Read;
-use std::os::unix::io::AsRawFd;
 use std::path::PathBuf;
 use tokio::io::AsyncWriteExt;
 use tracing::{info, warn};
@@ -76,7 +75,7 @@ fn discover_input_devices() -> Vec<PathBuf> {
             if path
                 .file_name()
                 .and_then(|n| n.to_str())
-                .map_or(false, |n| n.starts_with("event"))
+                .is_some_and(|n| n.starts_with("event"))
             {
                 out.push(path);
             }
@@ -93,12 +92,7 @@ fn run_evdev_loop(devices: Vec<PathBuf>, secret: [u8; 32]) {
     let mut seq: u64 = 0;
     let mut files: Vec<File> = devices
         .iter()
-        .filter_map(|p| {
-            OpenOptions::new()
-                .read(true)
-                .open(p)
-                .ok()
-        })
+        .filter_map(|p| OpenOptions::new().read(true).open(p).ok())
         .collect();
     if files.is_empty() {
         return;
@@ -112,13 +106,10 @@ fn run_evdev_loop(devices: Vec<PathBuf>, secret: [u8; 32]) {
                 value: 0,
             };
             let size = std::mem::size_of::<InputEvent>();
-            let mut buf = unsafe {
-                std::slice::from_raw_parts_mut(
-                    &mut ev as *mut InputEvent as *mut u8,
-                    size,
-                )
+            let buf = unsafe {
+                std::slice::from_raw_parts_mut(&mut ev as *mut InputEvent as *mut u8, size)
             };
-            match file.read_exact(&mut buf) {
+            match file.read_exact(buf) {
                 Ok(()) => dispatch_event(&ev, &verifier, &mut x, &mut y, &mut seq),
                 Err(_) => continue,
             }
@@ -147,12 +138,7 @@ fn dispatch_event(
         },
         EV_KEY if ev.code == BTN_LEFT && ev.value == 1 => {
             *seq += 1;
-            let marker = verifier.generate_marker(
-                ev.time.tv_sec as u64,
-                13,
-                0,
-                *seq,
-            );
+            let marker = verifier.generate_marker(ev.time.tv_sec as u64, 13, 0, *seq);
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build();
@@ -205,7 +191,9 @@ async fn bus_call(method: &str, params: serde_json::Value) -> Option<serde_json:
     bytes.push(b'\n');
     stream.write_all(&bytes).await.ok()?;
     let mut buf = vec![0u8; 65536];
-    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf).await.ok()?;
+    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf)
+        .await
+        .ok()?;
     let resp: serde_json::Value = serde_json::from_slice(&buf[..n]).ok()?;
     resp.get("result").cloned()
 }

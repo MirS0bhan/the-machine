@@ -6,8 +6,15 @@
 
 use crate::registry::Namespace;
 
-/// Identities allowed to call `_bus.register` / `_bus.deregister` over the socket.
-pub const SOCKET_REGISTRARS: &[&str] = &["lambda-server", "event-bus", "policy-broker"];
+/// Callers allowed to mutate the dynamic registry over the socket.
+pub const SOCKET_REGISTRARS: &[&str] = &[
+    "lambda-server",
+    "event-bus",
+    "policy-broker",
+    "marketplace",
+    "agent-core",
+    "local-model-daemon",
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegisterAuthError {
@@ -16,9 +23,9 @@ pub enum RegisterAuthError {
     HandlerMismatch,
 }
 
-/// Whether `registered_by` may use the internal registration MCP methods.
+/// Whether `registered_by` may call `_bus.register` / `_bus.deregister` over the socket.
 pub fn authorize_registrar(registered_by: &str) -> bool {
-    SOCKET_REGISTRARS.contains(&registered_by)
+    registered_by != "boot" && SOCKET_REGISTRARS.contains(&registered_by)
 }
 
 /// Authorize a runtime `_bus.register` request.
@@ -37,6 +44,14 @@ pub fn authorize_register(
     }
     if handler != registered_by {
         return Err(RegisterAuthError::HandlerMismatch);
+    }
+    Ok(())
+}
+
+/// Authorize a runtime `_bus.deregister` request.
+pub fn authorize_deregister(registered_by: &str) -> Result<(), RegisterAuthError> {
+    if !authorize_registrar(registered_by) {
+        return Err(RegisterAuthError::Forbidden);
     }
     Ok(())
 }
@@ -72,7 +87,7 @@ mod tests {
     #[test]
     fn unknown_registrar_is_rejected() {
         assert_eq!(
-            authorize_register("agent-core", "agent-core", Namespace::McpIntent),
+            authorize_register("evil", "evil", Namespace::McpIntent),
             Err(RegisterAuthError::Forbidden)
         );
     }
@@ -95,5 +110,19 @@ mod tests {
             authorize_register("lambda-server", "lambda-server", Namespace::StateOp),
             Err(RegisterAuthError::InvalidNamespace)
         );
+    }
+
+    #[test]
+    fn agent_core_may_register_own_intent() {
+        authorize_register("agent-core", "agent-core", Namespace::McpIntent).unwrap();
+    }
+
+    #[test]
+    fn deregister_rejects_boot() {
+        assert_eq!(
+            authorize_deregister("boot"),
+            Err(RegisterAuthError::Forbidden)
+        );
+        authorize_deregister("lambda-server").unwrap();
     }
 }

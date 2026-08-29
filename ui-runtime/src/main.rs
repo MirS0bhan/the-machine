@@ -548,11 +548,12 @@ async fn execute_binding(
 // MCP client helper (talks to the bus).
 // ---------------------------------------------------------------------------
 async fn mcp_call(method: &str, params: serde_json::Value) -> Option<serde_json::Value> {
-    let path = "/run/the-machine/mcp-bus.sock";
-    let stream = tokio::net::UnixStream::connect(path).await.ok()?;
+    let path = common::bus_socket();
+    let stream = tokio::net::UnixStream::connect(&path).await.ok()?;
     let (mut reader, mut writer) = stream.into_split();
     let req = McpMessage::request(Uuid::new_v4(), method, Some(params));
-    let bytes = serde_json::to_vec(&req).ok()?;
+    let mut bytes = serde_json::to_vec(&req).ok()?;
+    bytes.push(b'\n');
     writer.write_all(&bytes).await.ok()?;
     writer.flush().await.ok()?;
     let mut buf = vec![0u8; 65536];

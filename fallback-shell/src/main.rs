@@ -5,13 +5,13 @@
 //!   * --console          : interactive agent console that talks to mcp-bus
 
 use common::*;
-use tokio::net::UnixListener;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, AsyncReadExt, BufReader};
+use serde_json::Value;
+use std::io::{self, Write};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::unix::OwnedReadHalf;
 use tokio::net::unix::OwnedWriteHalf;
-use serde_json::Value;
-use tracing::{info, error};
-use std::io::{self, Write};
+use tokio::net::UnixListener;
+use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -29,9 +29,12 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting Fallback Shell (server mode)");
 
-    let socket_path = "/run/the-machine/fallback-shell.sock";
-    let _ = std::fs::remove_file(socket_path);
-    let listener = UnixListener::bind(socket_path)?;
+    let socket_path = common::component_socket("fallback-shell");
+    if let Some(parent) = std::path::Path::new(&socket_path).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::remove_file(&socket_path);
+    let listener = UnixListener::bind(&socket_path)?;
     info!("Fallback Shell listening on {}", socket_path);
 
     loop {
@@ -43,12 +46,14 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn run_console() -> anyhow::Result<()> {
-    let socket_path = std::env::var("THE_MACHINE_BUS_SOCKET")
-        .unwrap_or_else(|_| "/run/the-machine/mcp-bus.sock".to_string());
+    let socket_path = common::bus_socket();
     let stream = tokio::net::UnixStream::connect(&socket_path).await?;
     let (mut reader, mut writer) = stream.into_split();
 
-    println!("The Machine — agent console (connected to mcp-bus at {})", socket_path);
+    println!(
+        "The Machine — agent console (connected to mcp-bus at {})",
+        socket_path
+    );
     println!("Type '<method> <json-params>' or 'quit'. Example: state.get {{\"path\":\"/ui\"}}");
 
     let stdin = io::stdin();
@@ -81,7 +86,9 @@ async fn run_console() -> anyhow::Result<()> {
             "method": method,
             "params": params
         });
-        writer.write_all(&serde_json::to_vec(&req)?).await?;
+        let mut bytes = serde_json::to_vec(&req)?;
+        bytes.push(b'\n');
+        writer.write_all(&bytes).await?;
         writer.flush().await?;
 
         let mut resp = vec![0u8; 16384];
@@ -107,7 +114,9 @@ async fn bus_call(
         "method": method,
         "params": params,
     });
-    let _ = writer.write_all(&serde_json::to_vec(&req).unwrap()).await;
+    let mut bytes = serde_json::to_vec(&req).unwrap();
+    bytes.push(b'\n');
+    let _ = writer.write_all(&bytes).await;
     let _ = writer.flush().await;
     let mut resp = vec![0u8; 16384];
     let n = reader.read(&mut resp).await.unwrap_or(0);
@@ -116,8 +125,7 @@ async fn bus_call(
 
 /// bus responses. Used to self-verify wiring inside the initramfs.
 async fn run_selftest() -> anyhow::Result<()> {
-    let socket_path = std::env::var("THE_MACHINE_BUS_SOCKET")
-        .unwrap_or_else(|_| "/run/the-machine/mcp-bus.sock".to_string());
+    let socket_path = common::bus_socket();
     let stream = tokio::net::UnixStream::connect(&socket_path).await?;
     let (mut reader, mut writer) = stream.into_split();
 
@@ -179,15 +187,42 @@ async fn run_selftest() -> anyhow::Result<()> {
     .await;
     println!("[selftest] event.schedule -> {}", r);
 
-    let stats1 = bus_call(&mut writer, &mut reader, "event.stats", serde_json::json!({})).await;
-    let e1 = stats1.get("result").and_then(|v| v.get("events_emitted")).and_then(|v| v.as_u64()).unwrap_or(0);
+    let stats1 = bus_call(
+        &mut writer,
+        &mut reader,
+        "event.stats",
+        serde_json::json!({}),
+    )
+    .await;
+    let e1 = stats1
+        .get("result")
+        .and_then(|v| v.get("events_emitted"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
 
     tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
 
-    let stats2 = bus_call(&mut writer, &mut reader, "event.stats", serde_json::json!({})).await;
-    let e2 = stats2.get("result").and_then(|v| v.get("events_emitted")).and_then(|v| v.as_u64()).unwrap_or(0);
-    let scheduled = stats2.get("result").and_then(|v| v.get("scheduled_events")).and_then(|v| v.as_u64()).unwrap_or(0);
-    println!("[selftest] event.stats e1={} e2={} scheduled={}", e1, e2, scheduled);
+    let stats2 = bus_call(
+        &mut writer,
+        &mut reader,
+        "event.stats",
+        serde_json::json!({}),
+    )
+    .await;
+    let e2 = stats2
+        .get("result")
+        .and_then(|v| v.get("events_emitted"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let scheduled = stats2
+        .get("result")
+        .and_then(|v| v.get("scheduled_events"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    println!(
+        "[selftest] event.stats e1={} e2={} scheduled={}",
+        e1, e2, scheduled
+    );
 
     let pass = decision == "AgentWake" && e2 > e1 && scheduled >= 1;
     println!("[selftest] EVENTBUS {}", if pass { "PASS" } else { "FAIL" });
@@ -297,12 +332,15 @@ async fn run_selftest() -> anyhow::Result<()> {
     }
 
     let pass_lambda = add_stdout.contains("5") && !add_killed && bad_killed;
-    println!("[selftest] LAMBDA {}", if pass_lambda { "PASS" } else { "FAIL" });
+    println!(
+        "[selftest] LAMBDA {}",
+        if pass_lambda { "PASS" } else { "FAIL" }
+    );
 
     Ok(())
 }
 
-async fn handle_connection(mut stream: tokio::net::UnixStream) {
+async fn handle_connection(stream: tokio::net::UnixStream) {
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
@@ -317,15 +355,29 @@ async fn handle_connection(mut stream: tokio::net::UnixStream) {
                         MessageKind::Request => {
                             let method = msg.method.unwrap_or_default();
                             match method.as_str() {
-                                "shell.status" => success_response(&msg.id, serde_json::json!({"active": false})),
-                                "shell.activate" => success_response(&msg.id, serde_json::json!({})),
-                                "hello" => success_response(&msg.id, serde_json::json!({"status": "ok"})),
-                                _ => error_response(&msg.id, "E_NOT_FOUND", &format!("Unknown method: {}", method)),
+                                "shell.status" => {
+                                    success_response(&msg.id, serde_json::json!({"active": false}))
+                                }
+                                "shell.activate" => {
+                                    success_response(&msg.id, serde_json::json!({}))
+                                }
+                                "hello" => {
+                                    success_response(&msg.id, serde_json::json!({"status": "ok"}))
+                                }
+                                _ => error_response(
+                                    &msg.id,
+                                    "E_NOT_FOUND",
+                                    &format!("Unknown method: {}", method),
+                                ),
                             }
                         }
-                        _ => error_response(&msg.id, "E_INVALID_REQUEST", "Only requests supported"),
+                        _ => {
+                            error_response(&msg.id, "E_INVALID_REQUEST", "Only requests supported")
+                        }
                     };
-                    let _ = writer.write_all(serde_json::to_string(&response).unwrap().as_bytes()).await;
+                    let _ = writer
+                        .write_all(serde_json::to_string(&response).unwrap().as_bytes())
+                        .await;
                     let _ = writer.write_all(b"\n").await;
                 }
             }

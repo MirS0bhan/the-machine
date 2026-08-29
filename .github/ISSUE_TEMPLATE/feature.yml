@@ -7,6 +7,20 @@ body:
     attributes:
       value: |
         If this is a known north-star gap, prefer commenting on / implementing the ID in `docs/architecture/gap-analysis.md` instead of a new issue.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - runtime / sockets
+        - policy / security
+        - UI / compositor
+        - build / pipelines
+        - documentation
+        - developer experience
+        - other
+    validations:
+      required: true
   - type: textarea
     id: problem
     attributes:
