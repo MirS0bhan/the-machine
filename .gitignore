@@ -8,4 +8,6 @@ __pycache__/
 /build/the-machine.iso
 /build/*.cpio*
 /build/vmlinuz*
+/build/verify-wheels
+/build/artifacts
 

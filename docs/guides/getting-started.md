@@ -70,9 +70,8 @@ cargo run --bin agent-core &
 ## Test
 
 ```bash
-make test          # Rust workspace tests
-make test-python   # Python unit + integration tests
 make test-all      # Everything
+make verify        # Full verification: tests + builds + docs + inventory
 ```
 
 ## Boot in QEMU
