@@ -21,7 +21,10 @@ build-release:
 	$(CARGO) build --workspace --release
 
 # Assemble the bootable initramfs (busybox + our Rust services).
-initramfs:
+fetch-model:
+	bash build/fetch-model.sh
+
+initramfs: fetch-model
 	bash build/mkinitramfs.sh debug
 
 initramfs-release:
@@ -87,6 +90,8 @@ rootfs-release:
 
 install-help:
 	@echo "Run: sudo bash build/installer/install.sh /dev/sdX"
+
+ci-package: build-release initramfs-release iso-release
 	bash build/ci-package-artifacts.sh build/artifacts release
 
 help:

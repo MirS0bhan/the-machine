@@ -3,6 +3,10 @@ name = "local-model-daemon"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+native = []
+
 [dependencies]
 common = { path = "../common" }
 tokio = { workspace = true }

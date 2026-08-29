@@ -56,6 +56,15 @@ for svc in "${SERVICES[@]}"; do
   fi
 done
 
+# Bundle GGUF model when available (G11).
+MODEL_SRC="${ROOT}/build/models/machine-tiny.gguf"
+if [[ -f "${MODEL_SRC}" ]]; then
+  mkdir -p "${STAGE}/models"
+  echo "==> Bundling GGUF model ($(du -h "${MODEL_SRC}" | cut -f1))"
+  cp "${MODEL_SRC}" "${STAGE}/models/machine-tiny.gguf"
+  export LOCAL_MODEL_PATH="/models/machine-tiny.gguf"
+fi
+
 # Init script: start services in boot order (L0 → L3 → L1 → L4 → L5).
 cat > "${STAGE}/init" <<'INIT'
 #!/bin/sh
@@ -66,6 +75,8 @@ export WAYLAND_DISPLAY=wayland-0
 export STATE_STORE_BACKEND=sled
 export STATE_STORE_PATH=/var/the-machine/state
 export THE_MACHINE_LAMBDA_DIR=/var/the-machine/lambdas
+export LOCAL_MODEL_PATH=/models/machine-tiny.gguf
+mkdir -p /var/the-machine/state /var/the-machine/lambdas /models
 
 mount -t proc proc /proc
 mount -t sysfs sys /sys

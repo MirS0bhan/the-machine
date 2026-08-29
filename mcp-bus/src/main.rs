@@ -123,6 +123,7 @@ async fn main() -> anyhow::Result<()> {
             "policy.validate_register",
             "policy.confirm",
             "policy.confirm_result",
+            "policy.confirmation.pending",
             "systemd.stop",
             "systemd.restart",
             "systemd.disable",
@@ -133,7 +134,7 @@ async fn main() -> anyhow::Result<()> {
         for m in ["ui.patch", "ui.get", "ui.bind", "ui.tree", "ui.event", "ui.status"] {
             reg.register(m, "ui-runtime", true).unwrap();
         }
-        for m in ["compositor.surface", "compositor.blur", "compositor.focus", "compositor.input", "compositor.present", "compositor.list", "compositor.status"] {
+        for m in ["compositor.surface", "compositor.blur", "compositor.focus", "compositor.input", "compositor.present", "compositor.list", "compositor.status", "compositor.confirmation.set_active"] {
             reg.register(m, "compositor", true).unwrap();
         }
         for m in [

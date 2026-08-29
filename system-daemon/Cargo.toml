@@ -16,6 +16,7 @@ chrono = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 common = { path = "../common" }
+libc = { workspace = true }
 
 # For Unix sockets
 tokio-util = { workspace = true }

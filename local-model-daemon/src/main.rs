@@ -1,4 +1,5 @@
 mod engine;
+mod gguf;
 
 use common::*;
 use engine::Engine;
@@ -12,6 +13,8 @@ use uuid::Uuid;
 
 struct AppState {
     engine: Engine,
+    model_path: String,
+    native_loaded: bool,
 }
 
 #[tokio::main]
@@ -20,8 +23,16 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string()))
         .init();
     info!("Local Model daemon starting");
+    let model_path = std::env::var("LOCAL_MODEL_PATH")
+        .unwrap_or_else(|_| "/models/machine-tiny.gguf".into());
+    let native = gguf::NativeModel::open(&model_path);
+    if native.is_some() {
+        info!("GGUF model loaded from {}", model_path);
+    }
     let state = Arc::new(Mutex::new(AppState {
         engine: Engine::new(),
+        model_path,
+        native_loaded: native.is_some(),
     }));
     let socket_dir =
         std::env::var("THE_MACHINE_SOCKET_DIR").unwrap_or_else(|_| "/run/the-machine".to_string());
@@ -94,7 +105,15 @@ async fn handle_request(value: Value, state: Arc<Mutex<AppState>>) -> Value {
     let params = value.get("params").cloned().unwrap_or(Value::Null);
     let st = state.lock().await;
     match method.as_str() {
-        "localmodel.health" => ok(id, st.engine.health()),
+        "localmodel.health" => ok(
+            id,
+            json!({
+                "status": if st.native_loaded || !st.engine.health().get("status").and_then(|v| v.as_str()).unwrap_or("").contains("stub") { "ready" } else { "stub" },
+                "model_path": st.model_path,
+                "gguf_loaded": st.native_loaded,
+                "backend": st.engine.health(),
+            }),
+        ),
         "localmodel.complete" => {
             let prompt = params.get("prompt").and_then(|v| v.as_str()).unwrap_or("");
             let max_tokens = params.get("max_tokens").and_then(|v| v.as_u64()).unwrap_or(512) as u32;

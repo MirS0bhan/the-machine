@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::types::CheckResponse;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct PendingConfirmation {
     pub correlation_id: String,
     pub capability: String,
@@ -59,5 +59,17 @@ impl ConfirmationDaemon {
 
     pub fn get_status(&self, correlation_id: &str) -> Option<&PendingConfirmation> {
         self.pending.get(correlation_id)
+    }
+
+    pub fn list_pending(&self) -> Vec<PendingConfirmation> {
+        self.pending
+            .values()
+            .filter(|p| p.status == "Pending")
+            .cloned()
+            .collect()
+    }
+
+    pub fn pending_count(&self) -> usize {
+        self.pending.values().filter(|p| p.status == "Pending").count()
     }
 }

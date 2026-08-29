@@ -256,13 +256,24 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, tree:
             let event_payload = params.get("payload").cloned().unwrap_or(serde_json::Value::Null);
             let bindings = {
                 let t = tree.lock().await;
-                t.get(&nid)
-                    .map(|n| n.bindings.clone())
-                    .unwrap_or_default()
+                let node = t.get(&nid);
+                let props = node
+                    .map(|n| serde_json::to_value(&n.props).unwrap_or(serde_json::Value::Null))
+                    .unwrap_or(serde_json::Value::Null);
+                let b = node.map(|n| n.bindings.clone()).unwrap_or_default();
+                (b, props)
             };
             let mut results = Vec::new();
-            for b in &bindings {
-                let r = execute_binding(b, &event, &event_payload).await;
+            for b in &bindings.0 {
+                let mut merged = event_payload.clone();
+                if let Some(obj) = merged.as_object_mut() {
+                    if let Some(pobj) = bindings.1.as_object() {
+                        for (k, v) in pobj {
+                            obj.insert(k.clone(), v.clone());
+                        }
+                    }
+                }
+                let r = execute_binding(b, &event, &merged).await;
                 results.push(serde_json::json!({ "target": b.target, "result": r }));
             }
             success_response(&id, serde_json::json!({ "handled": results.len(), "results": results }))
@@ -448,11 +459,16 @@ async fn execute_binding(
 ) -> Option<serde_json::Value> {
     match binding.kind.as_str() {
         "mcp" => {
-            mcp_call(
-                &binding.target,
-                serde_json::json!({ "event": event, "payload": payload }),
-            )
-            .await
+            let mut params = serde_json::json!({ "event": event, "payload": payload });
+            if binding.target == "policy.confirm" {
+                if let Some(cid) = payload.get("correlation_id").and_then(|v| v.as_str()) {
+                    params = serde_json::json!({
+                        "correlation_id": cid,
+                        "approved": payload.get("approved").and_then(|v| v.as_bool()).unwrap_or(false),
+                    });
+                }
+            }
+            mcp_call(&binding.target, params).await
         }
         "state" => {
             mcp_call("state.get", serde_json::json!({ "path": binding.target }))

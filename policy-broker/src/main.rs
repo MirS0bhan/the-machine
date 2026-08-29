@@ -12,6 +12,7 @@ use tracing::{error, info};
 
 mod audit;
 mod confirmation;
+mod confirmation_ui;
 mod policy_engine;
 mod types;
 
@@ -40,6 +41,13 @@ async fn main() -> anyhow::Result<()> {
         confirmation: Arc::new(Mutex::new(confirmation::ConfirmationDaemon::new())),
         tokens: Arc::new(RwLock::new(HashMap::new())),
     };
+
+    {
+        let confirmation = state.confirmation.clone();
+        tokio::spawn(async move {
+            confirmation_ui::run_confirmation_ui_loop(confirmation).await;
+        });
+    }
 
     let socket_dir =
         std::env::var("THE_MACHINE_SOCKET_DIR").unwrap_or_else(|_| "/run/the-machine".to_string());
@@ -326,13 +334,21 @@ async fn handle_request(
             }
             error_response(req_id, "E_INVALID_REQUEST", "Invalid token_id")
         }
-        "policy.hold_status" => success_response(
-            req_id,
-            serde_json::json!({
-                "status": "Pending",
-                "reason": "Awaiting confirmation",
-            }),
-        ),
+        "policy.hold_status" => {
+            let count = state.confirmation.lock().await.pending_count();
+            success_response(
+                req_id,
+                serde_json::json!({
+                    "status": if count > 0 { "Pending" } else { "Clear" },
+                    "pending_confirmations": count,
+                    "reason": if count > 0 { "Awaiting confirmation" } else { "none" },
+                }),
+            )
+        }
+        "policy.confirmation.pending" => {
+            let list = state.confirmation.lock().await.list_pending();
+            success_response(req_id, serde_json::json!({ "pending": list }))
+        }
         _ => error_response(req_id, "E_NOT_FOUND", &format!("Unknown method: {}", method)),
     }
 }
