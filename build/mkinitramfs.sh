@@ -103,8 +103,11 @@ start_svc compositor
 start_svc ui-runtime
 start_svc fallback-shell
 
-echo "[init] boot complete — spawning console"
-exec /bin/sh
+echo "[init] boot complete — compositor + ui-runtime active"
+echo "[init] fallback console available via Ctrl+Alt+F1"
+
+# Keep PID 1 alive; services run in background.
+while true; do sleep 3600; done
 INIT
 chmod +x "${STAGE}/init"
 

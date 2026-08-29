@@ -13,6 +13,7 @@ tracing-subscriber = { workspace = true }
 uuid = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
+chrono = { workspace = true }
 
 [[bin]]
 name = "agent-core"

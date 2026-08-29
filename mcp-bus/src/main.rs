@@ -6,7 +6,7 @@ use tracing::{info, error, debug, warn};
 use common::*;
 
 mod registry;
-use registry::Registry;
+use registry::{infer_namespace, Namespace, Registry, RouteEntry};
 
 #[derive(Clone)]
 struct AppState {
@@ -49,13 +49,11 @@ async fn main() -> anyhow::Result<()> {
         reg.register("state-op:state.set", "state-store", true).unwrap();
         reg.register("state-op:state.patch", "state-store", true).unwrap();
         reg.register("state-op:state.watch", "state-store", true).unwrap();
-        // Bare names (as implemented by the service handlers) for direct routing.
         reg.register("state.get", "state-store", true).unwrap();
         reg.register("state.set", "state-store", true).unwrap();
         reg.register("state.patch", "state-store", true).unwrap();
         reg.register("state.watch", "state-store", true).unwrap();
 
-        // Event/Scheduler Bus surface.
         for m in [
             "event.publish",
             "event.emit",
@@ -73,17 +71,20 @@ async fn main() -> anyhow::Result<()> {
         ] {
             reg.register(m, "event-bus", true).unwrap();
         }
+        // Bus introspection + internal registration handled locally.
+        reg.register("bus.resolve", "mcp-bus", true).unwrap();
+        reg.register("bus.list_routes", "mcp-bus", true).unwrap();
+        reg.register("_bus.register", "mcp-bus", true).unwrap();
 
-        // Agent Core surface.
         for m in [
             "agent.status",
             "agent.interrupt",
             "agent.local_only_mode",
+            "agent.skills.list",
         ] {
             reg.register(m, "agent-core", true).unwrap();
         }
 
-        // Lambda Server surface.
         for m in [
             "lambda.invoke",
             "lambda.register",
@@ -91,11 +92,11 @@ async fn main() -> anyhow::Result<()> {
             "lambda.list",
             "lambda.health",
             "lambda.stop",
+            "lambda.search",
         ] {
             reg.register(m, "lambda-server", true).unwrap();
         }
 
-        // Policy Broker surface.
         for m in [
             "policy.check",
             "policy.grant",
@@ -109,8 +110,7 @@ async fn main() -> anyhow::Result<()> {
             reg.register(m, "policy-broker", true).unwrap();
         }
 
-        // UI Runtime + Compositor surface.
-        for m in ["ui.patch", "ui.get", "ui.bind", "ui.tree"] {
+        for m in ["ui.patch", "ui.get", "ui.bind", "ui.tree", "ui.event", "ui.status"] {
             reg.register(m, "ui-runtime", true).unwrap();
         }
         for m in ["compositor.surface", "compositor.blur", "compositor.focus"] {
@@ -186,28 +186,33 @@ async fn process_mcp_message(data: &[u8], state: &AppState) -> Option<Vec<u8>> {
 
     debug!("Handling method: {}", method);
 
-    // Resolve method to handler
-    let reg = state.registry.lock().await;
-    let handler = reg.resolve(method);
+    // Bus-local introspection and internal registration.
+    if method == "bus.resolve" || method == "bus.list_routes" || method == "_bus.register" {
+        return Some(handle_bus_local(method, &msg, state).await);
+    }
 
-    match handler {
-        Some(handler_id) => {
-            // Forward the raw request to the handler's Unix socket and relay its response.
-            match forward_to(&handler_id, data).await {
+    let reg = state.registry.lock().await;
+    let resolved = reg.resolve_full(method);
+
+    match resolved {
+        Some(route) => {
+            let handler_id = route.handler.clone();
+            drop(reg);
+            match forward_to(&handler_id, data, method, route.manifest_ref.as_deref()).await {
                 Some(resp) => Some(resp),
                 None => Some(error_bytes(id, "E_HANDLER_UNAVAILABLE",
                     &format!("Handler {} not reachable", handler_id))),
             }
         }
         None => {
-            // No static handler: try prefix-based routing (e.g. ui.* -> ui-runtime).
+            drop(reg);
             if let Some(handler_id) = prefix_handler(method) {
-                match forward_to(&handler_id, data).await {
+                match forward_to(&handler_id, data, method, None).await {
                     Some(resp) => Some(resp),
                     None => Some(error_bytes(id, "E_HANDLER_UNAVAILABLE",
                         &format!("Handler {} not reachable", handler_id))),
                 }
-            } else if method.starts_with("mcp-intent:") {
+            } else if method.starts_with("mcp-intent:") || infer_namespace(method) == Namespace::McpIntent {
                 Some(error_bytes(id, "E_AGENT_REQUIRED",
                     "No handler registered, agent needed"))
             } else {
@@ -218,13 +223,142 @@ async fn process_mcp_message(data: &[u8], state: &AppState) -> Option<Vec<u8>> {
     }
 }
 
-/// Forward `raw` (the original request bytes) to the handler component's socket
-/// at /run/the-machine/<handler>.sock and return its response bytes.
-async fn forward_to(handler_id: &str, raw: &[u8]) -> Option<Vec<u8>> {
+async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppState) -> Vec<u8> {
+    let id = msg.get("id").and_then(|i| i.as_u64()).unwrap_or(0);
+    let params = msg.get("params").cloned().unwrap_or(serde_json::Value::Null);
+
+    match method {
+        "bus.resolve" => {
+            let target = params
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let reg = state.registry.lock().await;
+            match reg.resolve_full(target) {
+                Some(r) => ok_bytes(id, serde_json::json!({
+                    "method": target,
+                    "namespace": r.namespace.as_str(),
+                    "handler": r.handler,
+                    "pattern": r.pattern,
+                    "manifest_ref": r.manifest_ref,
+                })),
+                None => ok_bytes(id, serde_json::json!({
+                    "method": target,
+                    "decision": "AgentWake",
+                    "reason": "NoMatch",
+                })),
+            }
+        }
+        "bus.list_routes" => {
+            let ns = params
+                .get("namespace")
+                .and_then(|v| v.as_str())
+                .and_then(registry::Namespace::from_str);
+            let reg = state.registry.lock().await;
+            let routes: Vec<serde_json::Value> = reg
+                .list_routes(ns)
+                .into_iter()
+                .map(|e| serde_json::json!({
+                    "namespace": e.namespace.as_str(),
+                    "pattern": e.pattern,
+                    "handler": e.handler,
+                    "registered_by": e.registered_by,
+                    "manifest_ref": e.manifest_ref,
+                }))
+                .collect();
+            ok_bytes(id, serde_json::json!({ "routes": routes }))
+        }
+        "_bus.register" => {
+            let registered_by = params
+                .get("registered_by")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            // Only trusted infrastructure components may register routes.
+            let allowed = matches!(
+                registered_by,
+                "lambda-server" | "event-bus" | "policy-broker" | "boot"
+            );
+            if !allowed {
+                warn!("rejected _bus.register from {}", registered_by);
+                return error_bytes(id, "E_FORBIDDEN", "registration not allowed");
+            }
+            let namespace = params
+                .get("namespace")
+                .and_then(|v| v.as_str())
+                .and_then(registry::Namespace::from_str)
+                .unwrap_or(Namespace::McpIntent);
+            let pattern = match params.get("pattern").and_then(|v| v.as_str()) {
+                Some(p) if !p.is_empty() => p.to_string(),
+                _ => return error_bytes(id, "E_INVALID", "pattern required"),
+            };
+            let handler = match params.get("handler").and_then(|v| v.as_str()) {
+                Some(h) => h.to_string(),
+                _ => return error_bytes(id, "E_INVALID", "handler required"),
+            };
+            let manifest_ref = params
+                .get("manifest_ref")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let entry = RouteEntry {
+                namespace,
+                pattern,
+                handler,
+                registered_by: registered_by.to_string(),
+                manifest_ref,
+                trusted: true,
+            };
+            let mut reg = state.registry.lock().await;
+            match reg.register_route(entry) {
+                Ok(()) => ok_bytes(id, serde_json::json!({ "registered": true })),
+                Err(e) => error_bytes(id, "E_COLLISION", &e.to_string()),
+            }
+        }
+        _ => error_bytes(id, "E_NOT_FOUND", "unknown bus method"),
+    }
+}
+
+/// Forward `raw` to the handler component's socket. For lambda-hosted mcp-intent
+/// calls, attach routing metadata so lambda-server can invoke the right function.
+async fn forward_to(
+    handler_id: &str,
+    raw: &[u8],
+    original_method: &str,
+    manifest_ref: Option<&str>,
+) -> Option<Vec<u8>> {
     let path = format!("/run/the-machine/{}.sock", handler_id);
     let mut stream = UnixStream::connect(&path).await.ok()?;
 
-    let mut buf = raw.to_vec();
+    let mut payload = raw.to_vec();
+    // Inject routing hint for lambda-hosted intent proxies.
+    if handler_id == "lambda-server" && manifest_ref.is_some() {
+        if let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(raw) {
+            if let Some(params) = v.get_mut("params") {
+                if params.is_null() {
+                    *params = serde_json::json!({});
+                }
+                if let Some(obj) = params.as_object_mut() {
+                    obj.insert(
+                        "_route_method".into(),
+                        serde_json::Value::String(original_method.into()),
+                    );
+                    if let Some(name) = manifest_ref {
+                        obj.insert(
+                            "_route_lambda".into(),
+                            serde_json::Value::String(name.into()),
+                        );
+                    }
+                }
+            } else {
+                v["params"] = serde_json::json!({
+                    "_route_method": original_method,
+                    "_route_lambda": manifest_ref,
+                });
+            }
+            payload = serde_json::to_vec(&v).ok()?;
+        }
+    }
+
+    let mut buf = payload;
     if !buf.ends_with(b"\n") {
         buf.push(b'\n');
     }
@@ -239,6 +373,14 @@ async fn forward_to(handler_id: &str, raw: &[u8]) -> Option<Vec<u8>> {
     Some(line.into_bytes())
 }
 
+fn ok_bytes(id: u64, result: serde_json::Value) -> Vec<u8> {
+    serde_json::to_vec(&serde_json::json!({
+        "id": id,
+        "result": result
+    }))
+    .unwrap()
+}
+
 fn error_bytes(id: u64, code: &str, message: &str) -> Vec<u8> {
     serde_json::to_vec(&serde_json::json!({
         "id": id,
@@ -246,8 +388,6 @@ fn error_bytes(id: u64, code: &str, message: &str) -> Vec<u8> {
     })).unwrap()
 }
 
-/// Map a method to its owning component by the segment before the first dot,
-/// so unregistered methods like `ui.get_tree` still reach `ui-runtime`.
 fn prefix_handler(method: &str) -> Option<String> {
     let prefix = method.split('.').next()?;
     let id = match prefix {
