@@ -32,7 +32,7 @@ KERNEL_STAGE="${BUILD_DIR}/vmlinuz"
 if cp "${KERNEL}" "${KERNEL_STAGE}" 2>/dev/null; then
   :
 elif sudo cp "${KERNEL}" "${KERNEL_STAGE}" 2>/dev/null; then
-  :
+  sudo chmod a+r "${KERNEL_STAGE}"
 else
   echo "ERROR: cannot read kernel at ${KERNEL}" >&2
   exit 1
