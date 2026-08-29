@@ -57,6 +57,17 @@ def parse_verify_all_bins() -> list[str]:
     return bins
 
 
+def parse_assemble_release_services() -> list[str]:
+    text = (ROOT / "build/assemble-release.sh").read_text()
+    m = re.search(r"RUST_SERVICES=\(\n((?:\s+[^\n]+\n)+)\)", text)
+    if not m:
+        fail("Could not parse RUST_SERVICES from build/assemble-release.sh")
+    services: list[str] = []
+    for line in m.group(1).splitlines():
+        services.extend(line.strip().split())
+    return services
+
+
 def parse_cargo_members() -> list[str]:
     text = (ROOT / "Cargo.toml").read_text()
     members: list[str] = []
@@ -110,6 +121,14 @@ def main() -> None:
         errors.append(f"verify-all.sh missing binaries: {missing_bins}")
     if extra_bins:
         errors.append(f"verify-all.sh unexpected binaries: {extra_bins}")
+
+    assemble_svcs = parse_assemble_release_services()
+    missing_assemble = sorted(set(expected_bins) - set(assemble_svcs))
+    extra_assemble = sorted(set(assemble_svcs) - set(expected_bins))
+    if missing_assemble:
+        errors.append(f"assemble-release.sh missing services: {missing_assemble}")
+    if extra_assemble:
+        errors.append(f"assemble-release.sh unexpected services: {extra_assemble}")
 
     members = parse_cargo_members()
     for crate in inv["rust_crates"]:
@@ -187,6 +206,7 @@ def main() -> None:
 
     pass_(f"boot services ({len(boot_inv)}) match mkinitramfs.sh")
     pass_(f"Rust binaries ({len(rust_bins)}) match component inventory")
+    pass_(f"assemble-release.sh services ({len(assemble_svcs)}) match inventory")
     pass_(f"Cargo workspace ({len(members)} members) matches inventory")
     pass_(f"Python packages ({len(inv['python_packages'])}) present")
     pass_(f"Key docs mention new services (local-model-daemon, marketplace)")

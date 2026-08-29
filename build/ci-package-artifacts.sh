@@ -14,6 +14,8 @@ RUST_SERVICES=(
   state-store
   event-bus
   lambda-server
+  local-model-daemon
+  marketplace
   agent-core
   ui-runtime
   compositor

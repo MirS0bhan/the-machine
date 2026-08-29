@@ -3,11 +3,12 @@
 ## Running tests
 
 ```bash
-make test-all       # Rust workspace + Python suites (recommended)
-make test-rust      # cargo test --workspace
-make test-python    # integration + component tests
-make verify         # tests + release build + docs + inventory + initramfs
-make verify-docs    # documentation ↔ code cross-check only
+make test-all            # Rust + Python + build-script tests (recommended)
+make test-rust           # cargo test --workspace
+make test-python         # integration + component tests
+make test-build-scripts  # release assemble regression (CI rust-* glob)
+make verify              # tests + release build + docs + inventory + initramfs
+make verify-docs         # documentation ↔ code cross-check only
 ```
 
 ## Python coverage
@@ -29,7 +30,9 @@ Integration tests in `tests/integration/` exercise the Python MCP reference serv
 make coverage   # writes build/coverage.lcov (gitignored)
 ```
 
-CI uploads `rust-coverage` artifact on every `main` push.
+CI uploads the `coverage-lcov` artifact on every `main` push.
+Do not name that artifact `rust-*`: `package-release` downloads every `rust-*`
+artifact and must only treat same-named executables as service binaries.
 
 ### Unit tests (Rust)
 
