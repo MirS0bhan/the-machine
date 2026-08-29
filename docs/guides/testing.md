@@ -7,6 +7,7 @@ make test-all            # Rust + Python + build-script tests (recommended)
 make test-rust           # cargo test --workspace
 make test-python         # integration + component tests
 make test-build-scripts  # release assemble regression (CI rust-* glob)
+make lint                # rustfmt + clippy (mcp-bus)
 make verify              # tests + release build + docs + inventory + initramfs
 make verify-docs         # documentation ↔ code cross-check only
 ```
@@ -39,7 +40,9 @@ artifact and must only treat same-named executables as service binaries.
 | Crate | Module | Tests |
 |-------|--------|-------|
 | policy-broker | `policy_engine.rs` | allow/deny/first-match/default-deny |
-| mcp-bus | `registry.rs` | exact/wildcard resolve, pattern matching |
+| mcp-bus | `registry.rs` | exact/wildcard resolve, pattern matching, deregister |
+| mcp-bus | `auth.rs` | `_bus.register` identity / namespace / handler checks |
+| mcp-bus | `main.rs` | newline-delimited responses, prefix fallback |
 | compositor | `pixel.rs` | framebuffer buffer, color hash |
 | system-daemon | `input.rs` | evdev struct size |
 | lambda-server | `validate.rs` | forbidden patterns, schema inference |

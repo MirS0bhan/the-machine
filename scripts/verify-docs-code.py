@@ -186,6 +186,28 @@ def main() -> None:
     for gap_id in ["G2", "G5", "G11", "G15"]:
         if f"**{gap_id}**" not in gap and f"[x] **{gap_id}**" not in gap:
             errors.append(f"gap-analysis.md missing closed gap {gap_id}")
+    if "**D3**" not in gap or "newline-delimited JSON" not in gap:
+        errors.append("gap-analysis.md D3 should be marked closed (newline JSON)")
+
+    arch = (ROOT / "ARCHITECTURE.md").read_text()
+    if "pre-implementation" in arch.lower() or "pre‑implementation" in arch.lower():
+        errors.append("ARCHITECTURE.md still claims pre-implementation status")
+
+    mcp_comp = (ROOT / "docs/components/mcp-bus.md").read_text()
+    if "Length-prefixed, similar to Cap'n Proto" in mcp_comp:
+        errors.append("docs/components/mcp-bus.md still documents length-prefixed framing")
+    if "Newline-delimited JSON" not in mcp_comp:
+        errors.append("docs/components/mcp-bus.md missing newline-delimited JSON contract")
+
+    # Component "See Also" links must point at sibling pages, not ../<name>.md
+    # (those resolve to docs/<name>.md, which does not exist).
+    for path in (ROOT / "docs/components").glob("*.md"):
+        for match in re.finditer(r"\]\(\.\./([a-z0-9-]+)\.md\)", path.read_text()):
+            target = match.group(1)
+            if (ROOT / "docs/components" / f"{target}.md").exists():
+                errors.append(
+                    f"{path.relative_to(ROOT)} See Also link ../{target}.md should be ./{target}.md"
+                )
 
     env_docs = "\n".join(
         p.read_text() for p in [

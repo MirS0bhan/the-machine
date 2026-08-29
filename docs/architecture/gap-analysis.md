@@ -29,7 +29,7 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 - [x] **G1** Production cloud API key management (`agent-core/secrets.rs`, file + env, policy-gated)
 - [x] **G6** Rust AUIL parser in boot path (`ui-runtime/auil.rs`, `build/boot.auil`, `ui.auil.load`)
 - [x] **G16** DRM/KMS compositor backend (`compositor/drm.rs`, auto-select via `THE_MACHINE_COMPOSITOR_BACKEND`)
-- [x] **D3** MCP wire protocol docs aligned to NDJSON (`docs/components/mcp-bus.md`)
+- [x] **D3** MCP wire protocol docs aligned to NDJSON (`docs/components/mcp-bus.md` documents newline-delimited JSON)
 - [x] **D4** README/runtime-model sync (`make verify-docs` + component-inventory.yaml)
 - [x] **C1** CI release bundle rust-coverage artifact trap (`build/assemble-release.sh`)
 

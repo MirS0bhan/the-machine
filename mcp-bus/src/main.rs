@@ -1,19 +1,21 @@
-use std::sync::Arc;
-use tokio::net::{UnixListener, UnixStream};
-use tokio::io::{AsyncReadExt, AsyncWriteExt, AsyncBufReadExt, BufReader};
-use tokio::sync::Mutex;
-use tracing::{info, error, debug, warn};
 use common::*;
+use std::sync::Arc;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::{UnixListener, UnixStream};
+use tokio::sync::Mutex;
+use tracing::{debug, error, info, warn};
 
-mod registry;
-mod lease;
+mod auth;
 mod external;
+mod lease;
+mod registry;
 mod telemetry;
-use registry::{infer_namespace, Namespace, Registry, RouteEntry};
-use lease::LeaseManager;
+use auth::{authorize_register, authorize_registrar, RegisterAuthError};
 use external::ExternalRegistry;
-use telemetry::Telemetry;
+use lease::LeaseManager;
+use registry::{infer_namespace, Namespace, Registry, RouteEntry};
 use std::time::Instant;
+use telemetry::Telemetry;
 
 #[derive(Clone)]
 struct AppState {
@@ -26,9 +28,7 @@ struct AppState {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string())
-        )
+        .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string()))
         .init();
 
     info!("MCP Bus starting...");
@@ -45,29 +45,47 @@ async fn main() -> anyhow::Result<()> {
     // Pre-populate with system and state ops
     {
         let mut reg = state.registry.lock().await;
-        reg.register("system-op:power.get_profile", "system-daemon", true).unwrap();
-        reg.register("system-op:power.set_profile", "system-daemon", true).unwrap();
-        reg.register("system-op:display.get_modes", "system-daemon", true).unwrap();
-        reg.register("system-op:display.set_mode", "system-daemon", true).unwrap();
-        reg.register("system-op:net.list_interfaces", "system-daemon", true).unwrap();
-        reg.register("system-op:net.set_interface_state", "system-daemon", true).unwrap();
-        reg.register("system-op:system-daemon.stats", "system-daemon", true).unwrap();
-        reg.register("power.get_profile", "system-daemon", true).unwrap();
-        reg.register("power.set_profile", "system-daemon", true).unwrap();
-        reg.register("display.get_modes", "system-daemon", true).unwrap();
-        reg.register("display.set_mode", "system-daemon", true).unwrap();
-        reg.register("net.list_interfaces", "system-daemon", true).unwrap();
-        reg.register("net.set_interface_state", "system-daemon", true).unwrap();
-        reg.register("state-op:state.get", "state-store", true).unwrap();
-        reg.register("state-op:state.set", "state-store", true).unwrap();
-        reg.register("state-op:state.patch", "state-store", true).unwrap();
-        reg.register("state-op:state.watch", "state-store", true).unwrap();
+        reg.register("system-op:power.get_profile", "system-daemon", true)
+            .unwrap();
+        reg.register("system-op:power.set_profile", "system-daemon", true)
+            .unwrap();
+        reg.register("system-op:display.get_modes", "system-daemon", true)
+            .unwrap();
+        reg.register("system-op:display.set_mode", "system-daemon", true)
+            .unwrap();
+        reg.register("system-op:net.list_interfaces", "system-daemon", true)
+            .unwrap();
+        reg.register("system-op:net.set_interface_state", "system-daemon", true)
+            .unwrap();
+        reg.register("system-op:system-daemon.stats", "system-daemon", true)
+            .unwrap();
+        reg.register("power.get_profile", "system-daemon", true)
+            .unwrap();
+        reg.register("power.set_profile", "system-daemon", true)
+            .unwrap();
+        reg.register("display.get_modes", "system-daemon", true)
+            .unwrap();
+        reg.register("display.set_mode", "system-daemon", true)
+            .unwrap();
+        reg.register("net.list_interfaces", "system-daemon", true)
+            .unwrap();
+        reg.register("net.set_interface_state", "system-daemon", true)
+            .unwrap();
+        reg.register("state-op:state.get", "state-store", true)
+            .unwrap();
+        reg.register("state-op:state.set", "state-store", true)
+            .unwrap();
+        reg.register("state-op:state.patch", "state-store", true)
+            .unwrap();
+        reg.register("state-op:state.watch", "state-store", true)
+            .unwrap();
         reg.register("state.get", "state-store", true).unwrap();
         reg.register("state.set", "state-store", true).unwrap();
         reg.register("state.patch", "state-store", true).unwrap();
         reg.register("state.watch", "state-store", true).unwrap();
         reg.register("state.list", "state-store", true).unwrap();
-        reg.register("state.get_revision", "state-store", true).unwrap();
+        reg.register("state.get_revision", "state-store", true)
+            .unwrap();
         reg.register("state.stats", "state-store", true).unwrap();
 
         for m in [
@@ -131,10 +149,26 @@ async fn main() -> anyhow::Result<()> {
             reg.register(m, "policy-broker", true).unwrap();
         }
 
-        for m in ["ui.patch", "ui.get", "ui.bind", "ui.tree", "ui.event", "ui.status"] {
+        for m in [
+            "ui.patch",
+            "ui.get",
+            "ui.bind",
+            "ui.tree",
+            "ui.event",
+            "ui.status",
+        ] {
             reg.register(m, "ui-runtime", true).unwrap();
         }
-        for m in ["compositor.surface", "compositor.blur", "compositor.focus", "compositor.input", "compositor.present", "compositor.list", "compositor.status", "compositor.confirmation.set_active"] {
+        for m in [
+            "compositor.surface",
+            "compositor.blur",
+            "compositor.focus",
+            "compositor.input",
+            "compositor.present",
+            "compositor.list",
+            "compositor.status",
+            "compositor.confirmation.set_active",
+        ] {
             reg.register(m, "compositor", true).unwrap();
         }
         for m in [
@@ -145,22 +179,29 @@ async fn main() -> anyhow::Result<()> {
         ] {
             reg.register(m, "local-model-daemon", true).unwrap();
         }
-        for m in ["marketplace.list", "marketplace.install", "marketplace.installed"] {
+        for m in [
+            "marketplace.list",
+            "marketplace.install",
+            "marketplace.installed",
+        ] {
             reg.register(m, "marketplace", true).unwrap();
         }
         reg.register("bus.lease", "mcp-bus", true).unwrap();
         reg.register("bus.lease.renew", "mcp-bus", true).unwrap();
-        reg.register("bus.telemetry.export", "mcp-bus", true).unwrap();
-        reg.register("bus.external.register", "mcp-bus", true).unwrap();
+        reg.register("bus.telemetry.export", "mcp-bus", true)
+            .unwrap();
+        reg.register("bus.external.register", "mcp-bus", true)
+            .unwrap();
         reg.register("bus.external.list", "mcp-bus", true).unwrap();
-        reg.register("bus.external.forward", "mcp-bus", true).unwrap();
+        reg.register("bus.external.forward", "mcp-bus", true)
+            .unwrap();
     }
 
     // Rebuild dynamic routes persisted in State Store (Phase 3).
     reload_routes_from_state(&state).await;
 
-    let socket_path = std::env::var("THE_MACHINE_SOCKET_DIR")
-        .unwrap_or_else(|_| "/run/the-machine".to_string());
+    let socket_path =
+        std::env::var("THE_MACHINE_SOCKET_DIR").unwrap_or_else(|_| "/run/the-machine".to_string());
     let socket_path = format!("{}/mcp-bus.sock", socket_path);
 
     if let Some(parent) = std::path::Path::new(&socket_path).parent() {
@@ -184,16 +225,22 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-async fn handle_client(mut stream: UnixStream, state: AppState) -> anyhow::Result<()> {
+async fn handle_client(stream: UnixStream, state: AppState) -> anyhow::Result<()> {
     debug!("Client connected");
-    let mut buf = vec![0u8; 4096];
+    let (reader, mut writer) = stream.into_split();
+    let mut reader = BufReader::new(reader);
+    let mut line = String::new();
     loop {
-        match stream.read(&mut buf).await {
+        line.clear();
+        match reader.read_line(&mut line).await {
             Ok(0) => break,
-            Ok(n) => {
-                let data = &buf[..n];
-                if let Some(response) = process_mcp_message(data, &state).await {
-                    stream.write_all(&response).await?;
+            Ok(_) => {
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                if let Some(response) = process_mcp_message(trimmed.as_bytes(), &state).await {
+                    writer.write_all(&response).await?;
                 }
             }
             Err(e) => {
@@ -254,26 +301,48 @@ async fn process_mcp_message(data: &[u8], state: &AppState) -> Option<Vec<u8>> {
         Some(route) => {
             let handler_id = route.handler.clone();
             drop(reg);
-            match forward_to(&handler_id, data, method, route.manifest_ref.as_deref(), &state).await {
+            match forward_to(
+                &handler_id,
+                data,
+                method,
+                route.manifest_ref.as_deref(),
+                state,
+            )
+            .await
+            {
                 Some(resp) => Some(resp),
-                None => Some(error_bytes(id, "E_HANDLER_UNAVAILABLE",
-                    &format!("Handler {} not reachable", handler_id))),
+                None => Some(error_bytes(
+                    id,
+                    "E_HANDLER_UNAVAILABLE",
+                    &format!("Handler {} not reachable", handler_id),
+                )),
             }
         }
         None => {
             drop(reg);
             if let Some(handler_id) = prefix_handler(method) {
-                match forward_to(&handler_id, data, method, None, &state).await {
+                match forward_to(&handler_id, data, method, None, state).await {
                     Some(resp) => Some(resp),
-                    None => Some(error_bytes(id, "E_HANDLER_UNAVAILABLE",
-                        &format!("Handler {} not reachable", handler_id))),
+                    None => Some(error_bytes(
+                        id,
+                        "E_HANDLER_UNAVAILABLE",
+                        &format!("Handler {} not reachable", handler_id),
+                    )),
                 }
-            } else if method.starts_with("mcp-intent:") || infer_namespace(method) == Namespace::McpIntent {
-                Some(error_bytes(id, "E_AGENT_REQUIRED",
-                    "No handler registered, agent needed"))
+            } else if method.starts_with("mcp-intent:")
+                || infer_namespace(method) == Namespace::McpIntent
+            {
+                Some(error_bytes(
+                    id,
+                    "E_AGENT_REQUIRED",
+                    "No handler registered, agent needed",
+                ))
             } else {
-                Some(error_bytes(id, "E_NOT_FOUND",
-                    &format!("No handler for method: {}", method)))
+                Some(error_bytes(
+                    id,
+                    "E_NOT_FOUND",
+                    &format!("No handler for method: {}", method),
+                ))
             }
         }
     }
@@ -281,28 +350,34 @@ async fn process_mcp_message(data: &[u8], state: &AppState) -> Option<Vec<u8>> {
 
 async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppState) -> Vec<u8> {
     let id = msg.get("id").and_then(|i| i.as_u64()).unwrap_or(0);
-    let params = msg.get("params").cloned().unwrap_or(serde_json::Value::Null);
+    let params = msg
+        .get("params")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
 
     match method {
         "bus.resolve" => {
-            let target = params
-                .get("method")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let target = params.get("method").and_then(|v| v.as_str()).unwrap_or("");
             let reg = state.registry.lock().await;
             match reg.resolve_full(target) {
-                Some(r) => ok_bytes(id, serde_json::json!({
-                    "method": target,
-                    "namespace": r.namespace.as_str(),
-                    "handler": r.handler,
-                    "pattern": r.pattern,
-                    "manifest_ref": r.manifest_ref,
-                })),
-                None => ok_bytes(id, serde_json::json!({
-                    "method": target,
-                    "decision": "AgentWake",
-                    "reason": "NoMatch",
-                })),
+                Some(r) => ok_bytes(
+                    id,
+                    serde_json::json!({
+                        "method": target,
+                        "namespace": r.namespace.as_str(),
+                        "handler": r.handler,
+                        "pattern": r.pattern,
+                        "manifest_ref": r.manifest_ref,
+                    }),
+                ),
+                None => ok_bytes(
+                    id,
+                    serde_json::json!({
+                        "method": target,
+                        "decision": "AgentWake",
+                        "reason": "NoMatch",
+                    }),
+                ),
             }
         }
         "bus.list_routes" => {
@@ -314,13 +389,15 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
             let routes: Vec<serde_json::Value> = reg
                 .list_routes(ns)
                 .into_iter()
-                .map(|e| serde_json::json!({
-                    "namespace": e.namespace.as_str(),
-                    "pattern": e.pattern,
-                    "handler": e.handler,
-                    "registered_by": e.registered_by,
-                    "manifest_ref": e.manifest_ref,
-                }))
+                .map(|e| {
+                    serde_json::json!({
+                        "namespace": e.namespace.as_str(),
+                        "pattern": e.pattern,
+                        "handler": e.handler,
+                        "registered_by": e.registered_by,
+                        "manifest_ref": e.manifest_ref,
+                    })
+                })
                 .collect();
             ok_bytes(id, serde_json::json!({ "routes": routes }))
         }
@@ -329,15 +406,6 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
                 .get("registered_by")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");
-            // Only trusted infrastructure components may register routes.
-            let allowed = matches!(
-                registered_by,
-                "lambda-server" | "event-bus" | "policy-broker" | "boot"
-            );
-            if !allowed {
-                warn!("rejected _bus.register from {}", registered_by);
-                return error_bytes(id, "E_FORBIDDEN", "registration not allowed");
-            }
             let namespace = params
                 .get("namespace")
                 .and_then(|v| v.as_str())
@@ -351,6 +419,27 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
                 Some(h) => h.to_string(),
                 _ => return error_bytes(id, "E_INVALID", "handler required"),
             };
+            match authorize_register(registered_by, &handler, namespace) {
+                Ok(()) => {}
+                Err(RegisterAuthError::Forbidden) => {
+                    warn!("rejected _bus.register from {}", registered_by);
+                    return error_bytes(id, "E_FORBIDDEN", "registration not allowed");
+                }
+                Err(RegisterAuthError::InvalidNamespace) => {
+                    return error_bytes(
+                        id,
+                        "E_INVALID_NAMESPACE",
+                        "runtime registration limited to mcp-intent and event-handler",
+                    );
+                }
+                Err(RegisterAuthError::HandlerMismatch) => {
+                    warn!(
+                        "rejected _bus.register: {} cannot register handler {}",
+                        registered_by, handler
+                    );
+                    return error_bytes(id, "E_FORBIDDEN", "handler must match registrar identity");
+                }
+            }
             let manifest_ref = params
                 .get("manifest_ref")
                 .and_then(|v| v.as_str())
@@ -383,11 +472,8 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
                 .get("registered_by")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");
-            let allowed = matches!(
-                registered_by,
-                "lambda-server" | "event-bus" | "policy-broker" | "boot"
-            );
-            if !allowed {
+            if !authorize_registrar(registered_by) {
+                warn!("rejected _bus.deregister from {}", registered_by);
                 return error_bytes(id, "E_FORBIDDEN", "deregistration not allowed");
             }
             let namespace = params
@@ -420,7 +506,10 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
             ok_bytes(id, result)
         }
         "bus.lease.renew" => {
-            let lease_id = params.get("lease_id").and_then(|v| v.as_str()).unwrap_or("");
+            let lease_id = params
+                .get("lease_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let ttl = params.get("ttl_secs").and_then(|v| v.as_u64());
             match state.leases.renew(lease_id, ttl) {
                 Some(r) => ok_bytes(id, r),
@@ -433,19 +522,35 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
         }
         "bus.external.register" => {
             let server_id = params.get("id").and_then(|v| v.as_str()).unwrap_or("");
-            let base_url = params.get("base_url").and_then(|v| v.as_str()).unwrap_or("");
+            let base_url = params
+                .get("base_url")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let methods: Vec<String> = params
                 .get("allowed_methods")
                 .and_then(|v| v.as_array())
-                .map(|a| a.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
                 .unwrap_or_else(|| vec!["*".into()]);
             ok_bytes(id, state.external.register(server_id, base_url, methods))
         }
         "bus.external.list" => ok_bytes(id, state.external.list()),
         "bus.external.forward" => {
-            let server_id = params.get("server_id").and_then(|v| v.as_str()).unwrap_or("");
-            let fwd_method = params.get("forward_method").and_then(|v| v.as_str()).unwrap_or("");
-            let payload = params.get("payload").cloned().unwrap_or(serde_json::Value::Null);
+            let server_id = params
+                .get("server_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let fwd_method = params
+                .get("forward_method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let payload = params
+                .get("payload")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
             let result = state.external.forward(server_id, fwd_method, payload).await;
             match result {
                 Some(r) => ok_bytes(id, r),
@@ -521,19 +626,24 @@ async fn forward_to(
     Some(line.into_bytes())
 }
 
+fn json_line(value: serde_json::Value) -> Vec<u8> {
+    let mut buf = serde_json::to_vec(&value).unwrap();
+    buf.push(b'\n');
+    buf
+}
+
 fn ok_bytes(id: u64, result: serde_json::Value) -> Vec<u8> {
-    serde_json::to_vec(&serde_json::json!({
+    json_line(serde_json::json!({
         "id": id,
         "result": result
     }))
-    .unwrap()
 }
 
 fn error_bytes(id: u64, code: &str, message: &str) -> Vec<u8> {
-    serde_json::to_vec(&serde_json::json!({
+    json_line(serde_json::json!({
         "id": id,
         "error": { "code": code, "message": message }
-    })).unwrap()
+    }))
 }
 
 fn prefix_handler(method: &str) -> Option<String> {
@@ -546,7 +656,9 @@ fn prefix_handler(method: &str) -> Option<String> {
         "compositor" => "compositor",
         "agent" => "agent-core",
         "state" => "state-store",
-        "system" | "power" | "kernel" => "system-daemon",
+        "system" | "power" | "kernel" | "display" | "net" | "audio" => "system-daemon",
+        "localmodel" => "local-model-daemon",
+        "marketplace" => "marketplace",
         _ => return None,
     };
     Some(id.to_string())
@@ -638,7 +750,10 @@ async fn reload_routes_from_state(state: &AppState) {
     let mut reg = state.registry.lock().await;
     let mut loaded = 0u64;
     for item in paths {
-        let value = item.get("value").cloned().unwrap_or(serde_json::Value::Null);
+        let value = item
+            .get("value")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
         if value.is_null() {
             continue;
         }
@@ -707,7 +822,11 @@ async fn policy_allows(method: &str, params: Option<&serde_json::Value>) -> bool
     let principal = params
         .and_then(|p| p.get("principal"))
         .and_then(|v| v.as_str())
-        .or_else(|| params.and_then(|p| p.get("registered_by")).and_then(|v| v.as_str()))
+        .or_else(|| {
+            params
+                .and_then(|p| p.get("registered_by"))
+                .and_then(|v| v.as_str())
+        })
         .unwrap_or("mcp-bus");
 
     let sock = std::env::var("THE_MACHINE_SOCKET_DIR")
@@ -777,7 +896,10 @@ async fn validate_registration(params: &serde_json::Value) -> bool {
 
 fn infer_capability(method: &str) -> String {
     if method.starts_with("state.") {
-        if matches!(method, "state.get" | "state.watch" | "state.list" | "state.get_revision" | "state.stats") {
+        if matches!(
+            method,
+            "state.get" | "state.watch" | "state.list" | "state.get_revision" | "state.stats"
+        ) {
             "CAP_STATE_READ".into()
         } else {
             "CAP_STATE_WRITE".into()
@@ -790,9 +912,41 @@ fn infer_capability(method: &str) -> String {
         } else {
             "CAP_EVENT_PUBLISH".into()
         }
-    } else if method.starts_with("lambda.") {
-        "CAP_IPC_CALL".into()
     } else {
         "CAP_IPC_CALL".into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn responses_are_newline_delimited() {
+        let ok = ok_bytes(1, serde_json::json!({"ok": true}));
+        assert!(ok.ends_with(b"\n"), "ok_bytes must terminate with newline");
+        let err = error_bytes(1, "E_TEST", "nope");
+        assert!(
+            err.ends_with(b"\n"),
+            "error_bytes must terminate with newline"
+        );
+        let v: serde_json::Value = serde_json::from_slice(ok.trim_ascii()).unwrap();
+        assert_eq!(v["result"]["ok"], true);
+    }
+
+    #[test]
+    fn prefix_handler_covers_phase7_services() {
+        assert_eq!(
+            prefix_handler("localmodel.complete").as_deref(),
+            Some("local-model-daemon")
+        );
+        assert_eq!(
+            prefix_handler("marketplace.list").as_deref(),
+            Some("marketplace")
+        );
+        assert_eq!(
+            prefix_handler("display.set_mode").as_deref(),
+            Some("system-daemon")
+        );
     }
 }

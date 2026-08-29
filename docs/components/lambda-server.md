@@ -663,8 +663,8 @@ Options:
 
 ## See Also
 
-- [Policy Broker](../policy-broker.md) — for capability enforcement
-- [State Store](../state-store.md) — for function registry storage
-- [MCP Bus](../mcp-bus.md) — for method registration and resolution
-- [Agent Core](../agent-core.md) — for the primary consumer
-- [Event Bus](../event-bus.md) — for event handling
+- [Policy Broker](./policy-broker.md) — for capability enforcement
+- [State Store](./state-store.md) — for function registry storage
+- [MCP Bus](./mcp-bus.md) — for method registration and resolution
+- [Agent Core](./agent-core.md) — for the primary consumer
+- [Event Bus](./event-bus.md) — for event handling

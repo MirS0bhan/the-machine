@@ -61,6 +61,34 @@ jobs:
       - name: Verify documentation ↔ code
         run: make verify-docs
 
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.0"
+          components: rustfmt, clippy
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-lint-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-lint-
+
+      - name: rustfmt (mcp-bus)
+        run: cargo fmt -p mcp-bus -- --check
+
+      - name: clippy (mcp-bus)
+        run: cargo clippy -p mcp-bus --all-targets -- -A dead_code -D warnings
+
   coverage:
     name: Rust coverage
     runs-on: ubuntu-24.04
