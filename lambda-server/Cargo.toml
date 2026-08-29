@@ -1,0 +1,20 @@
+[package]
+name = "lambda-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+common = { path = "../common" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+libc = { workspace = true }
+
+[[bin]]
+name = "lambda-server"
+path = "src/main.rs"

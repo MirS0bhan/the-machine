@@ -1,0 +1,5 @@
+stack#root dir=v
+  text(role=title) "UI Engine Demo"
+  field#input-entry placeholder="Type something..." on:change=mcp:ui.text_changed
+  button#submit-btn label="Submit" on:press=mcp:ui.button_clicked
+  text#output-label(role=label) "Output will appear here"

@@ -1,0 +1,129 @@
+# Lambda Execution Server - Docker Compose
+#
+# Development and production deployment configurations
+
+version: '3.8'
+
+services:
+  # =============================================================================
+  # Development Server
+  # =============================================================================
+  lambda-server-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: lambda-server-dev
+    ports:
+      - "8080:8080"
+    environment:
+      - LAMBDA_HOST=0.0.0.0
+      - LAMBDA_PORT=8080
+      - LAMBDA_DEBUG=true
+      - LAMBDA_LOG_LEVEL=DEBUG
+      - LAMBDA_SOCKET_DIR=/tmp/lambda-sockets
+      - LAMBDA_MAX_WARM_PER_FUNCTION=2
+      - LAMBDA_WARM_TIMEOUT_SECONDS=300
+    volumes:
+      - lambda-sockets-dev:/tmp/lambda-sockets
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - lambda-network
+
+  # =============================================================================
+  # Production Server
+  # =============================================================================
+  lambda-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: lambda-server
+    ports:
+      - "${LAMBDA_PORT:-8080}:8080"
+    environment:
+      - LAMBDA_HOST=0.0.0.0
+      - LAMBDA_PORT=8080
+      - LAMBDA_DEBUG=false
+      - LAMBDA_LOG_LEVEL=${LAMBDA_LOG_LEVEL:-INFO}
+      - LAMBDA_SOCKET_DIR=/tmp/lambda-sockets
+      - LAMBDA_MAX_WARM_PER_FUNCTION=${LAMBDA_MAX_WARM_PER_FUNCTION:-4}
+      - LAMBDA_WARM_TIMEOUT_SECONDS=${LAMBDA_WARM_TIMEOUT_SECONDS:-600}
+      - LAMBDA_HEARTBEAT_INTERVAL=${LAMBDA_HEARTBEAT_INTERVAL:-30}
+      - LAMBDA_MAX_TOTAL_WARM=${LAMBDA_MAX_TOTAL_WARM:-100}
+      - LAMBDA_LEASE_TTL_SECONDS=${LAMBDA_LEASE_TTL_SECONDS:-300}
+    volumes:
+      - lambda-sockets:/tmp/lambda-sockets
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - lambda-network
+
+  # =============================================================================
+  # Monitoring (optional)
+  # =============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: lambda-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - lambda-network
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: lambda-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - lambda-network
+    profiles:
+      - monitoring
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  lambda-sockets:
+    driver: local
+  lambda-sockets-dev:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  lambda-network:
+    driver: bridge

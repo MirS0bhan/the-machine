@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "state-store"
+version = "0.1.0"
+description = "L1State Store for state persistence and management"
+authors = ["The Machine Team"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+python-rocksdb = "^0.7.0"
+fastapi = "^0.109.0"
+uvicorn = "^0.27.0"
+pydantic = "^2.5.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-asyncio = "^0.23.0"
+httpx = "^0.26.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "ui-engine-demo"
+version = "0.1.0"
+description = "Pure Wayland demo app using the UI Engine framework"
+authors = ["opencode <opencode@opencode.ai>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+wlroots = "^0.16.0"
+pywayland = "^0.4.14"
+ui-engine = { path = "../ui-engine", develop = true }
+state-store = { path = "../state-store", develop = true }
+mcp-interface = { path = "../mcp-interface", develop = true }
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

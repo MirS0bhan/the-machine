@@ -1,0 +1,17 @@
+[package]
+name = "lambda-examples"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+libc = { workspace = true }
+
+[[bin]]
+name = "fn-add"
+path = "src/bin/fn-add.rs"
+
+[[bin]]
+name = "fn-bad"
+path = "src/bin/fn-bad.rs"
