@@ -326,6 +326,20 @@ Default: `max_coalesced_per_category = 10`, `coalescing_window = 100ms`
 
 ---
 
+## External Adapters
+
+The Rust daemon runs background adapters that translate Linux ecosystem events into `event.publish` calls on the local MCP socket.
+
+| Adapter | Source | Events |
+|---------|--------|--------|
+| D-Bus (zbus) | System bus match rules | `desktop.notify`, `login.prepare_sleep` |
+| inotify | Configured paths (`THE_MACHINE_FS_WATCHES`) | `fs.change.*` |
+| audio | PipeWire state (stub) | `pipewire.state` |
+
+Set `THE_MACHINE_DISABLE_DBUS=1` to skip the D-Bus adapter (e.g. initramfs without a system bus). When the system bus is unavailable, the adapter logs and retries with backoff.
+
+---
+
 ## Inspection
 
 ### Query: Why Does an Event Wake the Agent?

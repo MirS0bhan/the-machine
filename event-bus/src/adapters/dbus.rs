@@ -1,10 +1,10 @@
-//! D-Bus adapter: monitors notifications and login events when dbus-monitor is available.
+//! D-Bus adapter: native zbus subscriptions for desktop notifications and login events.
 
 use super::publish_event;
-use serde_json::json;
-use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use futures::StreamExt;
+use serde_json::{json, Value};
 use tracing::{info, warn};
+use zbus::{match_rule::MatchRule, Connection, Message, MessageStream};
 
 pub async fn run() {
     if std::env::var("THE_MACHINE_DISABLE_DBUS").is_ok() {
@@ -12,58 +12,93 @@ pub async fn run() {
         return;
     }
     loop {
-        match spawn_monitor().await {
-            Ok(()) => warn!("dbus-monitor exited; restarting in 5s"),
+        match listen().await {
+            Ok(()) => warn!("dbus connection closed; restarting in 5s"),
             Err(e) => warn!("dbus adapter unavailable: {}; retry in 30s", e),
         }
-        tokio::time::sleep(std::time::Duration::from_secs(if cfg!(test) { 1 } else { 30 })).await;
+        let delay = if cfg!(test) { 1 } else { 30 };
+        tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
     }
 }
 
-async fn spawn_monitor() -> Result<(), String> {
-    let mut child = tokio::process::Command::new("dbus-monitor")
-        .args([
-            "--system",
-            "type='signal',interface='org.freedesktop.Notifications',member='Notify'",
-            "type='signal',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'",
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
+const NOTIFY_MATCH: &str =
+    "type='signal',interface='org.freedesktop.Notifications',member='Notify'";
+const SLEEP_MATCH: &str =
+    "type='signal',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'";
+
+async fn listen() -> Result<(), String> {
+    let conn = Connection::system().await.map_err(|e| e.to_string())?;
+    info!("dbus adapter connected (zbus)");
+
+    let notify_rule = MatchRule::try_from(NOTIFY_MATCH).map_err(|e| e.to_string())?;
+    let sleep_rule = MatchRule::try_from(SLEEP_MATCH).map_err(|e| e.to_string())?;
+
+    let mut notify_stream = MessageStream::for_match_rule(notify_rule, &conn, Some(16))
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut sleep_stream = MessageStream::for_match_rule(sleep_rule, &conn, Some(16))
+        .await
         .map_err(|e| e.to_string())?;
 
-    let stdout = child.stdout.take().ok_or("no stdout")?;
-    let mut reader = BufReader::new(stdout).lines();
-    info!("dbus-monitor started");
-    while let Some(line) = reader.next_line().await.map_err(|e| e.to_string())? {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        if line.contains("Notify") {
-            publish_event(
-                "notification",
-                "desktop.notify",
-                json!({ "raw": line, "summary": extract_field(line, "string") }),
-            )
-            .await;
-        } else if line.contains("PrepareForSleep") {
-            publish_event(
-                "system",
-                "login.prepare_sleep",
-                json!({ "raw": line }),
-            )
-            .await;
+    loop {
+        tokio::select! {
+            msg = notify_stream.next() => match msg {
+                Some(Ok(msg)) => publish_event("notification", "desktop.notify", notify_payload(&msg)).await,
+                Some(Err(e)) => return Err(e.to_string()),
+                None => return Ok(()),
+            },
+            msg = sleep_stream.next() => match msg {
+                Some(Ok(msg)) => publish_event("system", "login.prepare_sleep", sleep_payload(&msg)).await,
+                Some(Err(e)) => return Err(e.to_string()),
+                None => return Ok(()),
+            },
         }
     }
-    let _ = child.kill().await;
-    Ok(())
 }
 
-fn extract_field(line: &str, kind: &str) -> String {
-    if line.contains(kind) {
-        line.chars().take(120).collect()
-    } else {
-        String::new()
+fn notify_payload(msg: &Message) -> Value {
+    let raw = format!("{msg:?}");
+    let summary = decode_notify_summary(msg).unwrap_or_default();
+    json!({ "raw": raw, "summary": summary })
+}
+
+fn sleep_payload(msg: &Message) -> Value {
+    let raw = format!("{msg:?}");
+    let start = msg.body().deserialize::<bool>().ok();
+    json!({ "raw": raw, "start": start })
+}
+
+fn decode_notify_summary(msg: &Message) -> Option<String> {
+    type NotifyArgs = (
+        String,
+        u32,
+        String,
+        String,
+        String,
+        Vec<String>,
+        std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+        i32,
+    );
+    msg.body()
+        .deserialize::<NotifyArgs>()
+        .ok()
+        .map(|(_, _, _, summary, _, _, _, _)| summary)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NOTIFY_MATCH, SLEEP_MATCH};
+    use zbus::match_rule::MatchRule;
+
+    #[test]
+    fn notify_match_rule_matches_dbus_monitor_filter() {
+        let rule = MatchRule::try_from(NOTIFY_MATCH).unwrap().to_string();
+        assert_eq!(rule, NOTIFY_MATCH);
+    }
+
+    #[test]
+    fn sleep_match_rule_matches_dbus_monitor_filter() {
+        let rule = MatchRule::try_from(SLEEP_MATCH).unwrap().to_string();
+        assert_eq!(rule, SLEEP_MATCH);
     }
 }

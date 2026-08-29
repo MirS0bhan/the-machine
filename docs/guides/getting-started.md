@@ -68,6 +68,7 @@ Boot services started by `scripts/start-services.sh` (rust mode):
 |----------|---------|---------|
 | `THE_MACHINE_SOCKET_DIR` | `/tmp/the-machine/run` | Unix socket directory |
 | `THE_MACHINE_RUNTIME` | `rust` | `rust` \| `hybrid` \| `python` |
+| `THE_MACHINE_DISABLE_DBUS` | unset | Set to `1` to skip the event-bus D-Bus adapter |
 | `STATE_STORE_BACKEND` | `memory` (dev), `sled` (boot) | Persistence backend |
 | `STATE_STORE_PATH` | — | sled database path |
 | `LOCAL_MODEL_PATH` | `/models/machine-tiny.gguf` (boot) | GGUF model file |
