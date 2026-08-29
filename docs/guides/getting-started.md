@@ -80,6 +80,7 @@ Boot services started by `scripts/start-services.sh` (rust mode):
 
 ```bash
 make test-all      # Rust workspace + Python suites
+make lint          # rustfmt + clippy (mcp-bus)
 make verify        # Full verification: tests + builds + docs + inventory
 make verify-docs   # Cross-check docs against component-inventory.yaml
 make coverage      # Rust coverage via cargo llvm-cov
@@ -89,7 +90,8 @@ make coverage      # Rust coverage via cargo llvm-cov
 
 ```bash
 make qemu          # kernel + initramfs (fast iteration)
-make run           # boot the ISO
+make run           # boot the ISO (graphical if $DISPLAY is set)
+make run-console   # boot the ISO on the serial console (always nographic)
 ```
 
 Set `KERNEL=/path/to/vmlinuz` if auto-detection fails.

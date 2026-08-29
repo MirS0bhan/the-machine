@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Architecture gap checklist
+    url: https://github.com/MirS0bhan/the-machine/blob/main/docs/architecture/gap-analysis.md
+    about: Known north-star gaps (G1–G16, D*) live here — check before filing a duplicate.

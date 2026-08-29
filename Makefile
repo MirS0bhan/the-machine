@@ -9,7 +9,7 @@ MEM        ?= 1G
 PYTHON     ?= python3
 
 .PHONY: all build build-release initramfs initramfs-release iso iso-release qemu run run-console clean \
-        test test-rust test-python test-all verify verify-docs coverage docs help \
+        test test-rust test-python test-all verify verify-docs coverage lint docs help \
         services-start services-stop ci-package
 
 all: build initramfs iso docs
@@ -43,8 +43,14 @@ qemu: initramfs
 		-append "console=ttyS0,115200 rdinit=/init" -m $(MEM) -nographic
 
 # Boot the produced ISO in QEMU.
+# `run` uses a graphical display when $DISPLAY is set (framebuffer compositor);
+# otherwise it falls back to serial. `run-console` is always nographic.
 run: iso
-	$(QEMU) -enable-kvm -m $(MEM) -cdrom "$(ISO)" -nographic
+	@if [ -n "$$DISPLAY" ]; then \
+		$(QEMU) -enable-kvm -m $(MEM) -cdrom "$(ISO)" -vga std; \
+	else \
+		$(QEMU) -enable-kvm -m $(MEM) -cdrom "$(ISO)" -nographic; \
+	fi
 
 run-console: iso
 	$(QEMU) -enable-kvm -m $(MEM) -cdrom "$(ISO)" -nographic
@@ -80,6 +86,10 @@ coverage:
 	cargo llvm-cov --workspace --lcov --output-path build/coverage.lcov
 	@echo "Coverage report: build/coverage.lcov"
 
+lint:
+	$(CARGO) fmt -p mcp-bus -- --check
+	$(CARGO) clippy -p mcp-bus --all-targets -- -A dead_code -D warnings
+
 docs:
 	$(MAKE) -C docs html
 
@@ -112,8 +122,10 @@ help:
 	@echo "  initramfs      - Assemble the initramfs (busybox + services)"
 	@echo "  iso            - Build the bootable ISO image"
 	@echo "  qemu           - Boot kernel+initramfs directly in QEMU"
-	@echo "  run            - Boot the ISO in QEMU"
+	@echo "  run            - Boot the ISO in QEMU (graphical if DISPLAY is set)"
+	@echo "  run-console    - Boot the ISO in QEMU (serial / nographic)"
 	@echo "  test           - Run all tests (Rust + Python)"
+	@echo "  lint           - rustfmt + clippy for mcp-bus"
 	@echo "  verify         - Full verification (tests + builds + docs + inventory)"
 	@echo "  verify-docs    - Cross-check docs against component-inventory.yaml"
 	@echo "  coverage       - Rust test coverage (llvm-cov → build/coverage.lcov)"

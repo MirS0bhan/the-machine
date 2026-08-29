@@ -1,0 +1,45 @@
+name: Bug report
+description: Something is broken in code, docs, or CI.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [gap-analysis.md](https://github.com/MirS0bhan/the-machine/blob/main/docs/architecture/gap-analysis.md) before filing — known platform gaps already have IDs.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - mcp-bus
+        - agent-core
+        - policy-broker
+        - lambda-server
+        - state-store
+        - event-bus
+        - ui / compositor
+        - build / CI / ISO
+        - documentation
+        - other
+    validations:
+      required: true
+  - type: input
+    id: gap
+    attributes:
+      label: Related gap ID
+      description: Optional (e.g. G1, D3)
+      placeholder: G12
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Commands, logs, or a minimal sequence.
+      render: bash

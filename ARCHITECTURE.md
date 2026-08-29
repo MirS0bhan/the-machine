@@ -1,8 +1,8 @@
 # The Machine — Agent-Native OS Architecture
 
 **Codename:** (unnamed)  
-**Version:** 0.1 (design draft)  
-**Status:** Conceptual architecture, pre‑implementation  
+**Version:** 0.1  
+**Status:** North-star architecture — hybrid implementation in progress (see [`docs/architecture/gap-analysis.md`](docs/architecture/gap-analysis.md))  
 
 ---
 
@@ -363,7 +363,7 @@ The Fallback Shell does not decide "is the agent degraded" — it reacts only to
 
 ## 7. Open Items
 
-Before implementation, each of these needs its own concrete design:
+Implementation is underway. Track remaining gaps in [`docs/architecture/gap-analysis.md`](docs/architecture/gap-analysis.md). Design work that is still open:
 
 1. **Exact declarative UI schema** (component list, patch/diff format, event binding syntax)
 2. **Broker policy language** (how capability manifests and approval rules are expressed and versioned)

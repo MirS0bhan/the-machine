@@ -6,6 +6,7 @@
 make test-all       # Rust workspace + Python suites (recommended)
 make test-rust      # cargo test --workspace
 make test-python    # integration + component tests
+make lint           # rustfmt + clippy (mcp-bus)
 make verify         # tests + release build + docs + inventory + initramfs
 make verify-docs    # documentation ↔ code cross-check only
 ```
@@ -36,7 +37,9 @@ CI uploads `rust-coverage` artifact on every `main` push.
 | Crate | Module | Tests |
 |-------|--------|-------|
 | policy-broker | `policy_engine.rs` | allow/deny/first-match/default-deny |
-| mcp-bus | `registry.rs` | exact/wildcard resolve, pattern matching |
+| mcp-bus | `registry.rs` | exact/wildcard resolve, pattern matching, deregister |
+| mcp-bus | `auth.rs` | `_bus.register` identity / namespace / handler checks |
+| mcp-bus | `main.rs` | newline-delimited responses, prefix fallback |
 | compositor | `pixel.rs` | framebuffer buffer, color hash |
 | system-daemon | `input.rs` | evdev struct size |
 | lambda-server | `validate.rs` | forbidden patterns, schema inference |

@@ -46,7 +46,12 @@ impl Telemetry {
             },
         );
         if self.spans.len() > self.max_spans {
-            let keys: Vec<String> = self.spans.iter().take(self.spans.len() - self.max_spans).map(|e| e.key().clone()).collect();
+            let keys: Vec<String> = self
+                .spans
+                .iter()
+                .take(self.spans.len() - self.max_spans)
+                .map(|e| e.key().clone())
+                .collect();
             for k in keys {
                 self.spans.remove(&k);
             }

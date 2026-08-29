@@ -73,6 +73,7 @@ THE_MACHINE_RUNTIME=python  # Python HTTP servers only (no socket bus)
 
 ```bash
 make verify        # recommended: full local verification
+make lint          # rustfmt + clippy (mcp-bus)
 make build
 make test-all
 make docs

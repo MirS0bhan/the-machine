@@ -105,9 +105,9 @@ Per `policy-broker-spec.md` §7, intent-registry registrations are logged **per-
 
 ---
 
-## 8. Open items before implementation
+## 8. Open items
 
-1. **Wire protocol between Bus and components** — likely reuses the same length-prefixed framing `lambda-server-spec.md` §10.1 proposes for its own IPC layer, but this needs to be the *same* choice, not an independently-made one, since components speak both.
+1. ~~**Wire protocol between Bus and components**~~ — **Decided:** newline-delimited JSON over Unix sockets (one UTF-8 object + `\n` per message). Every boot daemon uses this framing. Length-prefixed / MessagePack remains a future optimization, not the current contract.
 2. **Namespace prefix collision rules** — the "extract namespace from method prefix" resolution (§2) needs a formal grammar so `mcp-intent` keys can never accidentally shadow a `system-op`/`state-op` prefix.
-3. **Registry persistence across Bus restarts** — is the registry rebuilt from each component's own manifest on Bus restart (source-of-truth stays distributed), or does the Bus persist its own copy (faster cold start, but a second place truth can drift)?
+3. ~~**Registry persistence across Bus restarts**~~ — Bus persists dynamic routes to `perm.mcp_routes.*` and reloads them on start (`reload_routes_from_state`).
 4. **Multi-instance / sharding** — out of scope for a single-user machine today, but worth flagging that this design assumes exactly one Bus instance; nothing here has been designed for horizontal scaling.

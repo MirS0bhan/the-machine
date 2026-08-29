@@ -439,7 +439,7 @@ Get a specific node from the UI tree.
 
 ## See Also
 
-- [State Store](../state-store.md) — for UI tree storage and subscriptions
-- [Compositor](../compositor.md) — for rendering and input routing
-- [Agent Core](../agent-core.md) — for UI patch generation
-- [MCP Bus](../mcp-bus.md) — for event bindings
+- [State Store](./state-store.md) — for UI tree storage and subscriptions
+- [Compositor](./compositor.md) — for rendering and input routing
+- [Agent Core](./agent-core.md) — for UI patch generation
+- [MCP Bus](./mcp-bus.md) — for event bindings

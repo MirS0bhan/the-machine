@@ -1,0 +1,35 @@
+name: Improvement
+description: A better way to do something that is not already tracked as a gap.
+title: "[improve] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If this is a known north-star gap, prefer commenting on / implementing the ID in `docs/architecture/gap-analysis.md` instead of a new issue.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is painful, inconsistent, or missing today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: The better way, and why it fits the hybrid Python → Rust migration.
+    validations:
+      required: true
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Layer
+      options:
+        - L0 System Daemon
+        - L1 Lambda / State / Events
+        - L2 Policy Broker
+        - L3 MCP Bus
+        - L4 Agent / local-model
+        - L5 UI / compositor
+        - Build / CI / docs

@@ -719,8 +719,8 @@ Get the status of a held request.
 
 ## See Also
 
-- [Lambda Server](../lambda-server.md) — for capability manifests
-- [Agent Core](../agent-core.md) — for the primary consumer
-- [MCP Bus](../mcp-bus.md) — for method registration and resolution
-- [State Store](../state-store.md) — for policy and audit log storage
-- [Compositor](../compositor.md) — for the confirmation surface
+- [Lambda Server](./lambda-server.md) — for capability manifests
+- [Agent Core](./agent-core.md) — for the primary consumer
+- [MCP Bus](./mcp-bus.md) — for method registration and resolution
+- [State Store](./state-store.md) — for policy and audit log storage
+- [Compositor](./compositor.md) — for the confirmation surface

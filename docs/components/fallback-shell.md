@@ -315,8 +315,8 @@ The Fallback Shell has **minimal dependencies**:
 
 ## See Also
 
-- [State Store](../state-store.md) — for reading last-good state
-- [Agent Core](../agent-core.md) — for what triggers the fallback
-- [System Daemon](../system-daemon.md) — for input provenance and safe mode key combo
-- [Policy Broker](../policy-broker.md) — for recovery action enforcement
-- [MCP Bus](../mcp-bus.md) — for recovery action execution
+- [State Store](./state-store.md) — for reading last-good state
+- [Agent Core](./agent-core.md) — for what triggers the fallback
+- [System Daemon](./system-daemon.md) — for input provenance and safe mode key combo
+- [Policy Broker](./policy-broker.md) — for recovery action enforcement
+- [MCP Bus](./mcp-bus.md) — for recovery action execution

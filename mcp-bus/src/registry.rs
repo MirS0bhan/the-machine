@@ -90,9 +90,11 @@ impl Registry {
     pub fn register_route(&mut self, entry: RouteEntry) -> anyhow::Result<()> {
         if entry.pattern.contains('*') {
             // Reject duplicate wildcard in same namespace.
-            if self.wildcards.iter().any(|e| {
-                e.namespace == entry.namespace && e.pattern == entry.pattern
-            }) {
+            if self
+                .wildcards
+                .iter()
+                .any(|e| e.namespace == entry.namespace && e.pattern == entry.pattern)
+            {
                 anyhow::bail!(
                     "route collision: {} in {:?}",
                     entry.pattern,
@@ -168,10 +170,8 @@ impl Registry {
             self.wildcards
                 .retain(|e| !(e.namespace == namespace && e.pattern == pattern));
             self.wildcards.len() < before
-        } else if self.exact.remove(pattern).is_some() {
-            true
         } else {
-            false
+            self.exact.remove(pattern).is_some()
         }
     }
 }
@@ -249,5 +249,25 @@ mod tests {
         assert!(pattern_matches("calc.*", "calc.add"));
         assert!(pattern_matches("calc.*", "calc"));
         assert!(!pattern_matches("calc.*", "other.add"));
+    }
+
+    #[test]
+    fn deregister_exact_and_wildcard() {
+        let mut r = Registry::new();
+        r.register("calc.add", "lambda-server", true).unwrap();
+        r.register_route(RouteEntry {
+            namespace: Namespace::McpIntent,
+            pattern: "math.*".into(),
+            handler: "lambda-server".into(),
+            registered_by: "lambda-server".into(),
+            manifest_ref: None,
+            trusted: true,
+        })
+        .unwrap();
+        assert!(r.deregister_route(Namespace::McpIntent, "calc.add"));
+        assert!(r.resolve("calc.add").is_none());
+        assert!(r.deregister_route(Namespace::McpIntent, "math.*"));
+        assert!(r.resolve("math.add").is_none());
+        assert!(!r.deregister_route(Namespace::McpIntent, "missing"));
     }
 }

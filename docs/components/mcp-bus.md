@@ -62,83 +62,59 @@ The MCP Bus is the **uniform protocol connecting every layer** of The Machine. N
 
 ### Framing
 
-Length-prefixed, similar to Cap'n Proto or gRPC:
+**Newline-delimited JSON** over a Unix domain socket. Every daemon in the boot path (`mcp-bus`, `lambda-server`, `state-store`, …) speaks the same framing:
 
 ```
-+--------+--------+--------+--------+--------+--------+--------+
-| magic  | version| flags  | length (u32)  | payload (bytes)    |
-| 0x4D43 | 0x01   | 0x00   |               |                      |
-+--------+--------+--------+--------+--------+--------+--------+
+<utf-8 JSON object>\n
 ```
 
-- `magic`: `0x4D4350` ("MCP") as 3 bytes, 1 byte reserved
-- `version`: 1 byte, currently `0x01`
-- `flags`: 1 byte, currently unused (reserved for future extensions)
-- `length`: 32-bit big-endian length of the payload (not including header)
-- `payload`: JSON or MessagePack serialized MCP call/response
+- One MCP message per line; `0x0A` (`\n`) is the record separator
+- Request and response are both a single JSON object, terminated by a newline
+- Clients must use line-oriented reads (`read_line` / `BufReader`); a raw `read()` of an arbitrary buffer is not a complete frame
+- Empty lines are ignored
+- Length-prefixed / MessagePack framing is **not** implemented (a future optimization, not the current contract)
+
+Example request/response:
+
+```
+{"id":1,"kind":"Request","method":"bus.resolve","params":{"method":"state.get"}}\n
+{"id":1,"result":{"method":"state.get","namespace":"state-op","handler":"state-store"}}\n
+```
 
 ### Message Structure
 
 ```rust
 struct McpMessage {
-    /// Unique identifier for this message
-    id: Uuid,
-    
-    /// Stream ID (for multiplexing)
-    stream_id: u64,
-    
-    /// Type of message
-    type: MessageType,
-    
+    /// Unique identifier for this message (integer in the live daemons)
+    id: u64,
+
+    /// Type of message (`Request` | `Response` | `Notification` | `Stream`)
+    kind: MessageKind,
+
     /// Method name (for requests)
     method: Option<String>,
-    
+
     /// Parameters (for requests)
     params: Option<Value>,
-    
+
     /// Result (for responses)
     result: Option<Value>,
-    
+
     /// Error (for responses)
     error: Option<Error>,
-}
-
-enum MessageType {
-    Request,
-    Response,
-    Notification,  // one-way, no response expected
-    Stream,        // streaming data (for fast-path leases)
 }
 
 struct Error {
     code: String,
     message: String,
-    details: Option<Value>,
 }
 ```
 
-### Connection Multiplexing
+The in-tree `common::McpMessage` also carries `stream_id` for a planned multiplex; the live bus treats each Unix connection as a sequence of request/response lines.
 
-Each component opens a single Unix socket (`/run/the-machine/mcp-bus.sock`) and sends messages with a `stream_id` in the payload header. This allows a single connection to multiplex many concurrent RPCs and streams.
+### Connection Model
 
-```rust
-struct Connection {
-    /// Unique identifier for this connection
-    id: Uuid,
-    
-    /// Component identity
-    component: ComponentId,
-    
-    /// Map from stream_id to pending request
-    pending_requests: HashMap<u64, PendingRequest>,
-    
-    /// Active streams (for fast-path leases)
-    active_streams: HashMap<u64, Stream>,
-    
-    /// Send queue
-    send_queue: VecDeque<McpMessage>,
-}
-```
+Each component connects to `/run/the-machine/mcp-bus.sock` (or `$THE_MACHINE_SOCKET_DIR/mcp-bus.sock` in the dev harness) and exchanges newline-delimited JSON. One connection may carry many sequential RPCs; concurrent multiplexing via `stream_id` is specified but not yet required by the daemons.
 
 ---
 
@@ -244,12 +220,13 @@ fn resolve_method(method: &str) -> ResolutionResult {
 
 ### Registration Validation
 
-The MCP Bus **does not** allow direct registration. Registration happens as a side effect of a Broker-validated `lambda.register` or `event.subscribe` call.
+The MCP Bus **does not** expose a public `bus.register` tool. Runtime inserts go through the internal `_bus.register` method, which is a side effect of a Broker-validated `lambda.register` or `event.subscribe`.
 
 **Validation checks:**
 1. **Exclusivity:** No other component can claim the same key
-2. **Namespace validity:** The key must be in the correct format
-3. **Broker validation:** The registration must have passed `policy.check`
+2. **Namespace validity:** Runtime callers may only add `mcp-intent` or `event-handler` (system-op / state-op are boot-only)
+3. **Registrar identity:** `registered_by` must be `lambda-server`, `event-bus`, or `policy-broker`; `handler` must equal that identity (a caller cannot register routes for another component). Spoofing `boot` over the socket is rejected — boot routes are seeded in-process.
+4. **Broker validation:** The registration is forwarded to `policy.validate_register` when the broker is reachable
 
 ---
 
@@ -396,7 +373,7 @@ Get bus statistics.
 | `E_NOT_FOUND` | Method not found in registry |
 | `E_LEASE_EXPIRED` | Lease has expired |
 | `E_CONNECTION_CLOSED` | Connection closed |
-| `E_MALFORMED_FRAME` | Malformed MCP frame |
+| `E_MALFORMED_FRAME` | Line was not valid JSON (logged and dropped) |
 | `E_INVALID_NAMESPACE` | Invalid registry namespace |
 | `E_LEASE_EXISTS` | Lease already exists for this method/target |
 
@@ -429,8 +406,8 @@ The MCP Bus itself does **not** implement retries. Retries are handled by the ca
 
 ## See Also
 
-- [Policy Broker](../policy-broker.md) — for capability enforcement
-- [State Store](../state-store.md) — for registry persistence
-- [Agent Core](../agent-core.md) — for the fallthrough consumer
-- [Lambda Server](../lambda-server.md) — for method registration
-- [Event Bus](../event-bus.md) — for event pattern registration
+- [Policy Broker](./policy-broker.md) — for capability enforcement
+- [State Store](./state-store.md) — for registry persistence
+- [Agent Core](./agent-core.md) — for the fallthrough consumer
+- [Lambda Server](./lambda-server.md) — for method registration
+- [Event Bus](./event-bus.md) — for event pattern registration
