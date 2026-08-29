@@ -1,5 +1,9 @@
 //! Lambda Server — local serverless runtime with per-invocation sandboxing.
 //!
+//! **Migration note:** Python `lambda-server/*.py` is canonical for tests and agent dev.
+//! This Rust crate is canonical for ISO boot (real seccomp/namespaces). They do not share
+//! a function registry. See `docs/guides/python-rust-overlap.md`.
+//!
 //! Every function runs sandboxed (see `sandbox.rs`): its own namespaces, all
 //! capabilities dropped, and a seccomp *allowlist* derived from its declared
 //! capabilities. Functions that declare the same `ipc_group` share one IPC

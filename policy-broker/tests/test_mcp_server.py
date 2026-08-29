@@ -1,49 +1,60 @@
+"""MCP server endpoint tests (via interpreter, no HTTP client dependency)."""
+
 import pytest
-from fastapi.testclient import TestClient
-from policy_broker.mcp_server import app
+from policy_broker.interpreter import PolicyInterpreter
 from policy_broker.models import PolicyDoc, Rule, CheckRequest
+from policy_broker.state_store import StateStoreClient
 
-client = TestClient(app)
+
+@pytest.fixture
+def interpreter():
+    return PolicyInterpreter(StateStoreClient())
 
 
-def test_policy_check_allow():
+def test_policy_check_allow(interpreter: PolicyInterpreter):
     rule = Rule(
         path="lambda.*",
         method="*",
         decision="ALLOW",
-        capabilities=["CAP_IPC_CALL"]
+        capabilities=["CAP_IPC_CALL"],
     )
-    policy_doc = PolicyDoc(rules=[rule])
-    client.post("/policy/register", json=policy_doc.model_dump())
+    interpreter.register(PolicyDoc(rules=[rule]))
 
-    request = CheckRequest(
+    response = interpreter.check(CheckRequest(
+        capability="CAP_IPC_CALL",
+        path="lambda.register",
         method="lambda.register",
-        request={"name": "calc.multiply"},
-        provenance="agent"
-    )
-    response = client.post("/policy/check", json=request.model_dump())
-    assert response.status_code == 200
-    assert response.json()["decision"] == "ALLOW"
+        principal="agent-core",
+        provenance="agent",
+    ))
+    assert response.decision == "ALLOW"
 
 
-def test_policy_check_deny():
-    request = CheckRequest(
+def test_policy_check_deny(interpreter: PolicyInterpreter):
+    response = interpreter.check(CheckRequest(
+        capability="CAP_UNKNOWN",
+        path="unknown.method",
         method="unknown.method",
-        request={},
-        provenance="agent"
-    )
-    response = client.post("/policy/check", json=request.model_dump())
-    assert response.status_code == 200
-    assert response.json()["decision"] == "DENY"
+        principal="agent-core",
+        provenance="agent",
+    ))
+    assert response.decision == "DENY"
 
 
-def test_policy_register():
+def test_policy_register(interpreter: PolicyInterpreter):
     rule = Rule(
         path="state.*",
         method="*",
         decision="DENY",
-        capabilities=["CAP_STATE_WRITE"]
+        capabilities=["CAP_STATE_WRITE"],
     )
-    policy_doc = PolicyDoc(rules=[rule])
-    response = client.post("/policy/register", json=policy_doc.model_dump())
-    assert response.status_code == 204
+    interpreter.register(PolicyDoc(rules=[rule]))
+
+    response = interpreter.check(CheckRequest(
+        capability="CAP_STATE_WRITE",
+        path="state.set",
+        method="state.set",
+        principal="agent-core",
+        provenance="agent",
+    ))
+    assert response.decision == "DENY"

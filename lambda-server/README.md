@@ -1,5 +1,13 @@
 # Lambda Execution Server
 
+> **Overlap warning:** This directory contains **two implementations** (Python + Rust).
+> See [Python ↔ Rust Overlap Guide](../docs/guides/python-rust-overlap.md).
+>
+> | Workflow | Use |
+> |----------|-----|
+> | Tests, HTTP API, agent dev | **Python** (`*.py`) |
+> | ISO boot, seccomp sandbox | **Rust** (`src/`) |
+
 A production-ready implementation of the Lambda Execution Server as specified in `docs/spec.md`.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)

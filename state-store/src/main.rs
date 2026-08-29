@@ -1,4 +1,7 @@
 //! State Store - UI State Tree, System/Task State, Persistence & Subscriptions
+//!
+//! **Migration note:** Python `state_store/` is canonical for persistence logic.
+//! This Rust daemon is an in-memory boot placeholder. See `docs/guides/python-rust-overlap.md`.
 
 use common::*;
 use std::collections::HashMap;

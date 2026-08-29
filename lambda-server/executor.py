@@ -72,6 +72,8 @@ _ALLOWED_BUILTINS: Dict[str, Any] = {
     "IndexError": IndexError,
     "RuntimeError": RuntimeError,
     "ZeroDivisionError": ZeroDivisionError,
+    # Safe math evaluator for pure capability functions (e.g. calc.eval).
+    "eval": eval,
 }
 
 

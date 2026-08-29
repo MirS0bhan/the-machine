@@ -1,5 +1,8 @@
 # local-model/local_model/mcp_server.py
-from fastapi import FastAPI, HTTPException
+import os
+
+from fastapi import FastAPI
+
 from local_model.engine import LocalModelEngine
 from local_model.models import (
     CompletionRequest,
@@ -13,7 +16,7 @@ from local_model.models import (
 from local_model.health import get_health_status
 
 app = FastAPI()
-engine = LocalModelEngine(model_path="/models/phi-3-q4.gguf")
+engine = LocalModelEngine(model_path=os.environ.get("LOCAL_MODEL_PATH"))
 
 
 @app.post("/mcp/localmodel.complete", response_model=CompletionResponse)

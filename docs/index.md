@@ -1,7 +1,7 @@
 # The Machine — Documentation
 
-**Version:** 0.1 (design draft)  
-**Status:** Conceptual architecture, pre‑implementation
+**Version:** 0.1  
+**Status:** Hybrid implementation — Rust boot daemons + Python MCP reference servers
 
 Welcome to the documentation for **The Machine**, an agent-native operating system where a single AI agent sits between human intent and system mechanisms.
 
@@ -14,6 +14,7 @@ Welcome to the documentation for **The Machine**, an agent-native operating syst
 - [Layer Reference](./architecture/layers.md) — Detailed layer-by-layer breakdown
 - [Component Reference](./components/) — Each component's spec
 - [Getting Started](./guides/getting-started.md) — How to build and run
+- [Python ↔ Rust Overlap](./guides/python-rust-overlap.md) — Which implementation to use
 - [Glossary](./reference/glossary.md) — Terminology reference
 
 ---
@@ -55,10 +56,11 @@ This OS removes the manual wiring. A single **Agent Core** sits between the huma
 
 ## Getting Started
 
-1. Install dependencies: `poetry install`
-2. Build documentation: `make all`
-3. Explore component specs
-4. Run tests: `pytest`
+1. Install dependencies — see [Getting Started](./guides/getting-started.md)
+2. Build: `make build`
+3. Test: `make test`
+4. Build ISO: `make iso`
+5. Build documentation: `make docs`
 
 See the [Getting Started Guide](./guides/getting-started.md) for detailed setup.
 

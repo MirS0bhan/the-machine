@@ -1,13 +1,12 @@
 # local-model/tests/test_engine.py
 import pytest
 from local_model.engine import LocalModelEngine
-from local_model.models import CompletionRequest, EmbeddingRequest
+from local_model.models import CompletionRequest, EmbeddingRequest, IntentRequest
 
 
 @pytest.fixture
 def engine():
-    # Use a small test model for unit tests
-    return LocalModelEngine(model_path="/models/phi-3-q4.gguf")
+    return LocalModelEngine(model_path="/nonexistent/model.gguf")
 
 
 def test_complete(engine):
@@ -33,3 +32,8 @@ def test_privacy_tag_none(engine):
     request = CompletionRequest(prompt="Hello, world!", max_tokens=10)
     response = engine.complete(request)
     assert response.privacy_tag is None
+
+
+def test_classify_intent_video(engine):
+    response = engine.classify_intent(IntentRequest(text="play a video"))
+    assert response.intent == "media.play"

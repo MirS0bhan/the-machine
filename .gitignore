@@ -1,5 +1,11 @@
 .venv
 target/debug
 target
-build
+__pycache__/
+*.pyc
+/build/initramfs*
+/build/iso
+/build/the-machine.iso
+/build/*.cpio*
+/build/vmlinuz*
 
