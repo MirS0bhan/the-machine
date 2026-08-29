@@ -1,5 +1,7 @@
 # The Machine
 
+[![Build & Release Artifacts](https://github.com/MirS0bhan/the-machine/actions/workflows/build.yml/badge.svg)](https://github.com/MirS0bhan/the-machine/actions/workflows/build.yml)
+
 Agent-Native OS — where an AI agent sits between human intent and system mechanisms.
 
 ## Status
@@ -57,12 +59,22 @@ make qemu    # kernel + initramfs
 make run     # ISO
 ```
 
-## Testing
+## CI / Artifacts
+
+Every push to `main` runs [`.github/workflows/build.yml`](.github/workflows/build.yml):
+
+| Job | Artifact | Contents |
+|-----|----------|----------|
+| `build-rust-components` | `rust-<name>` × 10 | Release binary per Rust daemon |
+| `build-rust-examples` | `rust-lambda-examples` | `fn-add`, `fn-bad` |
+| `build-python-components` | `python-<pkg>` × 6 | Wheel per Python package |
+| `build-iso` | `boot-initramfs`, `boot-iso` | Initramfs + bootable ISO |
+| `package-release` | `the-machine-release` | **Combined tarball** with all of the above + `manifest.json` |
+
+Download from the Actions run → **Artifacts** tab, or locally:
 
 ```bash
-make test          # all tests
-make test-rust     # cargo test --workspace
-make test-python   # pytest integration + component tests
+make ci-package   # build/artifacts/ with rust/, python/wheels/, iso/, manifest.json
 ```
 
 ## License
