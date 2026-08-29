@@ -27,7 +27,8 @@ Set `THE_MACHINE_RUNTIME=python|rust|hybrid` when starting services (see below).
 | **Event Bus** | `event-bus/event_bus/` | `event-bus/src/` | Python (in-proc router) | **Rust** (full scheduler) | Python harness shrinks to test doubles only |
 | **UI rendering** | `ui-engine/` (AUIL/ASL) | `ui-runtime/` (patch tree) | **Python** | **Rust** (daemon) | Share patch grammar; ui-engine stays reference parser |
 | **Agent Core** | — (removed) | `agent-core/` | **Rust** | **Rust** | Python `agent/` never landed; Rust only |
-| **Local Model** | `local-model/` | — | **Python** | stub in Rust agent | Future Rust or sidecar |
+| **Local Model** | `local-model/` | `local-model-daemon/` | **Python** | **Rust** (GGUF + stub heuristics) | Boot ships GGUF in initramfs |
+| **Marketplace** | — | `marketplace/` | **Rust** | **Rust** | Bundle install → lambda + ui.patch |
 | **MCP Bus** | — | `mcp-bus/` | **Rust** | **Rust** | Python never existed |
 | **System Daemon** | — | `system-daemon/` | **Rust** | **Rust** | Python never existed |
 | **Compositor** | — | `compositor/` | **Rust** | **Rust** | Python never existed |
@@ -146,16 +147,6 @@ event-bus/
    `tests/integration/conftest.py` — mostly Python in-process).
 3. **Do not delete Python** until the Rust port passes the same test suite via Unix sockets.
 4. **Do not duplicate business logic** — port behavior, then delete the old copy.
-5. Regenerate docs after changes: `make docs`
+5. Regenerate docs after changes: `make docs`; run `make verify-docs` after inventory changes.
 
----
-
-## Known stale references
-
-These still describe a Python-only world and are being updated:
-
-- `docs/book/index.md` §1 "Running a component" — see this guide instead
-- `docs/build/book.md` — generated; run `make docs` after edits
-- Historical mention of `agent/` Python package — replaced by `agent-core/` Rust crate
-
-See also: [Development Guide](./development.md) · [Getting Started](./getting-started.md)
+See also: [Development Guide](./development.md) · [Getting Started](./getting-started.md) · [Component Inventory](../reference/component-inventory.yaml)

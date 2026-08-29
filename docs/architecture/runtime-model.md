@@ -1,19 +1,21 @@
 # Runtime Model — Agent-Driven UI via MCP
 
-This document describes the target runtime architecture implemented (incrementally) by The Machine.
+This document describes the runtime architecture implemented by The Machine.
 
 ## Boot Path
 
 The ISO initramfs launches services in layer order (L0 → L3 → L2 → L1 → L4 → L5):
 
-1. **system-daemon** — kernel-adjacent I/O and power/display/net MCP surface
-2. **mcp-bus** — message fabric and intent registry
-3. **policy-broker** — capability enforcement
-4. **state-store**, **event-bus**, **lambda-server** — L1 primitives
-5. **agent-core** — decision harness (heuristic today; LLM-backed in full deployment)
-6. **compositor** + **ui-runtime** — L5 display stack (compositor is model-layer today; wlroots integration is planned)
+1. **system-daemon** — evdev input with provenance markers; kernel-adjacent I/O MCP surface
+2. **mcp-bus** — message fabric, intent registry, policy middleware
+3. **policy-broker** — capability enforcement, audit, confirmation UI bridge
+4. **state-store**, **event-bus**, **lambda-server**, **local-model-daemon**, **marketplace** — L1/L4 primitives
+5. **agent-core** — LLM-backed planner (`localmodel.*` + optional cloud via `OPENAI_API_KEY`)
+6. **compositor** + **ui-runtime** — framebuffer present loop + declarative UI tree
 
 Init keeps PID 1 alive while services run; **fallback-shell** provides emergency console access.
+
+Environment defaults are set in `build/mkinitramfs.sh` (`STATE_STORE_BACKEND=sled`, `LOCAL_MODEL_PATH=/models/machine-tiny.gguf`, `WAYLAND_DISPLAY=wayland-0`).
 
 ## User Request Flow
 
@@ -24,7 +26,7 @@ User input → Event Bus → Agent Core wake
            /          \
       hit              miss
        ↓                ↓
-  forward to       lambda.register (sandboxed)
+  forward to       lambda.register (sandboxed synthesis)
   registered            +
   handler          ui.patch (materialize widgets)
        ↓                ↓
@@ -34,7 +36,7 @@ User input → Event Bus → Agent Core wake
 
 1. **Resolve** — Agent (or UI engine directly for `mcp:` bindings) calls `bus.resolve(method)` against the MCP intent registry.
 2. **Hit** — Bus forwards to the registered handler (lambda-server, state-store, etc.).
-3. **Miss** — Agent synthesizes a sandboxed lambda, registers it with `exposes_mcp`, which hot-registers routes via `_bus.register` (internal, not agent-callable).
+3. **Miss** — Agent synthesizes a sandboxed lambda, registers it with `exposes_mcp`, which hot-registers routes via `_bus.register` (internal, policy-gated).
 4. **Materialize** — Agent calls `ui.patch` to insert widgets whose `bindings` reference the new MCP methods.
 5. **Steady state** — Subsequent UI events invoke bindings directly through the bus without re-invoking the agent.
 
@@ -46,10 +48,17 @@ The Event Bus wakes the agent independently of user input:
 |--------|-----------|---------|
 | Timers / cron | `event.schedule` | `@every 30s` heartbeat |
 | Heartbeat | Built-in loop in event-bus | `scheduler.heartbeat.tick` with environment snapshot |
-| D-Bus signals | Planned adapter | `org.freedesktop` notifications |
-| Filesystem events | Planned adapter | `inotify` on watched paths |
+| D-Bus signals | `event-bus` dbus adapter | `desktop.notify`, `login.prepare_sleep` |
+| Filesystem events | `event-bus` inotify adapter | `fs.change.<pattern>` |
+| Audio | `event-bus` audio adapter | `pipewire.state` |
 
-Heartbeat payloads include an **environment snapshot** (uptime, hostname, timestamp). The agent persists this to `system.environment` in the State Store and may act on it during `process_wake`.
+Heartbeat payloads include an **environment snapshot** (uptime, hostname, lambda/UI/policy health). The agent persists this to `system.environment` in the State Store and may act on it during `process_wake`.
+
+## Policy & Confirmation
+
+All non-exempt MCP calls pass through **policy.check** middleware on the bus. Registrations use **policy.validate_register** before `_bus.register` inserts a route.
+
+Sensitive operations surface a **confirmation UI** on a compositor-protected layer (`compositor.confirmation.set_active`). User approval flows `ui.event` → `policy.confirm`.
 
 ## MCP Registry
 
@@ -57,7 +66,8 @@ Per `mcp-bus-spec.md`:
 
 - **Namespaces:** `mcp-intent`, `event-handler`, `system-op`, `state-op`
 - **Pattern matching:** `calc.*` matches `calc.add`, `calc.eval`, etc.
-- **Registration:** Side effect of `lambda.register` (via `_bus.register`); not exposed to agents
+- **Registration:** Side effect of `lambda.register` (via `_bus.register`); broker-validated
+- **Persistence:** Boot reload from `perm.mcp_routes.*` in state-store
 - **Introspection:** `bus.resolve`, `bus.list_routes`
 
 ## Python ↔ Rust
@@ -66,10 +76,8 @@ Rust binaries ship in the initramfs for boot. Python servers remain the referenc
 
 ## Remaining Work
 
-See [Gap Analysis](./gap-analysis.md) and [Expansion Proposal](./expansion-proposal.md) for the full roadmap. Highlights:
+See [Gap Analysis](./gap-analysis.md) and [Expansion Proposal](./expansion-proposal.md). Highlights:
 
-- **wlroots compositor** — real Wayland session instead of model-only compositor
-- **D-Bus / fs event adapters** — discrete event registrations in event-bus
-- **LLM integration** — wire `local-model` into agent-core `classify` / `plan`
-- **Policy gate on `_bus.register`** — broker validation before route insertion
-- **Registry persistence** — rebuild routes from State Store on bus restart
+- **G1** — Production cloud API key management for agent-core
+- **G6** — Embed Python AUIL parser in boot path (ui-engine → ui-runtime)
+- **G16** — Full wlroots DRM/KMS compositor (framebuffer works today)

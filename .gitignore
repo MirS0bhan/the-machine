@@ -10,4 +10,5 @@ __pycache__/
 /build/vmlinuz*
 /build/verify-wheels
 /build/artifacts
+/build/coverage.lcov
 

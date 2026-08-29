@@ -9,7 +9,7 @@ MEM        ?= 1G
 PYTHON     ?= python3
 
 .PHONY: all build build-release initramfs initramfs-release iso iso-release qemu run run-console clean \
-        test test-rust test-python test-all verify docs help \
+        test test-rust test-python test-all verify verify-docs coverage docs help \
         services-start services-stop ci-package
 
 all: build initramfs iso docs
@@ -72,6 +72,14 @@ test-all: test-rust test-python
 verify:
 	bash scripts/verify-all.sh
 
+verify-docs:
+	bash scripts/verify-docs-code.sh
+
+coverage:
+	@command -v cargo-llvm-cov >/dev/null 2>&1 || (echo "Installing cargo-llvm-cov..." && cargo install cargo-llvm-cov)
+	cargo llvm-cov --workspace --lcov --output-path build/coverage.lcov
+	@echo "Coverage report: build/coverage.lcov"
+
 docs:
 	$(MAKE) -C docs html
 
@@ -107,6 +115,8 @@ help:
 	@echo "  run            - Boot the ISO in QEMU"
 	@echo "  test           - Run all tests (Rust + Python)"
 	@echo "  verify         - Full verification (tests + builds + docs + inventory)"
+	@echo "  verify-docs    - Cross-check docs against component-inventory.yaml"
+	@echo "  coverage       - Rust test coverage (llvm-cov → build/coverage.lcov)"
 	@echo "  test-rust      - Run Rust workspace tests"
 	@echo "  test-python    - Run Python unit + integration tests"
 	@echo "  docs           - Build documentation"

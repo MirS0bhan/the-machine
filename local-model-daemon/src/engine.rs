@@ -160,3 +160,31 @@ fn routing_for(intent: &str) -> String {
 fn requires_cloud(intent: &str) -> bool {
     matches!(intent, "synthesize" | "research")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classify_calc_intent() {
+        let (intent, confidence, ..) = classify_stub("please calc 2+2", "input");
+        assert_eq!(intent, "calculator");
+        assert!(confidence > 0.8);
+    }
+
+    #[test]
+    fn classify_scheduler_heartbeat() {
+        let (intent, ..) = classify_stub("tick", "scheduler");
+        assert_eq!(intent, "heartbeat");
+    }
+
+    #[test]
+    fn embed_stub_is_deterministic() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let engine = Engine::new();
+        let a = rt.block_on(engine.embed("hello"));
+        let b = rt.block_on(engine.embed("hello"));
+        assert_eq!(a, b);
+        assert!(!a.is_empty());
+    }
+}

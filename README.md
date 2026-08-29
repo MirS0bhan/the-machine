@@ -6,31 +6,37 @@ Agent-Native OS — where an AI agent sits between human intent and system mecha
 
 ## Status
 
-**Hybrid implementation (Python → Rust migration in progress)** — several components exist in both languages. See the [overlap guide](./docs/guides/python-rust-overlap.md).
+**Production boot path (Rust)** — Phases 1–7 implemented. Python packages remain the reference for integration tests and agent prototyping. See the [overlap guide](./docs/guides/python-rust-overlap.md).
 
 | Layer | Component | Status |
 |-------|-----------|--------|
-| L0 | System Daemon | Rust daemon (mock kernel ops) |
-| L1 | Lambda Server | Python (full) + Rust (sandbox) |
-| L1 | State Store | Python (memory/RocksDB) + Rust (in-mem) |
-| L1 | Event Bus | Rust (full) + Python (integration tests) |
-| L2 | Policy Broker | Python (full) + Rust (stub) |
-| L3 | MCP Bus | Rust (routing to component sockets) |
-| L4 | Agent Core | Rust (session loop + heuristic router) |
-| L4 | Local Model | Python (llama-cpp wrapper) |
+| L0 | System Daemon | Rust — evdev input, mock kernel ops |
+| L1 | Lambda Server | Rust (seccomp sandbox, synthesis) + Python (tests) |
+| L1 | State Store | Rust (sled + watch) + Python (RocksDB/memory) |
+| L1 | Event Bus | Rust (scheduler, D-Bus/inotify/audio adapters) |
+| L2 | Policy Broker | Rust (rule engine, audit, confirmation UI) |
+| L3 | MCP Bus | Rust (registry, policy middleware, leases) |
+| L4 | Agent Core | Rust (LLM planner, cloud router, skills) |
+| L4 | Local Model | Rust `local-model-daemon` (GGUF in initramfs) + Python reference |
+| L4 | Marketplace | Rust (bundle install → lambda + ui.patch) |
 | L5 | UI Engine | Python (AUIL/ASL parser, renderer) |
-| L5 | UI Runtime | Rust (in-memory tree) |
-| L5 | Compositor | Rust (logical model) |
+| L5 | UI Runtime | Rust (patch tree, binding execution) |
+| L5 | Compositor | Rust (framebuffer `/dev/fb0`, confirmation surface) |
 | L5 | Fallback Shell | Rust (console recovery) |
+
+Canonical inventory: [`docs/reference/component-inventory.yaml`](./docs/reference/component-inventory.yaml) (verified by `make verify-docs`).
 
 ## Documentation
 
 - [Full documentation](./docs/index.md)
-- [Python ↔ Rust overlap guide](./docs/guides/python-rust-overlap.md) — **read this if confused about duplicate components**
+- [Python ↔ Rust overlap guide](./docs/guides/python-rust-overlap.md)
 - [Architecture overview](./docs/architecture/overview.md)
+- [Runtime model](./docs/architecture/runtime-model.md)
+- [Gap analysis](./docs/architecture/gap-analysis.md)
 - [Component specs](./docs/components/)
 - [Getting Started](./docs/guides/getting-started.md)
 - [Development Guide](./docs/guides/development.md)
+- [Testing & Coverage](./docs/guides/testing.md)
 
 ## Building
 
@@ -59,17 +65,28 @@ make qemu    # kernel + initramfs
 make run     # ISO
 ```
 
+## Testing & verification
+
+```bash
+make test-all       # Rust + Python tests
+make verify         # Full verification (tests, builds, docs, inventory)
+make verify-docs    # Documentation ↔ code cross-check
+make coverage       # Rust test coverage report (llvm-cov)
+```
+
 ## CI / Artifacts
 
 Every push to `main` runs [`.github/workflows/build.yml`](.github/workflows/build.yml):
 
 | Job | Artifact | Contents |
 |-----|----------|----------|
-| `build-rust-components` | `rust-<name>` × 10 | Release binary per Rust daemon |
+| `test` | — | Rust + Python tests, doc verification |
+| `coverage` | `rust-coverage` | LCOV report |
+| `build-rust-components` | `rust-<name>` × 12 | Release binary per Rust daemon |
 | `build-rust-examples` | `rust-lambda-examples` | `fn-add`, `fn-bad` |
 | `build-python-components` | `python-<pkg>` × 6 | Wheel per Python package |
 | `build-iso` | `boot-initramfs`, `boot-iso` | Initramfs + bootable ISO |
-| `package-release` | `the-machine-release` | **Combined tarball** with all of the above + `manifest.json` |
+| `package-release` | `the-machine-release` | Combined tarball + `manifest.json` |
 
 Download from the Actions run → **Artifacts** tab, or locally:
 

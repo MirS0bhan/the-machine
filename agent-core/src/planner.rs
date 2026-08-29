@@ -126,3 +126,22 @@ print(json.dumps({"result": result}))
         },
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn heartbeat_plan_patches_state() {
+        let plan = build_plan_heuristic("heartbeat", &serde_json::json!({}), "");
+        assert_eq!(plan.len(), 1);
+        assert_eq!(plan[0].action, "state.patch");
+    }
+
+    #[test]
+    fn calculator_plan_synthesizes_lambda() {
+        let plan = build_plan_heuristic("calculator", &serde_json::json!({}), "calc 2+2");
+        assert!(plan.iter().any(|s| s.action == "lambda.register"));
+        assert!(plan.iter().any(|s| s.action == "ui.patch"));
+    }
+}

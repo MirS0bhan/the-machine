@@ -54,3 +54,29 @@ pub fn infer_schemas_from_source(source: &str) -> (Value, Value) {
     });
     (input, output)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_forbidden_patterns() {
+        let r = validate_source("import os; os.system('rm -rf /')", "python");
+        assert!(!r.ok);
+        assert!(r.issues.iter().any(|i| i.contains("os.system")));
+    }
+
+    #[test]
+    fn accepts_safe_python() {
+        let src = "#!/usr/bin/env python3\nimport json\nprint(json.dumps({'ok': True}))";
+        let r = validate_source(src, "python");
+        assert!(r.ok, "{:?}", r.issues);
+    }
+
+    #[test]
+    fn infers_schemas_for_stdin_script() {
+        let (input, output) = infer_schemas_from_source("data = json.loads(sys.stdin.read())");
+        assert!(input.get("properties").is_some());
+        assert!(output.get("properties").is_some());
+    }
+}

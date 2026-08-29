@@ -51,10 +51,12 @@ The build uses only the Python standard library plus the `markdown` package
 ```bash
 cargo run --bin mcp-bus
 cargo run --bin system-daemon
-cargo run --bin policy-broker      # full rule engine (boot path)
+cargo run --bin policy-broker      # full rule engine + confirmation UI (boot path)
 cargo run --bin state-store        # sled or memory; STATE_STORE_PATH for persistence
 cargo run --bin event-bus
 cargo run --bin lambda-server
+cargo run --bin local-model-daemon # GGUF or stub heuristics
+cargo run --bin marketplace
 cargo run --bin agent-core
 cargo run --bin ui-runtime
 ```
@@ -128,14 +130,15 @@ system auditable: every action the agent takes is a logged MCP call.
 | L1 | Lambda Execution Server | **Implemented + tested** | HTTP + MCP API, `LocalExecutor`, capability enforcement, registry, supervisor |
 | L1 | State Store | **Implemented** | MCP server, backend, capability-gated reads/writes, pub/sub |
 | L1 | Event/Scheduler Bus | **Implemented** | Rust daemon (full); Python harness for integration tests |
-| L2 | Policy Broker | **Implemented** | Python rule engine (canonical); Rust boot stub |
-| L4 | Agent Core | **Implemented** | Session loop, hybrid router, privacy gate, systemd control, skills |
-| L4 | Local Model Interface | **Implemented** | Engine, privacy tagging, embedding backend, MCP server |
+| L2 | Policy Broker | **Implemented** | Rust rule engine (boot); Python reference for tests |
+| L4 | Agent Core | **Implemented** | LLM planner via local-model-daemon + cloud router |
+| L4 | Local Model Interface | **Implemented** | `local-model-daemon` (GGUF) + Python reference |
+| L4 | Marketplace | **Implemented** | Curated bundle install |
 | L5 | UI Engine | **Implemented** | AUIL/ASL parser, runtime, patch protocol, renderer, models |
 | L5 | UI Engine Demo | **Implemented** | Terminal `AbstractRenderer`, `demo.auil`, input loop, tests |
-| L3 | MCP Bus | **Implemented** | Dynamic intent registry, pattern resolve (`calc.*`), `_bus.register` side effect |
-| L0 | System Daemon | **Implemented** | Rust daemon (mock kernel ops for dev) |
-| L5 | Wayland Compositor | **Partial** | Rust logical model; wlroots integration planned |
+| L3 | MCP Bus | **Implemented** | Dynamic intent registry, policy middleware, leases |
+| L0 | System Daemon | **Implemented** | evdev input + mock kernel ops |
+| L5 | Wayland Compositor | **Partial** | Framebuffer present loop; full wlroots (G16) planned |
 | L3.7 | Fallback Shell | **Implemented** | Rust console recovery mode |
 
 The architecture specs are carried forward in their chapters with live implementation
@@ -214,11 +217,13 @@ the-machine/
 ├── compositor/               # L5 Wayland compositor (Rust, partial)
 ├── fallback-shell/           # L5 recovery UI (Rust)
 ├── ui-runtime/               # L5 declarative renderer daemon (Rust)
-├── local-model/              # L4 Tier-A inference (Python)
+├── local-model-daemon/       # L4 Tier-A inference (Rust, GGUF)
+├── marketplace/              # L4 curated bundle install
+├── local-model/              # L4 Tier-A inference (Python reference)
 ├── ui-engine/                # L5 AUIL/ASL parser (Python)
 ├── ui-engine-demo/           # L5 terminal demo app
 ├── build/                    # mkinitramfs.sh, mkiso.sh, CI packaging
-├── scripts/                  # start-services.sh, verify-all.sh
+├── scripts/                  # start-services.sh, verify-all.sh, verify-docs-code.*
 └── Makefile                  # build, test, iso, ci-package
 ```
 
