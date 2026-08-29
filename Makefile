@@ -79,7 +79,14 @@ services-stop:
 	bash scripts/stop-services.sh
 
 # Package per-component builds + ISO for CI (run after initramfs-release + iso).
-ci-package: build-release initramfs-release iso-release
+rootfs:
+	bash build/mkrootfs.sh minimal
+
+rootfs-release:
+	bash build/mkrootfs.sh release
+
+install-help:
+	@echo "Run: sudo bash build/installer/install.sh /dev/sdX"
 	bash build/ci-package-artifacts.sh build/artifacts release
 
 help:

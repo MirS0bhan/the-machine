@@ -1,36 +1,22 @@
-//! Agent Core - the decision-making harness for The Machine.
-//!
-//! This is a structural implementation: it runs the session loop (wait for wake
-//! -> gather context -> classify intent -> route local/cloud -> plan -> execute)
-//! with a deterministic heuristic classifier and planner. Real LLM clients slot
-//! in behind `classify_intent` / `plan` without changing the loop.
+//! Agent Core - LLM-driven session loop for The Machine.
 
+mod client;
+mod cloud;
+mod llm;
+mod planner;
+mod skills;
+
+use client::mcp_call;
+use cloud::{CloudRouter, new_trace};
+use llm::{classify_intent, plan_from_model};
+use planner::PlanStep;
+use skills::{load_skills, seed_default_skills_if_empty, skills_for_wake, Skill};
 use common::*;
 use std::sync::Arc;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, AsyncReadExt, BufReader};
 use tokio::sync::Mutex;
-use tracing::{info, warn, error};
-
-#[derive(Clone, Serialize, Deserialize, Default)]
-struct Skill {
-    name: String,
-    #[serde(default)]
-    version: u64,
-    #[serde(default)]
-    applies_to: Vec<String>,
-    #[serde(default)]
-    system_prompt: String,
-    #[serde(default)]
-    description: String,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-struct PlanStep {
-    action: String,
-    #[serde(default)]
-    params: serde_json::Value,
-}
+use tracing::{error, info, warn};
 
 struct AppState {
     status: String,
@@ -38,6 +24,7 @@ struct AppState {
     skills: Vec<Skill>,
     interrupted: bool,
     wakes_processed: u64,
+    cloud: Option<CloudRouter>,
 }
 
 impl AppState {
@@ -47,30 +34,12 @@ impl AppState {
             local_only_mode: std::env::var("THE_MACHINE_LOCAL_ONLY_MODE")
                 .map(|v| v == "true" || v == "1")
                 .unwrap_or(false),
-            skills: builtin_skills(),
+            skills: skills::builtin_skills(),
             interrupted: false,
             wakes_processed: 0,
+            cloud: CloudRouter::from_env(),
         }
     }
-}
-
-fn builtin_skills() -> Vec<Skill> {
-    vec![
-        Skill {
-            name: "intent-classification".into(),
-            version: 3,
-            applies_to: vec!["category:input".into()],
-            system_prompt: "Classify user input into an intent and estimate complexity.".into(),
-            description: "Intent classifier".into(),
-        },
-        Skill {
-            name: "media-control".into(),
-            version: 1,
-            applies_to: vec!["intent:media_play".into(), "intent:media_control".into()],
-            system_prompt: "Route media intents to the media_player lambda.".into(),
-            description: "Media control skill".into(),
-        },
-    ]
 }
 
 #[tokio::main]
@@ -80,18 +49,23 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     info!("Starting Agent Core");
-    let state: Arc<Mutex<AppState>> = Arc::new(Mutex::new(AppState::new()));
+    seed_default_skills_if_empty().await;
+    let mut initial = AppState::new();
+    initial.skills = load_skills().await;
 
-    // Subscribe to wakes (best-effort; the bus also hard-routes AgentWake here).
+    let state: Arc<Mutex<AppState>> = Arc::new(Mutex::new(initial));
+
     let _ = mcp_call(
         "event.subscribe",
         serde_json::json!({ "category": "*", "pattern": "*", "subscriber": "agent-core" }),
     )
     .await;
 
-    let socket_path = "/run/the-machine/agent-core.sock";
-    let _ = std::fs::remove_file(socket_path);
-    let listener = UnixListener::bind(socket_path)?;
+    let socket_dir =
+        std::env::var("THE_MACHINE_SOCKET_DIR").unwrap_or_else(|_| "/run/the-machine".to_string());
+    let socket_path = format!("{}/agent-core.sock", socket_dir);
+    let _ = std::fs::remove_file(&socket_path);
+    let listener = UnixListener::bind(&socket_path)?;
     info!("Agent Core listening on {}", socket_path);
 
     loop {
@@ -113,7 +87,6 @@ async fn handle_connection(stream: tokio::net::UnixStream, state: Arc<Mutex<AppS
             Ok(0) => break,
             Ok(_) => {
                 if let Ok(response) = process_message(&line, &state).await {
-                    // Notifications are not answered (mirrors the bus contract).
                     if !response.is_empty() {
                         if let Err(e) = writer.write_all(response.as_bytes()).await {
                             error!("Write error: {}", e);
@@ -135,7 +108,6 @@ async fn process_message(line: &str, state: &Arc<Mutex<AppState>>) -> anyhow::Re
     let id = msg.id;
     match msg.kind {
         MessageKind::Notification => {
-            // A wake from the Event Bus. Process without replying.
             let params = msg.params.clone().unwrap_or(serde_json::Value::Null);
             let state = state.clone();
             tokio::spawn(async move {
@@ -152,18 +124,30 @@ async fn process_message(line: &str, state: &Arc<Mutex<AppState>>) -> anyhow::Re
     }
 }
 
-async fn handle_request(method: String, params: Option<serde_json::Value>, state: &Arc<Mutex<AppState>>) -> McpMessage {
+async fn handle_request(
+    method: String,
+    params: Option<serde_json::Value>,
+    state: &Arc<Mutex<AppState>>,
+) -> McpMessage {
     let id = Uuid::new_v4();
     match method.as_str() {
         "agent.status" => {
             let s = state.lock().await;
-            success_response(&id, serde_json::json!({
-                "status": s.status,
-                "local_model": "loaded",
-                "cloud_model": if s.local_only_mode { "disabled" } else { "available" },
-                "local_only_mode": s.local_only_mode,
-                "wakes_processed": s.wakes_processed,
-            }))
+            let model_status = mcp_call("localmodel.health", serde_json::json!({}))
+                .await
+                .and_then(|v| v.get("status").and_then(|x| x.as_str()).map(|x| x.to_string()))
+                .unwrap_or_else(|| "unavailable".into());
+            success_response(
+                &id,
+                serde_json::json!({
+                    "status": s.status,
+                    "local_model": model_status,
+                    "cloud_model": if s.local_only_mode || s.cloud.is_none() { "disabled" } else { "available" },
+                    "local_only_mode": s.local_only_mode,
+                    "wakes_processed": s.wakes_processed,
+                    "skills_loaded": s.skills.len(),
+                }),
+            )
         }
         "agent.interrupt" => {
             state.lock().await.interrupted = true;
@@ -186,23 +170,35 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, state
                         "name": sk.name,
                         "version": sk.version,
                         "applies_to": sk.applies_to,
+                        "description": sk.description,
                     })
                 })
                 .collect();
             success_response(&id, serde_json::json!(summaries))
         }
+        "agent.skills.reload" => {
+            let skills = load_skills().await;
+            state.lock().await.skills = skills;
+            success_response(&id, serde_json::json!({ "ok": true }))
+        }
         _ => error_response(&id, "E_NOT_FOUND", &format!("Unknown method: {}", method)),
     }
 }
 
-/// The session loop body, invoked on each wake.
 async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
     let wake_reason = params.clone();
-    let category = wake_reason.get("category").and_then(|v| v.as_str()).unwrap_or("input").to_string();
-    let pattern = wake_reason.get("pattern").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let category = wake_reason
+        .get("category")
+        .and_then(|v| v.as_str())
+        .unwrap_or("input")
+        .to_string();
+    let pattern = wake_reason
+        .get("pattern")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
     let payload = wake_reason.get("payload").cloned().unwrap_or(serde_json::Value::Null);
 
-    // 1. Gather context (history + environment snapshot from heartbeat or state).
     let history = mcp_call("state.get", serde_json::json!({ "path": "task.history" }))
         .await
         .and_then(|v| v.get("value").cloned())
@@ -223,50 +219,74 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
         }
     };
 
-    // 2. Classify intent + estimate complexity (deterministic heuristic).
     let text = payload
         .get("text")
         .and_then(|v| v.as_str())
         .or_else(|| payload.get("query").and_then(|v| v.as_str()))
+        .or_else(|| payload.get("summary").and_then(|v| v.as_str()))
         .or_else(|| Some(pattern.as_str()))
         .unwrap_or("")
-        .to_lowercase();
-    let (intent, complexity, requires_cloud) = classify(&text, &category, &pattern);
+        .to_string();
 
-    // 3. Route (privacy gate + local-only + complexity).
-    let s = state.lock().await;
-    let local_only = s.local_only_mode;
+    let (skills, local_only, cloud_router) = {
+        let s = state.lock().await;
+        (s.skills.clone(), s.local_only_mode, s.cloud.is_some())
+    };
+    let active_skills = skills_for_wake(&skills, &category, "");
+    let classification = classify_intent(&text, &category, &active_skills).await;
+    let active_skills = skills_for_wake(&skills, &category, &classification.intent);
+
     let privacy_tag = payload.get("privacy").and_then(|v| v.as_bool()).unwrap_or(false);
-    drop(s);
-    let routing = if privacy_tag || local_only || complexity == "low" {
-        "local"
-    } else if requires_cloud {
-        "cloud"
+    let routing = if privacy_tag || local_only {
+        "local".to_string()
+    } else if classification.requires_cloud && cloud_router {
+        "cloud".to_string()
     } else {
-        "local"
+        classification.routing.clone()
     };
 
     info!(
-        "wake: category={} intent={} complexity={} routing={}",
-        category, intent, complexity, routing
+        "wake: category={} intent={} complexity={} routing={} confidence={}",
+        category, classification.intent, classification.complexity, routing, classification.confidence
     );
 
-    // 4. Resolve against MCP tool registry before planning.
-    let target_method = infer_target_method(&intent, &text, &payload);
+    let target_method = infer_target_method(&classification.intent, &text, &payload);
     if let Some(method) = &target_method {
         if let Some(resolved) = bus_resolve(method).await {
             if resolved.get("handler").is_some() {
                 info!("resolved {} → {:?}", method, resolved.get("handler"));
-                let r = mcp_call(method, payload.clone()).await;
-                record_wake(&state, &intent, &complexity, &routing, 1, &history).await;
-                let _ = r;
+                let _ = mcp_call(method, payload.clone()).await;
+                record_wake(&state, &classification.intent, &classification.complexity, &routing, 1, &history).await;
+                finish_wake(&state, env_snapshot).await;
                 return;
             }
         }
     }
 
-    // 5. Plan + execute (synthesize on miss).
-    let plan = build_plan(&intent, &payload, &text);
+    let trace = new_trace();
+    let plan = if routing == "cloud" {
+        let cloud_plan = {
+            let s = state.lock().await;
+            if let Some(router) = &s.cloud {
+                router
+                    .plan(&classification.intent, &text, &payload, &trace)
+                    .await
+            } else {
+                None
+            }
+        };
+        cloud_plan.unwrap_or_else(|| {
+            futures::executor::block_on(plan_from_model(
+                &classification.intent,
+                &text,
+                &payload,
+                &active_skills,
+            ))
+        })
+    } else {
+        plan_from_model(&classification.intent, &text, &payload, &active_skills).await
+    };
+
     let mut results = Vec::new();
     for step in &plan {
         if state.lock().await.interrupted {
@@ -274,20 +294,22 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
             break;
         }
         let r = mcp_call(&step.action, step.params.clone()).await;
-        results.push(serde_json::json!({ "action": step.action, "result": r }));
+        results.push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
     }
 
     record_wake(
         &state,
-        &intent,
-        &complexity,
+        &classification.intent,
+        &classification.complexity,
         &routing,
         results.len(),
         &history,
     )
     .await;
+    finish_wake(&state, env_snapshot).await;
+}
 
-    // Persist environment snapshot when provided by heartbeat.
+async fn finish_wake(state: &Arc<Mutex<AppState>>, env_snapshot: serde_json::Value) {
     if !env_snapshot.is_null() {
         let _ = mcp_call(
             "state.set",
@@ -295,7 +317,6 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
         )
         .await;
     }
-
     let mut s = state.lock().await;
     s.wakes_processed += 1;
     s.interrupted = false;
@@ -318,6 +339,7 @@ async fn record_wake(
         "complexity": complexity,
         "routing": routing,
         "result_count": result_count,
+        "at": chrono::Utc::now().to_rfc3339(),
     }));
     if hist.len() > 20 {
         let drain = hist.len() - 20;
@@ -331,15 +353,13 @@ async fn record_wake(
     let _ = state;
 }
 
-/// Infer the MCP method a user request would target (for bus.resolve).
 fn infer_target_method(intent: &str, text: &str, payload: &serde_json::Value) -> Option<String> {
     if let Some(m) = payload.get("method").and_then(|v| v.as_str()) {
         return Some(m.to_string());
     }
     match intent {
-        "media_control" => Some("media_player.play".into()),
-        "calculator" | "calc" => Some("calc.eval".into()),
-        "query" => None,
+        "media_control" | "media.play" => Some("media_player.play".into()),
+        "calculator" | "calc.eval" => Some("calc.eval".into()),
         _ => {
             if text.contains("calc") {
                 Some("calc.eval".into())
@@ -352,148 +372,6 @@ fn infer_target_method(intent: &str, text: &str, payload: &serde_json::Value) ->
 
 async fn bus_resolve(method: &str) -> Option<serde_json::Value> {
     mcp_call("bus.resolve", serde_json::json!({ "method": method })).await
-}
-
-/// Keyword heuristic classifier (stands in for the local model).
-fn classify(text: &str, category: &str, pattern: &str) -> (String, String, bool) {
-    let t = text;
-    if category == "scheduler" && pattern == "heartbeat.tick" {
-        return ("heartbeat".into(), "low".into(), false);
-    }
-    if t.contains("calc") || t.contains("calculator") || t.contains("add") && t.contains("number") {
-        return ("calculator".into(), "medium".into(), false);
-    }
-    if t.contains("play") || t.contains("music") || t.contains("video") || t.contains("pause") || t.contains("stop") {
-        ("media_control".into(), "low".into(), false)
-    } else if t.contains("weather") || t.contains("time") || t.contains("date") || t.contains("how many") {
-        ("query".into(), "low".into(), false)
-    } else if t.contains("search") || t.contains("find") || t.contains("list") {
-        ("search".into(), "medium".into(), false)
-    } else if t.contains("build") || t.contains("create") || t.contains("register") || t.contains("make") || t.contains("generate") || t.contains("show") {
-        ("synthesize".into(), "high".into(), true)
-    } else {
-        ("generic".into(), "medium".into(), false)
-    }
-}
-
-/// Deterministic planner: maps an intent to a sequence of MCP steps.
-/// On tool miss, synthesizes a lambda + hot-registers it + materializes UI.
-fn build_plan(intent: &str, payload: &serde_json::Value, text: &str) -> Vec<PlanStep> {
-    match intent {
-        "heartbeat" => vec![PlanStep {
-            action: "state.patch".into(),
-            params: serde_json::json!({
-                "ops": [{ "path": "system.last_heartbeat", "value": chrono::Utc::now().to_rfc3339() }]
-            }),
-        }],
-        "media_control" => vec![PlanStep {
-            action: "lambda.invoke".into(),
-            params: serde_json::json!({
-                "name": "media_player",
-                "payload": { "command": "play", "query": payload.get("text").cloned().unwrap_or(serde_json::Value::Null) }
-            }),
-        }],
-        "calculator" | "synthesize" => {
-            let name = payload
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("calc.eval")
-                .to_string();
-            let widget_id = format!("ui.{}", name.replace('.', "_"));
-            vec![
-                PlanStep {
-                    action: "lambda.register".into(),
-                    params: serde_json::json!({
-                        "manifest": {
-                            "name": name,
-                            "description": format!("Synthesized handler for: {}", text),
-                            "entrypoint": "/bin/echo",
-                            "capabilities": [],
-                            "exposes_mcp": [format!("{}.*", name.split('.').next().unwrap_or("app"))],
-                        }
-                    }),
-                },
-                PlanStep {
-                    action: "ui.patch".into(),
-                    params: serde_json::json!({
-                        "ops": [{
-                            "op": "insert",
-                            "anchor": "ui.root",
-                            "node": {
-                                "id": widget_id,
-                                "type": "button",
-                                "props": { "label": text },
-                                "bindings": [{
-                                    "type": "mcp",
-                                    "target": format!("{}.run", name)
-                                }]
-                            }
-                        }]
-                    }),
-                },
-                PlanStep {
-                    action: "state.patch".into(),
-                    params: serde_json::json!({
-                        "ops": [{ "path": format!("task.lambdas.{}", name), "value": { "status": "registered" } }]
-                    }),
-                },
-            ]
-        }
-        "lambda_register" => {
-            let name = payload
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("generated_fn")
-                .to_string();
-            vec![
-                PlanStep {
-                    action: "lambda.register".into(),
-                    params: serde_json::json!({
-                        "manifest": {
-                            "name": name,
-                            "description": "Agent-registered function",
-                            "entrypoint": format!("/usr/bin/{}", name),
-                            "capabilities": ["CAP_FS_READ"],
-                        }
-                    }),
-                },
-                PlanStep {
-                    action: "state.patch".into(),
-                    params: serde_json::json!({
-                        "ops": [{ "path": format!("task.lambdas.{}", name), "value": { "status": "registered" } }]
-                    }),
-                },
-            ]
-        }
-        "query" => vec![PlanStep {
-            action: "state.set".into(),
-            params: serde_json::json!({ "path": "task.last_query", "value": payload }),
-        }],
-        _ => vec![PlanStep {
-            action: "state.set".into(),
-            params: serde_json::json!({ "path": "task.last_intent", "value": intent }),
-        }],
-    }
-}
-
-// ---------------------------------------------------------------------------
-// MCP client helper.
-// ---------------------------------------------------------------------------
-async fn mcp_call(method: &str, params: serde_json::Value) -> Option<serde_json::Value> {
-    let path = "/run/the-machine/mcp-bus.sock";
-    let stream = tokio::net::UnixStream::connect(path).await.ok()?;
-    let (mut reader, mut writer) = stream.into_split();
-    let req = McpMessage::request(Uuid::new_v4(), method, Some(params));
-    let bytes = serde_json::to_vec(&req).ok()?;
-    writer.write_all(&bytes).await.ok()?;
-    writer.flush().await.ok()?;
-    let mut buf = vec![0u8; 65536];
-    let n = reader.read(&mut buf).await.ok()?;
-    if n == 0 {
-        return None;
-    }
-    let resp: serde_json::Value = serde_json::from_slice(&buf[..n]).ok()?;
-    resp.get("result").cloned()
 }
 
 fn success_response(id: &Uuid, result: serde_json::Value) -> McpMessage {

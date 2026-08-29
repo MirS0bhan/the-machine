@@ -160,31 +160,30 @@ Extend current 30s heartbeat with:
 
 ## Phase 5 — Lambda Platform (L1 Scale-Up)
 
-**Goal:** Agent-deployed code is safe, fast, and reusable at scale.
+**Goal:** Agent-deployed code is safe, fast, and reusable at scale — **without OCI containers** (code is written, validated, and sandboxed directly).
 
-### 5.1 Container Runtime
+### 5.1 Seccomp Sandbox Runtime (not OCI)
 
-- OCI runtime (youki/crun) or Firecracker microVM per `lambda-server-spec.md`.
-- Base images: `python3.12-slim`, `node20`, `ffmpeg`, `chromium-headless`.
-- GPU mediated via virtio-gpu allow-list.
+- Per-invocation namespaces + seccomp allowlist (existing `lambda-server/src/sandbox.rs`).
+- Source synthesis writes Python/shell to `/var/the-machine/lambdas/` and registers entrypoint.
+- Static validation pass before broker approval (`validate.rs`).
 
 ### 5.2 Warm Pools & Leases
 
-- Implement `lambda.lease` fast-path (bus bypass per mcp-bus-spec §4).
-- Pool sizing policy in supervisor; pre-warm on `exposes_mcp` registration.
+- Pre-warm lease on `exposes_mcp` registration (`pool.rs`).
+- `bus.lease` / `bus.lease.renew` for fast-path metadata (mcp-bus).
 
 ### 5.3 Code Synthesis Pipeline
 
 - Agent emits function source → `lambda.register` with validation.
-- Static analysis pass (bandit/semgrep) before broker approval.
 - Auto-generate `input_schema`/`output_schema` from code introspection.
 
 ### 5.4 Function Library
 
-- Semantic search over registry (`lambda.search` with embeddings from local-model).
+- Semantic search over registry (`lambda.search` with `localmodel.embed` embeddings).
 - User-visible "installed capabilities" derived from `bus.list_routes`.
 
-**Deliverable:** Agent can deploy real Python/JS/shell tools that persist and evolve.
+**Deliverable:** Agent can deploy real Python/shell tools that persist and evolve in seccomp sandboxes.
 
 ---
 
@@ -313,7 +312,7 @@ New tools should be added by:
 |---------|----------------|-----------|
 | Inference | llama.cpp / GGUF | On-device privacy, no network required |
 | Protocol | MCP over Unix sockets | Already universal in codebase |
-| Sandbox | seccomp → OCI → Firecracker | Progressive hardening |
+| Sandbox | seccomp namespaces (code synthesis) | No OCI — agent writes code, sandbox executes |
 | Compositor | wlroots | Mature, fits minimal-DE goal |
 | UI language | AUIL + ASL | Agent-friendly declarative trees |
 | State | RocksDB | Embedded, fast patch semantics |

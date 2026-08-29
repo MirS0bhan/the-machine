@@ -13,6 +13,8 @@ members = [
     "compositor",
     "fallback-shell",
     "lambda-examples",
+    "local-model-daemon",
+    "marketplace",
 ]
 
 [workspace.package]

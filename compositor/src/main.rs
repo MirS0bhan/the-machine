@@ -89,11 +89,15 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     info!("Starting Compositor");
+    std::env::set_var("WAYLAND_DISPLAY", std::env::var("WAYLAND_DISPLAY").unwrap_or_else(|_| "wayland-0".into()));
+    info!("WAYLAND_DISPLAY={}", std::env::var("WAYLAND_DISPLAY").unwrap_or_default());
     let comp: Arc<Mutex<Compositor>> = Arc::new(Mutex::new(Compositor::new()));
 
-    let socket_path = "/run/the-machine/compositor.sock";
-    let _ = std::fs::remove_file(socket_path);
-    let listener = UnixListener::bind(socket_path)?;
+    let socket_dir =
+        std::env::var("THE_MACHINE_SOCKET_DIR").unwrap_or_else(|_| "/run/the-machine".to_string());
+    let socket_path = format!("{}/compositor.sock", socket_dir);
+    let _ = std::fs::remove_file(&socket_path);
+    let listener = UnixListener::bind(&socket_path)?;
     info!("Compositor listening on {}", socket_path);
 
     loop {
@@ -242,16 +246,30 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, comp:
             let y = params.get("y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
             let c = comp.lock().await;
             match c.pick(x, y) {
-                Some(sid) => success_response(&id, serde_json::json!({ "surface": sid, "handled": true })),
-                None => success_response(&id, serde_json::json!({ "surface": serde_json::Value::Null, "handled": false })),
+                Some(sid) => {
+                    let widget_id = sid.strip_prefix("surface.").unwrap_or(&sid).to_string();
+                    success_response(&id, serde_json::json!({
+                        "surface": sid,
+                        "widget_id": widget_id,
+                        "handled": true
+                    }))
+                }
+                None => success_response(&id, serde_json::json!({
+                    "surface": serde_json::Value::Null,
+                    "widget_id": serde_json::Value::Null,
+                    "handled": false
+                })),
             }
         }
         "compositor.present" => {
-            // Mark a surface's damage region as presented (model only).
-            let sid = params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let damage = params.get("damage").and_then(|v| v.as_str()).unwrap_or("partial");
             let c = comp.lock().await;
-            let ok = c.surfaces.contains_key(&sid);
-            success_response(&id, serde_json::json!({ "presented": sid, "ok": ok }))
+            success_response(&id, serde_json::json!({
+                "presented": true,
+                "damage": damage,
+                "surfaces": c.surfaces.len(),
+                "wayland_display": std::env::var("WAYLAND_DISPLAY").unwrap_or_default(),
+            }))
         }
         "compositor.list" => {
             let c = comp.lock().await;

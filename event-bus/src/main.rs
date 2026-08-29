@@ -1,14 +1,7 @@
 //! Event/Scheduler Bus — reactive routing, timers & agent-wake decisions.
-//!
-//! Implements docs/event-bus-spec.md and docs/components/event-bus.md:
-//!   - publish/route events with local-resolution-first decision logic
-//!   - handler registry (handles_event) and push subscriptions
-//!   - a real scheduler with @every / @hourly / @daily / standard cron
-//!   - per-category Agent Core wake coalescing
-//!   - stats + introspection (explain_routing, list_handlers)
-//!
-//! Delivery to handlers/subscribers/agent is best-effort over MCP to the
-//! target component's socket at /run/the-machine/<identity>.sock.
+
+mod adapters;
+mod heartbeat;
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
@@ -504,26 +497,13 @@ fn parse_when(spec: &str, now: i64) -> Result<(i64, Option<i64>), String> {
     }
 }
 
-async fn gather_environment_snapshot() -> Value {
-    let uptime = std::fs::read_to_string("/proc/uptime")
-        .ok()
-        .and_then(|s| s.split_whitespace().next().map(|v| v.to_string()))
-        .unwrap_or_else(|| "0".into());
-    json!({
-        "timestamp_ms": now_ms(),
-        "uptime_secs": uptime,
-        "hostname": std::env::var("HOSTNAME").unwrap_or_else(|_| "the-machine".into()),
-    })
-}
-
-/// Emit periodic heartbeat events with environment snapshots to wake the agent proactively.
 async fn heartbeat_loop(state: State) {
     loop {
         tokio::time::sleep(Duration::from_secs(30)).await;
-        let environment = gather_environment_snapshot().await;
+        let snapshot = heartbeat::gather_rich_snapshot().await;
         let payload = json!({
             "kind": "heartbeat",
-            "environment": environment,
+            "environment": snapshot,
         });
         let event = Event {
             id: Uuid::new_v4(),
@@ -907,6 +887,8 @@ async fn main() -> anyhow::Result<()> {
             heartbeat_loop(s).await;
         });
     }
+
+    adapters::start_all().await;
 
     let socket_dir =
         std::env::var("THE_MACHINE_SOCKET_DIR").unwrap_or_else(|_| "/run/the-machine".to_string());

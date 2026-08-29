@@ -1,8 +1,6 @@
 //! UI Runtime - declarative renderer for the UI State Tree (AUIL) with ASL styling.
-//!
-//! Maintains an in-memory UI tree, applies incremental patch operations
-//! (update / insert / remove / replace / move), resolves ASL style tokens
-//! against the active theme, and reflects changes to the State Store.
+
+mod renderer;
 
 use common::*;
 use std::collections::{HashMap, HashSet};
@@ -131,9 +129,19 @@ async fn main() -> anyhow::Result<()> {
     info!("Starting UI Runtime");
     let tree: SharedTree = Arc::new(Mutex::new(UiTree::new()));
 
-    let socket_path = "/run/the-machine/ui-runtime.sock";
-    let _ = std::fs::remove_file(socket_path);
-    let listener = UnixListener::bind(socket_path)?;
+    // Subscribe to external ui.root changes via state.watch (best-effort).
+    {
+        let tree = tree.clone();
+        tokio::spawn(async move {
+            watch_ui_root(tree).await;
+        });
+    }
+
+    let socket_dir =
+        std::env::var("THE_MACHINE_SOCKET_DIR").unwrap_or_else(|_| "/run/the-machine".to_string());
+    let socket_path = format!("{}/ui-runtime.sock", socket_dir);
+    let _ = std::fs::remove_file(&socket_path);
+    let listener = UnixListener::bind(&socket_path)?;
     info!("UI Runtime listening on {}", socket_path);
 
     loop {
@@ -379,8 +387,26 @@ async fn apply_patch(tree: &SharedTree, ops: Vec<serde_json::Value>) -> Result<u
     };
     if let Some(node) = root {
         let _ = reflect_to_state(&node).await;
+        let serialized = serde_json::to_value(&node).unwrap_or(serde_json::Value::Null);
+        let _ = renderer::sync_tree_to_compositor(&serialized).await;
     }
     Ok(rev)
+}
+
+async fn watch_ui_root(tree: SharedTree) {
+    loop {
+        if let Some(val) = mcp_call("state.get", serde_json::json!({ "path": "ui.root" }))
+            .await
+            .and_then(|v| v.get("value").cloned())
+        {
+            if let Ok(node) = serde_json::from_value::<UiNode>(val) {
+                let mut t = tree.lock().await;
+                t.nodes.insert(node.id.clone(), node);
+                t.revision += 1;
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
 }
 
 fn remove_subtree(t: &mut UiTree, id: &str) {

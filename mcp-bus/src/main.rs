@@ -6,11 +6,21 @@ use tracing::{info, error, debug, warn};
 use common::*;
 
 mod registry;
+mod lease;
+mod external;
+mod telemetry;
 use registry::{infer_namespace, Namespace, Registry, RouteEntry};
+use lease::LeaseManager;
+use external::ExternalRegistry;
+use telemetry::Telemetry;
+use std::time::Instant;
 
 #[derive(Clone)]
 struct AppState {
     registry: Arc<Mutex<Registry>>,
+    leases: Arc<LeaseManager>,
+    external: Arc<ExternalRegistry>,
+    telemetry: Arc<Telemetry>,
 }
 
 #[tokio::main]
@@ -27,6 +37,9 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState {
         registry: Arc::new(Mutex::new(Registry::new())),
+        leases: Arc::new(LeaseManager::new(300)),
+        external: Arc::new(ExternalRegistry::new()),
+        telemetry: Arc::new(Telemetry::new(10_000)),
     };
 
     // Pre-populate with system and state ops
@@ -120,9 +133,26 @@ async fn main() -> anyhow::Result<()> {
         for m in ["ui.patch", "ui.get", "ui.bind", "ui.tree", "ui.event", "ui.status"] {
             reg.register(m, "ui-runtime", true).unwrap();
         }
-        for m in ["compositor.surface", "compositor.blur", "compositor.focus"] {
+        for m in ["compositor.surface", "compositor.blur", "compositor.focus", "compositor.input", "compositor.present", "compositor.list", "compositor.status"] {
             reg.register(m, "compositor", true).unwrap();
         }
+        for m in [
+            "localmodel.complete",
+            "localmodel.embed",
+            "localmodel.classify_intent",
+            "localmodel.health",
+        ] {
+            reg.register(m, "local-model-daemon", true).unwrap();
+        }
+        for m in ["marketplace.list", "marketplace.install", "marketplace.installed"] {
+            reg.register(m, "marketplace", true).unwrap();
+        }
+        reg.register("bus.lease", "mcp-bus", true).unwrap();
+        reg.register("bus.lease.renew", "mcp-bus", true).unwrap();
+        reg.register("bus.telemetry.export", "mcp-bus", true).unwrap();
+        reg.register("bus.external.register", "mcp-bus", true).unwrap();
+        reg.register("bus.external.list", "mcp-bus", true).unwrap();
+        reg.register("bus.external.forward", "mcp-bus", true).unwrap();
     }
 
     // Rebuild dynamic routes persisted in State Store (Phase 3).
@@ -201,6 +231,9 @@ async fn process_mcp_message(data: &[u8], state: &AppState) -> Option<Vec<u8>> {
         || method == "bus.list_routes"
         || method == "_bus.register"
         || method == "_bus.deregister"
+        || method.starts_with("bus.lease")
+        || method.starts_with("bus.telemetry")
+        || method.starts_with("bus.external")
     {
         return Some(handle_bus_local(method, &msg, state).await);
     }
@@ -220,7 +253,7 @@ async fn process_mcp_message(data: &[u8], state: &AppState) -> Option<Vec<u8>> {
         Some(route) => {
             let handler_id = route.handler.clone();
             drop(reg);
-            match forward_to(&handler_id, data, method, route.manifest_ref.as_deref()).await {
+            match forward_to(&handler_id, data, method, route.manifest_ref.as_deref(), &state).await {
                 Some(resp) => Some(resp),
                 None => Some(error_bytes(id, "E_HANDLER_UNAVAILABLE",
                     &format!("Handler {} not reachable", handler_id))),
@@ -229,7 +262,7 @@ async fn process_mcp_message(data: &[u8], state: &AppState) -> Option<Vec<u8>> {
         None => {
             drop(reg);
             if let Some(handler_id) = prefix_handler(method) {
-                match forward_to(&handler_id, data, method, None).await {
+                match forward_to(&handler_id, data, method, None, &state).await {
                     Some(resp) => Some(resp),
                     None => Some(error_bytes(id, "E_HANDLER_UNAVAILABLE",
                         &format!("Handler {} not reachable", handler_id))),
@@ -374,6 +407,50 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
                 error_bytes(id, "E_NOT_FOUND", "route not found")
             }
         }
+        "bus.lease" => {
+            let method_name = params.get("method").and_then(|v| v.as_str()).unwrap_or("");
+            let reg = state.registry.lock().await;
+            let route = match reg.resolve_full(method_name) {
+                Some(r) => r,
+                None => return error_bytes(id, "E_NOT_FOUND", "method not registered"),
+            };
+            let ttl = params.get("ttl_secs").and_then(|v| v.as_u64());
+            let result = state.leases.create(method_name, &route.handler, ttl);
+            ok_bytes(id, result)
+        }
+        "bus.lease.renew" => {
+            let lease_id = params.get("lease_id").and_then(|v| v.as_str()).unwrap_or("");
+            let ttl = params.get("ttl_secs").and_then(|v| v.as_u64());
+            match state.leases.renew(lease_id, ttl) {
+                Some(r) => ok_bytes(id, r),
+                None => error_bytes(id, "E_NOT_FOUND", "lease not found or expired"),
+            }
+        }
+        "bus.telemetry.export" => {
+            let limit = params.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
+            ok_bytes(id, state.telemetry.export(limit))
+        }
+        "bus.external.register" => {
+            let server_id = params.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            let base_url = params.get("base_url").and_then(|v| v.as_str()).unwrap_or("");
+            let methods: Vec<String> = params
+                .get("allowed_methods")
+                .and_then(|v| v.as_array())
+                .map(|a| a.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect())
+                .unwrap_or_else(|| vec!["*".into()]);
+            ok_bytes(id, state.external.register(server_id, base_url, methods))
+        }
+        "bus.external.list" => ok_bytes(id, state.external.list()),
+        "bus.external.forward" => {
+            let server_id = params.get("server_id").and_then(|v| v.as_str()).unwrap_or("");
+            let fwd_method = params.get("forward_method").and_then(|v| v.as_str()).unwrap_or("");
+            let payload = params.get("payload").cloned().unwrap_or(serde_json::Value::Null);
+            let result = state.external.forward(server_id, fwd_method, payload).await;
+            match result {
+                Some(r) => ok_bytes(id, r),
+                None => error_bytes(id, "E_NOT_FOUND", "external server unavailable"),
+            }
+        }
         _ => error_bytes(id, "E_NOT_FOUND", "unknown bus method"),
     }
 }
@@ -385,7 +462,9 @@ async fn forward_to(
     raw: &[u8],
     original_method: &str,
     manifest_ref: Option<&str>,
+    state: &AppState,
 ) -> Option<Vec<u8>> {
+    let started = Instant::now();
     let path = format!("/run/the-machine/{}.sock", handler_id);
     let mut stream = UnixStream::connect(&path).await.ok()?;
 
@@ -431,6 +510,13 @@ async fn forward_to(
     if n == 0 {
         return None;
     }
+    let ok = !line.contains("\"error\"");
+    state.telemetry.record(
+        original_method,
+        handler_id,
+        started.elapsed().as_millis() as u64,
+        ok,
+    );
     Some(line.into_bytes())
 }
 

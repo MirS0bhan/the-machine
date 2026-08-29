@@ -91,6 +91,8 @@ if [[ "${RUNTIME}" == "hybrid" ]]; then
 else
   start_rust lambda-server
 fi
+start_rust local-model-daemon
+start_rust marketplace
 
 # L4
 start_rust agent-core

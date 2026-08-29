@@ -14,6 +14,9 @@
 //! lambda.health, lambda.stop.
 
 mod sandbox;
+mod pool;
+mod synthesis;
+mod validate;
 use sandbox::*;
 
 use std::collections::HashMap;
@@ -47,6 +50,16 @@ struct Manifest {
     exposes_mcp: Vec<Value>,
     #[serde(default)]
     handles_event: Vec<Value>,
+    #[serde(default)]
+    watches: Vec<String>,
+    #[serde(default)]
+    source: Option<String>,
+    #[serde(default)]
+    language: Option<String>,
+    #[serde(default)]
+    input_schema: Option<Value>,
+    #[serde(default)]
+    output_schema: Option<Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -65,16 +78,21 @@ struct AppState {
     /// Per-group IPC namespace fd (shared across functions in a group).
     ipc_groups: Mutex<HashMap<String, i32>>,
     /// Active leases: lease_id -> persistent sandboxed process.
-    leases: Mutex<HashMap<String, Persistent>>,
+    leases: Arc<Mutex<HashMap<String, Persistent>>>,
+    warm_pool: pool::WarmPool,
+    embeddings: Mutex<HashMap<String, Vec<f32>>>,
 }
 
 impl AppState {
     fn new() -> Self {
+        let leases = Arc::new(Mutex::new(HashMap::new()));
         Self {
             functions: Mutex::new(HashMap::new()),
             mcp_exposures: Mutex::new(HashMap::new()),
             ipc_groups: Mutex::new(HashMap::new()),
-            leases: Mutex::new(HashMap::new()),
+            leases: leases.clone(),
+            warm_pool: pool::WarmPool::new(leases),
+            embeddings: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -234,7 +252,7 @@ async fn handle_request(value: Value, state: Arc<AppState>) -> Value {
 }
 
 async fn register(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value {
-    let manifest: Manifest = match params
+    let mut manifest: Manifest = match params
         .as_ref()
         .and_then(|p| p.get("manifest"))
         .and_then(|m| serde_json::from_value::<Manifest>(m.clone()).ok())
@@ -242,8 +260,36 @@ async fn register(params: Option<Value>, state: Arc<AppState>, id: Value) -> Val
         Some(m) => m,
         None => return err(id, "E_INVALID_MANIFEST", "manifest required"),
     };
+
+    if let Some(source) = &manifest.source {
+        let lang = manifest.language.as_deref().unwrap_or("python");
+        let validation = validate::validate_source(source, lang);
+        if !validation.ok {
+            return err(
+                id,
+                "E_VALIDATION_FAILED",
+                &validation.issues.join("; "),
+            );
+        }
+        match synthesis::write_synthesized_function(&manifest.name, lang, source) {
+            Ok(syn) => {
+                manifest.entrypoint = syn.entrypoint;
+                if manifest.input_schema.is_none() || manifest.output_schema.is_none() {
+                    let (inp, out) = validate::infer_schemas_from_source(source);
+                    if manifest.input_schema.is_none() {
+                        manifest.input_schema = Some(inp);
+                    }
+                    if manifest.output_schema.is_none() {
+                        manifest.output_schema = Some(out);
+                    }
+                }
+            }
+            Err(e) => return err(id, "E_SYNTHESIS_FAILED", &e),
+        }
+    }
+
     if manifest.entrypoint.is_empty() {
-        return err(id, "E_INVALID_MANIFEST", "entrypoint required");
+        return err(id, "E_INVALID_MANIFEST", "entrypoint or source required");
     }
 
     let group = manifest.ipc_group.clone();
@@ -282,6 +328,29 @@ async fn register(params: Option<Value>, state: Arc<AppState>, id: Value) -> Val
         register_event_handler(&manifest.name, &event_key).await;
     }
 
+    // Pre-warm lease for MCP-exposed functions.
+    if !manifest.exposes_mcp.is_empty() {
+        let ipc_fd = match &manifest.ipc_group {
+            Some(g) => *state.ipc_groups.lock().await.get(g).unwrap_or(&-1),
+            None => -1,
+        };
+        let caps = parse_caps(&manifest.capabilities);
+        let input = SandboxInput {
+            entry: manifest.entrypoint.clone(),
+            args: vec![],
+            input: vec![],
+            timeout_ms: if manifest.timeout_ms > 0 { manifest.timeout_ms } else { 10_000 },
+            ipc_ns_fd: ipc_fd,
+            caps,
+        };
+        state.warm_pool.warm_on_register(&manifest.name, input).await;
+    }
+
+    // Store embedding for semantic search.
+    if let Some(emb) = embed_description(&manifest.description).await {
+        state.embeddings.lock().await.insert(manifest.name.clone(), emb);
+    }
+
     ok(
         id,
         json!({ "name": manifest.name, "version": 1, "status": "Ready" }),
@@ -295,7 +364,10 @@ async fn invoke(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value
         None => return err(id, "E_NOT_FOUND", "name required"),
     };
     let payload = p.get("payload").cloned().unwrap_or(Value::Null);
-    let lease_id = p.get("lease_id").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let lease_id = match p.get("lease_id").and_then(|v| v.as_str()) {
+        Some(l) => Some(l.to_string()),
+        None => state.warm_pool.lease_for(&name).await,
+    };
 
     // Leased (warm) invocation.
     if let Some(lid) = lease_id {
@@ -456,11 +528,23 @@ async fn search(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value
         .and_then(|q| q.get("description"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_lowercase());
+    let query_embedding = if let Some(desc) = &want_desc {
+        embed_description(desc).await
+    } else {
+        None
+    };
     let fns = state.functions.lock().await;
+    let emb_snapshot = state.embeddings.lock().await.clone();
     let mut items = Vec::new();
     for r in fns.values() {
         if let Some(w) = &want_desc {
-            if !r.manifest.description.to_lowercase().contains(w) {
+            let text_match = r.manifest.description.to_lowercase().contains(w);
+            let semantic_match = if let (Some(qe), Some(fe)) = (&query_embedding, emb_snapshot.get(&r.name)) {
+                cosine_similarity(qe, fe) > 0.5
+            } else {
+                false
+            };
+            if !text_match && !semantic_match {
                 continue;
             }
         }
@@ -472,6 +556,51 @@ async fn search(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value
         }));
     }
     ok(id, json!({ "functions": items, "total": items.len() }))
+}
+
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+    let n = a.len().min(b.len());
+    if n == 0 {
+        return 0.0;
+    }
+    let mut dot = 0.0f32;
+    let mut na = 0.0f32;
+    let mut nb = 0.0f32;
+    for i in 0..n {
+        dot += a[i] * b[i];
+        na += a[i] * a[i];
+        nb += b[i] * b[i];
+    }
+    if na == 0.0 || nb == 0.0 {
+        0.0
+    } else {
+        dot / (na.sqrt() * nb.sqrt())
+    }
+}
+
+async fn embed_description(text: &str) -> Option<Vec<f32>> {
+    let socket_dir =
+        std::env::var("THE_MACHINE_SOCKET_DIR").unwrap_or_else(|_| "/run/the-machine".to_string());
+    let path = format!("{}/mcp-bus.sock", socket_dir);
+    let req = json!({
+        "id": 1,
+        "kind": "Request",
+        "method": "localmodel.embed",
+        "params": { "text": text },
+    });
+    let mut stream = tokio::net::UnixStream::connect(&path).await.ok()?;
+    let mut bytes = serde_json::to_vec(&req).ok()?;
+    bytes.push(b'\n');
+    tokio::io::AsyncWriteExt::write_all(&mut stream, &bytes).await.ok()?;
+    let mut buf = vec![0u8; 65536];
+    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf).await.ok()?;
+    let resp: Value = serde_json::from_slice(&buf[..n]).ok()?;
+    resp.get("result")?
+        .get("embedding")?
+        .as_array()?
+        .iter()
+        .map(|v| v.as_f64().map(|f| f as f32))
+        .collect()
 }
 
 async fn deprecate(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value {
@@ -487,6 +616,7 @@ async fn deprecate(params: Option<Value>, state: Arc<AppState>, id: Value) -> Va
             None => return err(id, "E_NOT_FOUND", "function not found"),
         }
     };
+    state.warm_pool.remove_function(&name).await;
     for exposure in parse_string_list(&rec.manifest.exposes_mcp) {
         deregister_bus_route("mcp-intent", &exposure).await;
     }

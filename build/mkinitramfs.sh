@@ -40,10 +40,12 @@ SERVICES=(
   state-store
   event-bus
   lambda-server
+  local-model-daemon
   agent-core
   ui-runtime
   compositor
   fallback-shell
+  marketplace
 )
 
 for svc in "${SERVICES[@]}"; do
@@ -60,6 +62,10 @@ cat > "${STAGE}/init" <<'INIT'
 export PATH=/bin:/sbin:/the-machine
 export RUST_LOG=info
 export THE_MACHINE_SOCKET_DIR=/run/the-machine
+export WAYLAND_DISPLAY=wayland-0
+export STATE_STORE_BACKEND=sled
+export STATE_STORE_PATH=/var/the-machine/state
+export THE_MACHINE_LAMBDA_DIR=/var/the-machine/lambdas
 
 mount -t proc proc /proc
 mount -t sysfs sys /sys
@@ -92,13 +98,15 @@ sleep 1
 start_svc state-store
 start_svc event-bus
 start_svc lambda-server
+start_svc local-model-daemon
+start_svc marketplace
 sleep 1
 
 # L4
 start_svc agent-core
 sleep 1
 
-# L5
+# L5 — compositor session leader for graphical boot
 start_svc compositor
 start_svc ui-runtime
 start_svc fallback-shell

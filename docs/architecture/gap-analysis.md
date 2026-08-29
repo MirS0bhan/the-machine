@@ -21,15 +21,23 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 - [x] MCP broker middleware gates all non-exempt MCP calls via `policy.check`
 - [x] Registry lifecycle: `_bus.deregister`, `lambda.deprecate`, boot reload from `perm.mcp_routes.*`
 - [x] Rust state-store sled persistence + `state.watch` broadcast subscriptions
+- [x] **Phase 1:** `local-model-daemon` on MCP bus; agent classify/plan via `localmodel.*`; cloud router; skills from state
+- [x] **Phase 2:** Compositor input→widget bridge; UI renderer sync; `WAYLAND_DISPLAY` session; state.watch poll
+- [x] **Phase 4:** D-Bus/inotify/PipeWire adapters; rich heartbeat aggregation
+- [x] **Phase 5:** Warm pools, code synthesis pipeline, semantic `lambda.search` (seccomp sandbox, no OCI)
+- [x] **Phase 6:** `mkrootfs.sh`, systemd units, installer script (skeleton)
+- [x] **Phase 7:** External MCP proxy, telemetry export, marketplace daemon
 
 ---
 
+## Open — Critical Path
+
 | ID | Gap | Component | Priority |
 |----|-----|-----------|----------|
-| G1 | Agent uses heuristic classifier, not LLM | agent-core + local-model | P0 |
-| G2 | No wlroots / Wayland pixels | compositor | P0 |
-| G5 | UI input not routed compositor → ui.event | compositor + ui-runtime | P1 |
-| G6 | Python AUIL parser not in boot path | ui-engine → ui-runtime | P1 |
+| G1 | Agent cloud path needs live API key in production | agent-core | P0 |
+| G2 | No wlroots / real Wayland pixels (software surface model only) | compositor | P0 |
+| G5 | Real evdev input (simulated pointer loop today) | system-daemon | P1 |
+| G6 | Python AUIL parser not embedded in boot path | ui-engine → ui-runtime | P1 |
 
 ---
 
@@ -37,14 +45,11 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 
 | ID | Gap | Component | Priority |
 |----|-----|-----------|----------|
-| G7 | No D-Bus event adapter | event-bus | P2 |
-| G8 | No filesystem watch adapter | event-bus | P2 |
-| G9 | No OCI/Firecracker sandbox | lambda-server | P2 |
-| G10 | ~~Rust state-store in-memory only~~ (sled backend + watch shipped; RocksDB optional later) | state-store | — |
-| G11 | `local-model` not in initramfs | build + local-model | P2 |
-| G12 | No fast-path MCP leases | mcp-bus | P3 |
-| G13 | No rootfs / installer (initramfs only) | build | P3 |
-| G14 | system-daemon input is stub | system-daemon | P3 |
+| G7 | D-Bus adapter requires `dbus-monitor` on host | event-bus | P2 |
+| G11 | GGUF model weights not shipped in initramfs | build + local-model | P2 |
+| G12 | `bus.lease` metadata only (no socket fast-path yet) | mcp-bus | P3 |
+| G13 | Rootfs installer needs debootstrap + kernel on target HW | build | P3 |
+| G14 | system-daemon kernel stubs (display/net/audio) | system-daemon | P3 |
 | G15 | Broker confirmation UI not implemented | policy-broker | P3 |
 
 ---
@@ -53,8 +58,6 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 
 | ID | Gap | Location |
 |----|-----|----------|
-| D1 | ~~`mcp-bus-spec.md` status still "pre-implementation"~~ | docs/mcp-bus-spec.md |
-| D2 | ~~`components/mcp-bus.md` references `bus.registry.lookup`~~ | docs/components/mcp-bus.md |
 | D3 | Wire protocol section describes length-prefix; impl uses newline JSON | docs/components/mcp-bus.md |
 
 ---
