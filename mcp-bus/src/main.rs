@@ -71,6 +71,14 @@ async fn main() -> anyhow::Result<()> {
             .unwrap();
         reg.register("net.set_interface_state", "system-daemon", true)
             .unwrap();
+        reg.register("net.get_wifi_status", "system-daemon", true)
+            .unwrap();
+        reg.register("net.connect_wifi", "system-daemon", true)
+            .unwrap();
+        reg.register("audio.list_devices", "system-daemon", true)
+            .unwrap();
+        reg.register("audio.set_default", "system-daemon", true)
+            .unwrap();
         reg.register("state-op:state.get", "state-store", true)
             .unwrap();
         reg.register("state-op:state.set", "state-store", true)
@@ -185,6 +193,9 @@ async fn main() -> anyhow::Result<()> {
             "marketplace.installed",
         ] {
             reg.register(m, "marketplace", true).unwrap();
+        }
+        for m in ["shell.status", "shell.activate", "hello"] {
+            reg.register(m, "fallback-shell", true).unwrap();
         }
         reg.register("bus.lease", "mcp-bus", true).unwrap();
         reg.register("bus.lease.renew", "mcp-bus", true).unwrap();
@@ -521,6 +532,9 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
             ok_bytes(id, state.telemetry.export(limit))
         }
         "bus.external.register" => {
+            if !policy_allows("bus.external.register", Some(&params)).await {
+                return error_bytes(id, "E_POLICY_DENY", "policy denied");
+            }
             let server_id = params.get("id").and_then(|v| v.as_str()).unwrap_or("");
             let base_url = params
                 .get("base_url")
@@ -534,11 +548,17 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
                         .filter_map(|x| x.as_str().map(|s| s.to_string()))
                         .collect()
                 })
-                .unwrap_or_else(|| vec!["*".into()]);
-            ok_bytes(id, state.external.register(server_id, base_url, methods))
+                .unwrap_or_default();
+            match state.external.register(server_id, base_url, methods) {
+                Ok(result) => ok_bytes(id, result),
+                Err(e) => error_bytes(id, "E_INVALID", &e),
+            }
         }
         "bus.external.list" => ok_bytes(id, state.external.list()),
         "bus.external.forward" => {
+            if !policy_allows("bus.external.forward", Some(&params)).await {
+                return error_bytes(id, "E_POLICY_DENY", "policy denied");
+            }
             let server_id = params
                 .get("server_id")
                 .and_then(|v| v.as_str())
@@ -659,6 +679,7 @@ fn prefix_handler(method: &str) -> Option<String> {
         "system" | "power" | "kernel" | "display" | "net" | "audio" => "system-daemon",
         "localmodel" => "local-model-daemon",
         "marketplace" => "marketplace",
+        "shell" | "hello" => "fallback-shell",
         _ => return None,
     };
     Some(id.to_string())
@@ -801,6 +822,53 @@ async fn reload_routes_from_state(state: &AppState) {
     }
 }
 
+fn policy_fail_open_all() -> bool {
+    matches!(
+        std::env::var("THE_MACHINE_POLICY_FAIL_OPEN").as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE")
+    )
+}
+
+/// When the broker is down, only documented read-only / boot-health methods
+/// proceed. Mutations and registration fail closed unless
+/// `THE_MACHINE_POLICY_FAIL_OPEN=1` (dev override).
+fn policy_unavailable_allows(method: &str) -> bool {
+    policy_fail_open_all() || is_boot_readonly(method)
+}
+
+fn is_boot_readonly(method: &str) -> bool {
+    matches!(
+        method,
+        "state.get"
+            | "state.watch"
+            | "state.list"
+            | "state.get_revision"
+            | "state.stats"
+            | "power.get_profile"
+            | "display.get_modes"
+            | "net.list_interfaces"
+            | "net.get_wifi_status"
+            | "audio.list_devices"
+            | "system-daemon.stats"
+            | "agent.status"
+            | "lambda.list"
+            | "lambda.health"
+            | "ui.get"
+            | "ui.tree"
+            | "ui.status"
+            | "compositor.status"
+            | "compositor.list"
+            | "event.stats"
+            | "event.list_handlers"
+            | "localmodel.health"
+            | "shell.status"
+            | "hello"
+            | "marketplace.list"
+            | "marketplace.installed"
+    ) || method.ends_with(".health")
+        || method.ends_with(".status")
+}
+
 fn requires_policy_check(method: &str) -> bool {
     if method.starts_with("policy.")
         || method.starts_with("bus.")
@@ -844,18 +912,17 @@ async fn policy_allows(method: &str, params: Option<&serde_json::Value>) -> bool
         }
     });
     let Ok(mut stream) = UnixStream::connect(&sock).await else {
-        // If broker unavailable, fail open for boot path resilience.
-        return true;
+        return policy_unavailable_allows(method);
     };
     let mut buf = serde_json::to_vec(&req).unwrap_or_default();
     buf.push(b'\n');
     if stream.write_all(&buf).await.is_err() {
-        return true;
+        return policy_unavailable_allows(method);
     }
     let mut reader = BufReader::new(stream);
     let mut line = String::new();
     if reader.read_line(&mut line).await.is_err() {
-        return true;
+        return policy_unavailable_allows(method);
     }
     let resp: serde_json::Value = serde_json::from_str(&line).unwrap_or(serde_json::Value::Null);
     resp.get("result")
@@ -875,17 +942,17 @@ async fn validate_registration(params: &serde_json::Value) -> bool {
         "params": params,
     });
     let Ok(mut stream) = UnixStream::connect(&sock).await else {
-        return true;
+        return policy_fail_open_all();
     };
     let mut buf = serde_json::to_vec(&req).unwrap_or_default();
     buf.push(b'\n');
     if stream.write_all(&buf).await.is_err() {
-        return true;
+        return policy_fail_open_all();
     }
     let mut reader = BufReader::new(stream);
     let mut line = String::new();
     if reader.read_line(&mut line).await.is_err() {
-        return true;
+        return policy_fail_open_all();
     }
     let resp: serde_json::Value = serde_json::from_str(&line).unwrap_or(serde_json::Value::Null);
     resp.get("result")
@@ -948,5 +1015,24 @@ mod tests {
             prefix_handler("display.set_mode").as_deref(),
             Some("system-daemon")
         );
+        assert_eq!(
+            prefix_handler("shell.status").as_deref(),
+            Some("fallback-shell")
+        );
+        assert_eq!(prefix_handler("hello").as_deref(), Some("fallback-shell"));
+    }
+
+    #[test]
+    fn broker_down_fails_closed_for_mutations() {
+        std::env::remove_var("THE_MACHINE_POLICY_FAIL_OPEN");
+        assert!(is_boot_readonly("state.get"));
+        assert!(is_boot_readonly("shell.status"));
+        assert!(!is_boot_readonly("state.set"));
+        assert!(!is_boot_readonly("power.set_profile"));
+        assert!(!is_boot_readonly("lambda.register"));
+        assert!(!is_boot_readonly("bus.external.register"));
+        assert!(!is_boot_readonly("bus.external.forward"));
+        assert!(policy_unavailable_allows("ui.status"));
+        assert!(!policy_unavailable_allows("net.connect_wifi"));
     }
 }

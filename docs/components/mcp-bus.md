@@ -326,25 +326,32 @@ Look up a method in the registry. Implemented as `bus.resolve` (replaces draft `
 
 List all entries in a namespace. Implemented as `bus.list_routes`.
 
-#### `bus.lease(method: string, target: string) → {lease_id: string, socket_path: string}`
+#### `bus.lease(method: string, ttl_secs?: number) → {lease_id, handler, handler_socket, fast_path, ttl_secs}`
 
-Create a fast-path lease.
+Record a capability lease after resolving `method` in the registry.
+
+**Current behaviour (G12):** no dedicated `leases/<id>.sock` is bound. The
+response names the existing handler socket so callers can skip a second
+`bus.resolve`. `fast_path` is `false` until a real relay socket exists.
 
 **Parameters:**
 - `method` — the method to lease
-- `target` — the target component
+- `ttl_secs` — optional TTL (default ≥ 30s)
 
 **Returns:**
 - `lease_id` — the lease ID
-- `socket_path` — the Unix socket path for direct communication
+- `handler` — registry handler id (e.g. `lambda-server`)
+- `handler_socket` — existing Unix socket for that handler
+- `fast_path` — `false` until a dedicated lease socket is implemented
+- `ttl_secs` — granted TTL
 
 **Example:**
 ```json
 // Request
-{"method": "bus.lease", "params": {"method": "video_player.stream", "target": "lambda:video_player"}}
+{"method": "bus.lease", "params": {"method": "calc.add", "ttl_secs": 60}}
 
 // Response
-{"result": {"lease_id": "lease-1234", "socket_path": "/run/the-machine/leases/lease-1234.sock"}}
+{"result": {"lease_id": "…", "handler": "lambda-server", "handler_socket": "/run/the-machine/lambda-server.sock", "fast_path": false, "ttl_secs": 60}}
 ```
 
 #### `bus.lease.renew(lease_id: string) → {}`

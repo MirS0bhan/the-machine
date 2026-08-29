@@ -51,6 +51,13 @@ All Rust components communicate via JSON-line MCP over Unix domain sockets:
 
 Python servers use HTTP (FastAPI) on separate ports during dev — they are **not** on this socket bus unless bridged.
 
+### Policy fail-closed and grant tokens
+
+- The bus **fails closed** for mutations and `_bus.register` when `policy-broker.sock` is down. Read-only boot methods (`state.get`, `*.status`, `*.health`, …) still proceed. Set `THE_MACHINE_POLICY_FAIL_OPEN=1` only in throwaway local experiments.
+- `scripts/start-services.sh` starts the policy broker **before** the bus so the first forwarded calls have a live decision point.
+- System-daemon mutations require a broker-issued HMAC grant token (`params.token`). Share the key via `THE_MACHINE_TOKEN_SECRET` or `/run/the-machine/secrets/token` (mode 0600). The ISO default material is `the-machine-grant-token-v1` until a unique secret is written.
+- External MCP: `bus.external.register` requires `https://` (or `http://localhost`) and an explicit `allowed_methods` list — no `*`.
+
 ## Runtime selection
 
 ```bash

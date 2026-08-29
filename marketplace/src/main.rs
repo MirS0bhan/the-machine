@@ -67,7 +67,7 @@ async fn seed_builtin_bundle(state: &Arc<Mutex<AppState>>) {
         lambdas: vec![json!({
             "name": "calc.eval",
             "description": "Evaluate math expressions",
-            "source": "#!/usr/bin/env python3\nimport json,sys\nprint(json.dumps({'result': eval(json.loads(sys.stdin.read() or '{}').get('expression','1+1'), {'__builtins__':{}})}))",
+            "source": "#!/usr/bin/env python3\nimport json,sys,ast,operator\nops={ast.Add:operator.add,ast.Sub:operator.sub,ast.Mult:operator.mul,ast.Div:operator.truediv}\ndef ev(n):\n    if isinstance(n,ast.Constant): return n.value\n    if isinstance(n,ast.BinOp) and type(n.op) in ops: return ops[type(n.op)](ev(n.left),ev(n.right))\n    raise ValueError('unsupported')\ndata=json.loads(sys.stdin.read() or '{}')\nprint(json.dumps({'result': ev(ast.parse(str(data.get('expression','1+1')), mode='eval').body)}))\n",
             "language": "python",
             "exposes_mcp": ["calc.*"]
         })],
@@ -76,9 +76,35 @@ async fn seed_builtin_bundle(state: &Arc<Mutex<AppState>>) {
             "anchor": "ui.root",
             "node": { "id": "ui.calc_btn", "type": "button", "props": { "label": "Calculate" } }
         })],
-        policy_rules: vec![json!({ "capability": "CAP_IPC_CALL", "path": "calc.*", "effect": "ALLOW" })],
+        policy_rules: vec![
+            json!({ "capability": "CAP_IPC_CALL", "path": "calc.*", "effect": "ALLOW" }),
+        ],
     };
-    state.lock().await.bundles.lock().await.insert(bundle.id.clone(), bundle);
+    state
+        .lock()
+        .await
+        .bundles
+        .lock()
+        .await
+        .insert(bundle.id.clone(), bundle);
+}
+
+fn verify_bundle(bundle: &CapabilityBundle) -> bool {
+    !bundle.signature.is_empty() && bundle.signature == sign_bundle(&bundle.id)
+}
+
+fn bundle_sources_safe(bundle: &CapabilityBundle) -> Result<(), String> {
+    const FORBIDDEN: &[&str] = &["os.system", "eval(", "subprocess.call", "subprocess.run"];
+    for lambda in &bundle.lambdas {
+        if let Some(src) = lambda.get("source").and_then(|v| v.as_str()) {
+            for pat in FORBIDDEN {
+                if src.contains(pat) {
+                    return Err(format!("forbidden pattern in {}: {pat}", bundle.id));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn sign_bundle(id: &str) -> String {
@@ -143,22 +169,33 @@ async fn handle_request(value: Value, state: Arc<Mutex<AppState>>) -> Value {
             ok(id, json!({ "bundles": items }))
         }
         "marketplace.install" => {
-            let bundle_id = params.get("bundle_id").and_then(|v| v.as_str()).unwrap_or("");
-            let confirm = params.get("confirm").and_then(|v| v.as_bool()).unwrap_or(false);
+            let bundle_id = params
+                .get("bundle_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let confirm = params
+                .get("confirm")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             let st = state.lock().await;
             let bundle = st.bundles.lock().await.get(bundle_id).cloned();
             let Some(bundle) = bundle else {
                 return err(id, "E_NOT_FOUND", "bundle not found");
             };
             if !confirm {
-                return ok(id, json!({ "status": "CONFIRM_REQUIRED", "bundle": bundle.name }));
+                return ok(
+                    id,
+                    json!({ "status": "CONFIRM_REQUIRED", "bundle": bundle.name }),
+                );
+            }
+            if !verify_bundle(&bundle) {
+                return err(id, "E_SIGNATURE", "bundle signature invalid");
+            }
+            if let Err(e) = bundle_sources_safe(&bundle) {
+                return err(id, "E_VALIDATION_FAILED", &e);
             }
             for lambda in &bundle.lambdas {
-                let _ = bus_call(
-                    "lambda.register",
-                    json!({ "manifest": lambda }),
-                )
-                .await;
+                let _ = bus_call("lambda.register", json!({ "manifest": lambda })).await;
             }
             for patch in &bundle.ui_patches {
                 let _ = bus_call("ui.patch", json!({ "ops": [patch] })).await;
@@ -190,7 +227,9 @@ async fn bus_call(method: &str, params: Value) -> Option<Value> {
     bytes.push(b'\n');
     stream.write_all(&bytes).await.ok()?;
     let mut buf = vec![0u8; 65536];
-    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf).await.ok()?;
+    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf)
+        .await
+        .ok()?;
     let resp: Value = serde_json::from_slice(&buf[..n]).ok()?;
     resp.get("result").cloned()
 }
@@ -200,4 +239,45 @@ fn ok(id: Value, result: Value) -> Value {
 }
 fn err(id: Value, code: &str, message: &str) -> Value {
     json!({ "id": id, "error": { "code": code, "message": message } })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builtin_bundle_has_valid_signature_and_safe_source() {
+        let bundle = CapabilityBundle {
+            id: "calc-pack-v1".into(),
+            name: "Calculator Pack".into(),
+            version: "1.0.0".into(),
+            description: "Basic calculator".into(),
+            signature: sign_bundle("calc-pack-v1"),
+            lambdas: vec![json!({
+                "source": "#!/usr/bin/env python3\nimport ast\nprint(ast.parse('1+1', mode='eval'))\n"
+            })],
+            ui_patches: vec![],
+            policy_rules: vec![],
+        };
+        assert!(verify_bundle(&bundle));
+        assert!(bundle_sources_safe(&bundle).is_ok());
+    }
+
+    #[test]
+    fn rejects_forged_signature_and_eval() {
+        let mut bundle = CapabilityBundle {
+            id: "evil".into(),
+            name: "Evil".into(),
+            version: "1".into(),
+            description: "".into(),
+            signature: "deadbeef".into(),
+            lambdas: vec![json!({ "source": "print(eval('1'))" })],
+            ui_patches: vec![],
+            policy_rules: vec![],
+        };
+        assert!(!verify_bundle(&bundle));
+        bundle.signature = sign_bundle("evil");
+        assert!(verify_bundle(&bundle));
+        assert!(bundle_sources_safe(&bundle).is_err());
+    }
 }

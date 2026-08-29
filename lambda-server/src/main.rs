@@ -291,6 +291,10 @@ async fn register(params: Option<Value>, state: Arc<AppState>, id: Value) -> Val
     if manifest.entrypoint.is_empty() {
         return err(id, "E_INVALID_MANIFEST", "entrypoint or source required");
     }
+    let entry_check = validate::validate_entrypoint(&manifest.entrypoint);
+    if !entry_check.ok {
+        return err(id, "E_INVALID_MANIFEST", &entry_check.issues.join("; "));
+    }
 
     let group = manifest.ipc_group.clone();
     if let Some(g) = &group {

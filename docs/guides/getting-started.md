@@ -60,7 +60,7 @@ make services-stop
 
 Boot services started by `scripts/start-services.sh` (rust mode):
 
-`system-daemon` → `mcp-bus` → `policy-broker` → `state-store` → `event-bus` → `lambda-server` → `local-model-daemon` → `marketplace` → `agent-core` → `ui-runtime` → `compositor`
+`system-daemon` → `policy-broker` → `mcp-bus` → `state-store` → `event-bus` → `lambda-server` → `local-model-daemon` → `marketplace` → `agent-core` → `ui-runtime` → `compositor`
 
 ### Environment variables
 
@@ -75,6 +75,9 @@ Boot services started by `scripts/start-services.sh` (rust mode):
 | `OPENAI_API_KEY` | — | Cloud LLM fallback for agent-core |
 | `WAYLAND_DISPLAY` | `wayland-0` (boot) | Compositor display |
 | `RUST_LOG` | `info` | Tracing filter |
+| `THE_MACHINE_LAMBDA_DIR` | `/var/the-machine/lambdas` | Synthesized lambda source root |
+| `THE_MACHINE_TOKEN_SECRET` | ISO default material | HMAC key for grant tokens |
+| `THE_MACHINE_POLICY_FAIL_OPEN` | unset (fail closed) | Set `1` to allow mutations when the broker is down |
 
 ## Test
 
