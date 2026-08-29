@@ -43,25 +43,41 @@ The build uses only the Python standard library plus the `markdown` package
 
 ### Running a component
 
-Each implemented component is a Python package with its own `pyproject.toml` and an
-MCP server entry point. From the repository root:
+> **Note:** The repo is migrating Python → Rust. Several components exist in both
+> languages. See [Python ↔ Rust Overlap Guide](../guides/python-rust-overlap.md).
+
+**Boot / ISO path (Rust daemons, Unix sockets):**
 
 ```bash
-cd lambda-server && uv run python -m lambda_server.server      # HTTP + MCP API
-cd state-store    && uv run python -m state_store.mcp_server
-cd policy-broker  && uv run python -m policy_broker.mcp_server
-cd event-bus      && uv run python -m event_bus.mcp_server
-cd agent-core     && cargo run --bin agent-core
-cd local-model    && uv run python -m local_model.mcp_server
-cd ui-engine      && uv run python -m ui_engine.server
+cargo run --bin mcp-bus
+cargo run --bin system-daemon
+cargo run --bin policy-broker      # stub — use hybrid mode for full policy
+cargo run --bin state-store
+cargo run --bin event-bus
+cargo run --bin lambda-server
+cargo run --bin agent-core
+cargo run --bin ui-runtime
 ```
+
+**Dev / test path (Python reference servers, HTTP):**
+
+```bash
+pip install -e lambda-server policy-broker state-store local-model ui-engine event-bus
+cd policy-broker && uvicorn policy_broker.mcp_server:app --port 8001
+cd state-store    && STATE_STORE_BACKEND=memory uvicorn state_store.mcp_server:app --port 8002
+cd lambda-server  && python3 test_server.py   # in-process tests
+cd local-model    && python3 -m local_model.mcp_server
+cd ui-engine      && python3 -m server
+```
+
+Or start everything: `THE_MACHINE_RUNTIME=hybrid ./scripts/start-services.sh`
 
 ### Running the tests
 
 ```bash
-uv run pytest lambda-server/test_http_api.py     # 9/9 HTTP API tests
-uv run pytest ui-engine-demo/test_demo.py         # UI Engine demo tests
-uv run pytest state-store/tests event-bus policy-broker agent local-model
+make test-all                    # Rust + Python (recommended)
+make test-python                 # integration + component tests (mostly Python)
+pytest tests/integration/ -v     # 30 cross-component tests (in-process Python)
 ```
 
 The UI Engine demo (`ui-engine-demo/`) is the most complete end-to-end vertical:

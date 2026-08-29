@@ -1,5 +1,9 @@
 # AUIL/ASL UI Engine
 
+> **Overlap note:** `ui-engine/` (Python) is the canonical AUIL/ASL parser and renderer.
+> `ui-runtime/` (Rust) is the boot-path daemon that holds the live tree. See
+> [Python ↔ Rust Overlap Guide](../docs/guides/python-rust-overlap.md).
+
 A declarative UI language and runtime for the Agent-Native OS.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)

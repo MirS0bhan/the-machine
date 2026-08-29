@@ -14,6 +14,7 @@ Welcome to the documentation for **The Machine**, an agent-native operating syst
 - [Layer Reference](./architecture/layers.md) — Detailed layer-by-layer breakdown
 - [Component Reference](./components/) — Each component's spec
 - [Getting Started](./guides/getting-started.md) — How to build and run
+- [Python ↔ Rust Overlap](./guides/python-rust-overlap.md) — Which implementation to use
 - [Glossary](./reference/glossary.md) — Terminology reference
 
 ---

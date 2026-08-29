@@ -4,6 +4,9 @@ This guide walks through building, testing, and running **The Machine** on a Lin
 
 ## Prerequisites
 
+> **Python ↔ Rust overlap:** Several components exist in both languages during migration.
+> Read [Python ↔ Rust Overlap Guide](./python-rust-overlap.md) before picking which to run.
+
 | Tool | Version | Purpose |
 |------|---------|---------|
 | Rust | 1.98+ (see `rust-toolchain.toml`) | L0–L5 service daemons |
@@ -41,13 +44,17 @@ make iso
 
 ## Run (development)
 
-Start all services in boot order:
-
 ```bash
-chmod +x scripts/start-services.sh scripts/stop-services.sh
-./scripts/start-services.sh
-# ...
-./scripts/stop-services.sh
+# Rust daemons (matches ISO boot)
+make services-start
+
+# Rust bus + Python policy/lambda (full rule engine, separate storage)
+THE_MACHINE_RUNTIME=hybrid ./scripts/start-services.sh
+
+# Python HTTP servers only
+THE_MACHINE_RUNTIME=python ./scripts/start-services.sh
+
+make services-stop
 ```
 
 Or start individual Rust daemons:

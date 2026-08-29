@@ -4,7 +4,7 @@ Agent-Native OS — where an AI agent sits between human intent and system mecha
 
 ## Status
 
-**Hybrid implementation** — Rust boot daemons + Python MCP reference servers, with integration tests and an ISO build pipeline.
+**Hybrid implementation (Python → Rust migration in progress)** — several components exist in both languages. See the [overlap guide](./docs/guides/python-rust-overlap.md).
 
 | Layer | Component | Status |
 |-------|-----------|--------|
@@ -24,6 +24,7 @@ Agent-Native OS — where an AI agent sits between human intent and system mecha
 ## Documentation
 
 - [Full documentation](./docs/index.md)
+- [Python ↔ Rust overlap guide](./docs/guides/python-rust-overlap.md) — **read this if confused about duplicate components**
 - [Architecture overview](./docs/architecture/overview.md)
 - [Component specs](./docs/components/)
 - [Getting Started](./docs/guides/getting-started.md)

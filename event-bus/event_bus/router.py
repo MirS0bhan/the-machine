@@ -1,4 +1,9 @@
-"""In-process event router used by integration tests and the MCP server."""
+"""In-process event router used by integration tests and the MCP server.
+
+This is a **test harness**, not a second production implementation.
+The canonical event bus daemon is the Rust `event-bus` crate (scheduler, cron,
+agent-wake coalescing). See `docs/guides/python-rust-overlap.md`.
+"""
 
 from __future__ import annotations
 

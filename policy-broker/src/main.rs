@@ -1,4 +1,8 @@
 //! Policy Broker - Capability Enforcement, Confirmation, Audit Log
+//!
+//! **Migration note:** This Rust crate is a boot-path placeholder. The canonical
+//! rule engine lives in `policy_broker/` (Python). See `docs/guides/python-rust-overlap.md`.
+//! Do not add business logic here until porting from Python is intentional.
 
 use common::*;
 use serde::{Deserialize, Serialize};
