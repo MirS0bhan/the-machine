@@ -8,9 +8,9 @@ ISO        ?= build/the-machine.iso
 MEM        ?= 1G
 PYTHON     ?= python3
 
-.PHONY: all build build-release initramfs iso qemu run run-console clean \
+.PHONY: all build build-release initramfs initramfs-release iso qemu run run-console clean \
         test test-rust test-python test-all docs help \
-        services-start services-stop
+        services-start services-stop ci-package
 
 all: build initramfs iso docs
 
@@ -71,6 +71,10 @@ services-start:
 services-stop:
 	bash scripts/stop-services.sh
 
+# Package per-component builds + ISO for CI (run after initramfs-release + iso).
+ci-package: build-release initramfs-release iso
+	bash build/ci-package-artifacts.sh build/artifacts release
+
 help:
 	@echo "The Machine — Build System"
 	@echo ""
@@ -87,5 +91,6 @@ help:
 	@echo "  test-python    - Run Python unit + integration tests"
 	@echo "  docs           - Build documentation"
 	@echo "  services-start - Start all services (dev harness)"
-	@echo "  services-stop  - Stop dev harness services"
-	@echo "  clean          - Remove build artifacts"
+  @echo "  services-stop  - Stop dev harness services"
+  @echo "  ci-package     - Build release + ISO + artifact bundle"
+  @echo "  clean          - Remove build artifacts"

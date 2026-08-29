@@ -1,0 +1,284 @@
+name: Build & Release Artifacts
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.0"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          pip install pytest pytest-asyncio pytest-mock build wheel
+          pip install -e lambda-server -e policy-broker -e state-store -e event-bus -e ui-engine
+          pip install -e local-model --no-deps
+          pip install fastapi uvicorn pydantic python-multipart
+
+      - name: Rust tests
+        run: make test-rust
+
+      - name: Python tests
+        run: make test-python
+
+  build-rust-components:
+    name: Rust — ${{ matrix.component }}
+    needs: test
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - system-daemon
+          - mcp-bus
+          - policy-broker
+          - state-store
+          - event-bus
+          - lambda-server
+          - agent-core
+          - ui-runtime
+          - compositor
+          - fallback-shell
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.0"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build release binary
+        run: cargo build --release -p ${{ matrix.component }}
+
+      - name: Upload component binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-${{ matrix.component }}
+          path: target/release/${{ matrix.component }}
+          if-no-files-found: error
+          retention-days: 30
+
+  build-rust-examples:
+    name: Rust — lambda-examples
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.0"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build example binaries
+        run: cargo build --release -p lambda-examples
+
+      - name: Upload example binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-lambda-examples
+          path: |
+            target/release/fn-add
+            target/release/fn-bad
+          if-no-files-found: error
+          retention-days: 30
+
+  build-python-components:
+    name: Python — ${{ matrix.package }}
+    needs: test
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - lambda-server
+          - policy-broker
+          - state-store
+          - event-bus
+          - local-model
+          - ui-engine
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Build wheel
+        run: |
+          pip install build wheel
+          pip wheel --no-deps -w dist/ ${{ matrix.package }}/
+
+      - name: Upload Python wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-${{ matrix.package }}
+          path: dist/*.whl
+          if-no-files-found: error
+          retention-days: 30
+
+  build-iso:
+    name: Bootable ISO
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.0"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install ISO build dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            busybox-static grub-pc-bin grub-common xorriso linux-image-virtual
+
+      - name: Build release initramfs + ISO
+        run: |
+          make initramfs-release
+          make iso KERNEL=/boot/vmlinuz
+
+      - name: Upload initramfs
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-initramfs
+          path: build/initramfs.cpio.gz
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-iso
+          path: build/the-machine.iso
+          if-no-files-found: error
+          retention-days: 30
+
+  package-release:
+    name: Combined release bundle
+    needs:
+      - build-rust-components
+      - build-rust-examples
+      - build-python-components
+      - build-iso
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all component artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/in
+          merge-multiple: false
+
+      - name: Assemble release directory
+        run: |
+          set -euo pipefail
+          OUT=artifacts/the-machine-release
+          mkdir -p "${OUT}/rust" "${OUT}/rust/examples" "${OUT}/python/wheels" "${OUT}/iso"
+
+          # Rust service binaries (artifact name: rust-<component>)
+          for dir in artifacts/in/rust-*/; do
+            [[ -d "${dir}" ]] || continue
+            comp="$(basename "${dir}")"
+            comp="${comp#rust-}"
+            [[ "${comp}" == "lambda-examples" ]] && continue
+            install -m 0755 "${dir}/${comp}" "${OUT}/rust/${comp}"
+          done
+
+          # Lambda examples
+          if [[ -d artifacts/in/rust-lambda-examples ]]; then
+            install -m 0755 artifacts/in/rust-lambda-examples/fn-add "${OUT}/rust/examples/fn-add"
+            install -m 0755 artifacts/in/rust-lambda-examples/fn-bad "${OUT}/rust/examples/fn-bad"
+          fi
+
+          # Python wheels
+          for dir in artifacts/in/python-*/; do
+            [[ -d "${dir}" ]] || continue
+            cp "${dir}"/*.whl "${OUT}/python/wheels/"
+          done
+
+          # Boot artifacts
+          install -m 0644 artifacts/in/boot-initramfs/initramfs.cpio.gz "${OUT}/iso/initramfs.cpio.gz"
+          install -m 0644 artifacts/in/boot-iso/the-machine.iso "${OUT}/iso/the-machine.iso"
+
+          python3 build/ci-package-artifacts.py "${OUT}"
+          tar -czf artifacts/the-machine-release.tar.gz -C artifacts the-machine-release
+          ls -lh artifacts/the-machine-release.tar.gz
+
+      - name: Upload combined release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: the-machine-release
+          path: |
+            artifacts/the-machine-release.tar.gz
+            artifacts/the-machine-release/manifest.json
+          if-no-files-found: error
+          retention-days: 90
