@@ -176,6 +176,31 @@ def main() -> None:
             if not grep_method_in_source(method):
                 errors.append(f"MCP method {method!r} ({service}) not found in Rust sources")
 
+    # Component See Also links must resolve on disk (sibling ./ paths).
+    components_dir = ROOT / "docs/components"
+    link_re = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+    for md in sorted(components_dir.glob("*.md")):
+        text = md.read_text()
+        for href in link_re.findall(text):
+            if href.startswith("http") or href.startswith("#"):
+                continue
+            target = (md.parent / href).resolve()
+            if not target.exists():
+                errors.append(
+                    f"{md.relative_to(ROOT)} See Also link is broken: {href}"
+                )
+        if "](../" in text and ".md)" in text:
+            # leftover parent-relative component links (should be ./sibling)
+            for href in link_re.findall(text):
+                if href.startswith("../") and href.endswith(".md") and "-spec" not in href:
+                    errors.append(
+                        f"{md.relative_to(ROOT)} should use ./ sibling path, not {href}"
+                    )
+
+    arch = (ROOT / "ARCHITECTURE.md").read_text()
+    if "pre‑implementation" in arch or "pre-implementation" in arch:
+        errors.append("ARCHITECTURE.md still describes the project as pre-implementation")
+
     readme = (ROOT / "README.md").read_text().lower()
     status_markers = ["local-model-daemon", "marketplace", "framebuffer", "evdev"]
     for marker in status_markers:
@@ -212,6 +237,8 @@ def main() -> None:
     pass_(f"Key docs mention new services (local-model-daemon, marketplace)")
     pass_(f"MCP methods ({sum(len(v) for v in inv['mcp_services'].values())}) found in sources")
     pass_(f"Environment variables ({len(inv['env_vars'])}) documented")
+    pass_("Component See Also links resolve")
+    pass_("ARCHITECTURE.md is not marked pre-implementation")
     print(f"{GREEN}✓{NC} Documentation ↔ code verification PASSED")
 
 

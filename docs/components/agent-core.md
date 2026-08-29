@@ -476,8 +476,8 @@ Options:
 
 ## See Also
 
-- [Local Model](../local-model.md) — for Tier A model details
-- [MCP Bus](../mcp-bus.md) — for method registration and resolution
-- [Policy Broker](../policy-broker.md) — for capability enforcement
-- [State Store](../state-store.md) — for skill storage and context
-- [Event Bus](../event-bus.md) — for wake events
+- [Local Model](../local-model-spec.md) — for Tier A model details
+- [MCP Bus](./mcp-bus.md) — for method registration and resolution
+- [Policy Broker](./policy-broker.md) — for capability enforcement
+- [State Store](./state-store.md) — for skill storage and context
+- [Event Bus](./event-bus.md) — for wake events

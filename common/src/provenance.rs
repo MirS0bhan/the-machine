@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use hmac::{Hmac, Mac};
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 
 const HMAC_SECRET_SIZE: usize = 32;
@@ -24,7 +24,6 @@ impl ProvenanceVerifier {
     }
 
     pub fn verify(&self, marker: &ProvenanceMarker) -> bool {
-        use sha2::Digest;
         let mut hasher = Hmac::<Sha256>::new_from_slice(&self.secret).unwrap();
         hasher.update(&marker.kernel_timestamp.to_be_bytes());
         hasher.update(&marker.device_major.to_be_bytes());
@@ -41,7 +40,6 @@ impl ProvenanceVerifier {
         device_minor: u32,
         sequence: u64,
     ) -> ProvenanceMarker {
-        use sha2::Digest;
         let mut hasher = Hmac::<Sha256>::new_from_slice(&self.secret).unwrap();
         hasher.update(&kernel_timestamp.to_be_bytes());
         hasher.update(&device_major.to_be_bytes());

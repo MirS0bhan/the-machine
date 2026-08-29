@@ -1,12 +1,11 @@
 //! System Daemon - Raw I/O Ownership & Narrow Kernel-Parameter MCP Surface
 
 use common::*;
-use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::net::UnixListener;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::UnixListener;
 use tokio::sync::{Mutex, RwLock};
-use tracing::{info, warn, error};
+use tracing::{error, info};
 
 mod input;
 mod kernel;
@@ -64,9 +63,12 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Start MCP server
-    let socket_path = "/run/the-machine/system-daemon.sock";
-    let _ = std::fs::remove_file(socket_path);
-    let listener = UnixListener::bind(socket_path)?;
+    let socket_path = common::component_socket("system-daemon");
+    if let Some(parent) = std::path::Path::new(&socket_path).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::remove_file(&socket_path);
+    let listener = UnixListener::bind(&socket_path)?;
     info!("System Daemon listening on {}", socket_path);
 
     loop {
@@ -105,7 +107,7 @@ async fn handle_connection(stream: tokio::net::UnixStream, state: AppState) {
 
 async fn process_message(line: &str, state: &AppState) -> anyhow::Result<String> {
     let msg: McpMessage = serde_json::from_str(line.trim())?;
-    
+
     let response = match msg.kind {
         MessageKind::Request => {
             if let Some(method) = msg.method {
@@ -120,9 +122,13 @@ async fn process_message(line: &str, state: &AppState) -> anyhow::Result<String>
     Ok(serde_json::to_string(&response)? + "\n")
 }
 
-async fn handle_request(method: String, params: Option<serde_json::Value>, state: &AppState) -> McpMessage {
+async fn handle_request(
+    method: String,
+    params: Option<serde_json::Value>,
+    state: &AppState,
+) -> McpMessage {
     let id = Uuid::new_v4();
-    
+
     match method.as_str() {
         // Read-only queries
         "power.get_profile" => {
@@ -143,20 +149,29 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, state
         }
         "system-daemon.stats" => {
             let stats = state.stats.read().await;
-            success_response(&id, serde_json::json!({
-                "input_events_forwarded": stats.input_events_forwarded,
-                "input_events_dropped": stats.input_events_dropped,
-                "kernel_ops_executed": stats.kernel_ops_executed,
-                "kernel_ops_denied": stats.kernel_ops_denied,
-                "broker_status": stats.broker_status,
-                "uptime": stats.uptime
-            }))
+            success_response(
+                &id,
+                serde_json::json!({
+                    "input_events_forwarded": stats.input_events_forwarded,
+                    "input_events_dropped": stats.input_events_dropped,
+                    "kernel_ops_executed": stats.kernel_ops_executed,
+                    "kernel_ops_denied": stats.kernel_ops_denied,
+                    "broker_status": stats.broker_status,
+                    "uptime": stats.uptime
+                }),
+            )
         }
         // Mutations (require grant token)
         "power.set_profile" => {
             if let Some(params) = params {
                 if let Some(profile) = params.get("profile").and_then(|v| v.as_str()) {
-                    match state.kernel_handler.lock().await.set_power_profile(profile).await {
+                    match state
+                        .kernel_handler
+                        .lock()
+                        .await
+                        .set_power_profile(profile)
+                        .await
+                    {
                         Ok(_) => success_response(&id, serde_json::json!({})),
                         Err(e) => error_response(&id, "E_POLICY_DENIED", &e),
                     }
@@ -171,8 +186,17 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, state
             if let Some(params) = params {
                 let width = params.get("width").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
                 let height = params.get("height").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                let refresh = params.get("refresh").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
-                match state.kernel_handler.lock().await.set_display_mode(width, height, refresh).await {
+                let refresh = params
+                    .get("refresh")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0) as f32;
+                match state
+                    .kernel_handler
+                    .lock()
+                    .await
+                    .set_display_mode(width, height, refresh)
+                    .await
+                {
                     Ok(_) => success_response(&id, serde_json::json!({})),
                     Err(e) => error_response(&id, "E_POLICY_DENIED", &e),
                 }
@@ -184,7 +208,13 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, state
             if let Some(params) = params {
                 if let Some(name) = params.get("name").and_then(|v| v.as_str()) {
                     if let Some(state_str) = params.get("state").and_then(|v| v.as_str()) {
-                        match state.kernel_handler.lock().await.set_interface_state(name, state_str).await {
+                        match state
+                            .kernel_handler
+                            .lock()
+                            .await
+                            .set_interface_state(name, state_str)
+                            .await
+                        {
                             Ok(_) => success_response(&id, serde_json::json!({})),
                             Err(e) => error_response(&id, "E_POLICY_DENIED", &e),
                         }
@@ -201,9 +231,20 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, state
         "net.connect_wifi" => {
             if let Some(params) = params {
                 if let Some(ssid) = params.get("ssid").and_then(|v| v.as_str()) {
-                    let credential_ref = params.get("credential_ref").and_then(|v| v.as_str()).unwrap_or("");
-                    match state.kernel_handler.lock().await.connect_wifi(ssid, credential_ref).await {
-                        Ok(status) => success_response(&id, serde_json::json!({ "status": status })),
+                    let credential_ref = params
+                        .get("credential_ref")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    match state
+                        .kernel_handler
+                        .lock()
+                        .await
+                        .connect_wifi(ssid, credential_ref)
+                        .await
+                    {
+                        Ok(status) => {
+                            success_response(&id, serde_json::json!({ "status": status }))
+                        }
                         Err(e) => error_response(&id, "E_POLICY_DENIED", &e),
                     }
                 } else {
@@ -216,7 +257,13 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, state
         "audio.set_default" => {
             if let Some(params) = params {
                 if let Some(name) = params.get("name").and_then(|v| v.as_str()) {
-                    match state.kernel_handler.lock().await.set_default_audio(name).await {
+                    match state
+                        .kernel_handler
+                        .lock()
+                        .await
+                        .set_default_audio(name)
+                        .await
+                    {
                         Ok(_) => success_response(&id, serde_json::json!({})),
                         Err(e) => error_response(&id, "E_POLICY_DENIED", &e),
                     }

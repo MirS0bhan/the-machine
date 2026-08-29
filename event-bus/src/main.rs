@@ -181,7 +181,7 @@ fn pattern_matches(pattern: &str, candidate: &str) -> bool {
 
 /// Best-effort delivery of a notification to a component's socket.
 async fn deliver(identity: &str, method: &str, event: &Event) {
-    let path = format!("/run/the-machine/{}.sock", identity);
+    let path = common::component_socket(identity);
     match UnixStream::connect(&path).await {
         Ok(mut s) => {
             let msg = json!({

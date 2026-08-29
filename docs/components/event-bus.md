@@ -565,7 +565,7 @@ This ensures that state changes automatically generate events without requiring 
 
 ## See Also
 
-- [State Store](../state-store.md) — for the underlying storage and subscriptions
-- [Agent Core](../agent-core.md) — for the primary consumer of wake events
-- [Lambda Server](../lambda-server.md) — for lambda health events
-- [Policy Broker](../policy-broker.md) — for capability enforcement on scheduling
+- [State Store](./state-store.md) — for the underlying storage and subscriptions
+- [Agent Core](./agent-core.md) — for the primary consumer of wake events
+- [Lambda Server](./lambda-server.md) — for lambda health events
+- [Policy Broker](./policy-broker.md) — for capability enforcement on scheduling

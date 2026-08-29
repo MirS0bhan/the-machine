@@ -10,7 +10,7 @@ PYTHON     ?= python3
 
 .PHONY: all build build-release initramfs initramfs-release iso iso-release qemu run run-console clean \
         test test-rust test-python test-all test-build-scripts verify verify-docs coverage docs help \
-        services-start services-stop ci-package
+        services-start services-stop ci-package lint fetch-model rootfs rootfs-release
 
 all: build initramfs iso docs
 
@@ -27,7 +27,7 @@ fetch-model:
 initramfs: fetch-model
 	bash build/mkinitramfs.sh debug
 
-initramfs-release:
+initramfs-release: fetch-model
 	bash build/mkinitramfs.sh release
 
 # Build a bootable ISO (GRUB) that loads the kernel + initramfs.
@@ -37,17 +37,20 @@ iso: initramfs
 iso-release: initramfs-release
 	bash build/mkiso.sh "$(KERNEL)" "$(INITRAMFS)" "$(ISO)"
 
+# KVM when available (bare metal / nested virt); TCG otherwise (CI, cloud VMs).
+QEMU_ACCEL ?= $(shell if [ -r /dev/kvm ]; then echo -enable-kvm; else echo -accel tcg; fi)
+
 # Boot directly from the kernel + initramfs (fast iteration, no ISO).
 qemu: initramfs
-	$(QEMU) -enable-kvm -kernel "$(KERNEL)" -initrd "$(INITRAMFS)" \
+	$(QEMU) $(QEMU_ACCEL) -kernel "$(KERNEL)" -initrd "$(INITRAMFS)" \
 		-append "console=ttyS0,115200 rdinit=/init" -m $(MEM) -nographic
 
-# Boot the produced ISO in QEMU.
+# Boot the produced ISO in QEMU. Graphical when $DISPLAY is set.
 run: iso
-	$(QEMU) -enable-kvm -m $(MEM) -cdrom "$(ISO)" -nographic
+	$(QEMU) $(QEMU_ACCEL) -m $(MEM) -cdrom "$(ISO)" $(if $(DISPLAY),,-nographic)
 
 run-console: iso
-	$(QEMU) -enable-kvm -m $(MEM) -cdrom "$(ISO)" -nographic
+	$(QEMU) $(QEMU_ACCEL) -m $(MEM) -cdrom "$(ISO)" -nographic
 
 clean:
 	$(CARGO) clean
@@ -77,6 +80,10 @@ verify:
 
 verify-docs:
 	bash scripts/verify-docs-code.sh
+
+lint:
+	$(CARGO) fmt -p common -p mcp-bus -p system-daemon -p fallback-shell -- --check
+	$(CARGO) clippy -p common -p mcp-bus -p system-daemon -p fallback-shell -- -D warnings -A dead_code
 
 coverage:
 	@command -v cargo-llvm-cov >/dev/null 2>&1 || (echo "Installing cargo-llvm-cov..." && cargo install cargo-llvm-cov)
@@ -115,7 +122,11 @@ help:
 	@echo "  initramfs      - Assemble the initramfs (busybox + services)"
 	@echo "  iso            - Build the bootable ISO image"
 	@echo "  qemu           - Boot kernel+initramfs directly in QEMU"
-	@echo "  run            - Boot the ISO in QEMU"
+	@echo "  run            - Boot the ISO in QEMU (graphical if DISPLAY is set)"
+	@echo "  run-console    - Boot the ISO in QEMU with -nographic"
+	@echo "  lint           - rustfmt + clippy on socket/bus/daemon crates"
+	@echo "  fetch-model    - Download or stub the GGUF weights for the ISO"
+	@echo "  rootfs         - Build a minimal rootfs (see build/mkrootfs.sh)"
 	@echo "  test           - Run all tests (Rust + Python + build scripts)"
 	@echo "  test-build-scripts - Release assemble regression (CI rust-* glob)"
 	@echo "  verify         - Full verification (tests + builds + docs + inventory)"

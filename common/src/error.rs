@@ -17,7 +17,11 @@ impl McpError {
         }
     }
 
-    pub fn with_details(code: impl Into<String>, message: impl Into<String>, details: serde_json::Value) -> Self {
+    pub fn with_details(
+        code: impl Into<String>,
+        message: impl Into<String>,
+        details: serde_json::Value,
+    ) -> Self {
         Self {
             code: code.into(),
             message: message.into(),

@@ -1,0 +1,41 @@
+name: Bug report
+description: Something in the boot path, daemons, docs, or CI is wrong.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - mcp-bus / sockets
+        - system-daemon
+        - agent-core / local-model
+        - policy-broker
+        - state-store
+        - event-bus
+        - lambda-server
+        - ui / compositor
+        - build / ISO / CI
+        - documentation
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      placeholder: Observed behavior, including socket paths and THE_MACHINE_* env vars.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: input
+    id: gap
+    attributes:
+      label: Related gap ID (if any)
+      placeholder: "G14"

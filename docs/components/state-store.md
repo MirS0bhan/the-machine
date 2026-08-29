@@ -493,7 +493,7 @@ Every read or write is checked against the caller's manifest:
 
 ## See Also
 
-- [Agent Core](../agent-core.md) — for the primary consumer of the State Store
-- [UI Runtime](../ui-runtime.md) — for the UI tree rendering
-- [Policy Broker](../policy-broker.md) — for capability enforcement
-- [Event Bus](../event-bus.md) — for subscriptions and reactive behavior
+- [Agent Core](./agent-core.md) — for the primary consumer of the State Store
+- [UI Runtime](./ui-runtime.md) — for the UI tree rendering
+- [Policy Broker](./policy-broker.md) — for capability enforcement
+- [Event Bus](./event-bus.md) — for subscriptions and reactive behavior

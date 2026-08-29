@@ -34,19 +34,23 @@ The Machine uses a **hybrid architecture** during migration:
 
 ## MCP socket layout
 
-All Rust components communicate via JSON-line MCP over Unix domain sockets:
+All Rust components communicate via JSON-line MCP over Unix domain sockets
+under `$THE_MACHINE_SOCKET_DIR` (boot default `/run/the-machine`;
+dev harness default `/tmp/the-machine/run`):
 
 ```
-/run/the-machine/mcp-bus.sock      # L3 message fabric (entry point)
-/run/the-machine/policy-broker.sock
-/run/the-machine/state-store.sock
-/run/the-machine/event-bus.sock
-/run/the-machine/lambda-server.sock
-/run/the-machine/agent-core.sock
-/run/the-machine/ui-runtime.sock
-/run/the-machine/compositor.sock
-/run/the-machine/system-daemon.sock
-/run/the-machine/fallback-shell.sock
+$THE_MACHINE_SOCKET_DIR/mcp-bus.sock      # L3 message fabric (entry point)
+$THE_MACHINE_SOCKET_DIR/policy-broker.sock
+$THE_MACHINE_SOCKET_DIR/state-store.sock
+$THE_MACHINE_SOCKET_DIR/event-bus.sock
+$THE_MACHINE_SOCKET_DIR/lambda-server.sock
+$THE_MACHINE_SOCKET_DIR/local-model-daemon.sock
+$THE_MACHINE_SOCKET_DIR/marketplace.sock
+$THE_MACHINE_SOCKET_DIR/agent-core.sock
+$THE_MACHINE_SOCKET_DIR/ui-runtime.sock
+$THE_MACHINE_SOCKET_DIR/compositor.sock
+$THE_MACHINE_SOCKET_DIR/system-daemon.sock
+$THE_MACHINE_SOCKET_DIR/fallback-shell.sock
 ```
 
 Python servers use HTTP (FastAPI) on separate ports during dev — they are **not** on this socket bus unless bridged.

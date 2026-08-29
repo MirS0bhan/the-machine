@@ -30,7 +30,7 @@ impl LeaseManager {
     pub fn create(&self, method: &str, handler: &str, ttl_secs: Option<u64>) -> Value {
         let lease_id = Uuid::new_v4().to_string();
         let ttl = Duration::from_secs(ttl_secs.unwrap_or(self.default_ttl.as_secs()));
-        let socket_path = format!("/run/the-machine/leases/{}.sock", lease_id);
+        let socket_path = common::lease_socket(&lease_id);
         self.leases.insert(
             lease_id.clone(),
             LeaseRecord {

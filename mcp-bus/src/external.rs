@@ -51,7 +51,12 @@ impl ExternalRegistry {
 
     pub async fn forward(&self, server_id: &str, method: &str, params: Value) -> Option<Value> {
         let server = self.servers.get(server_id)?;
-        if !server.allowed_methods.is_empty() && !server.allowed_methods.iter().any(|m| m == method || m == "*") {
+        if !server.allowed_methods.is_empty()
+            && !server
+                .allowed_methods
+                .iter()
+                .any(|m| m == method || m == "*")
+        {
             return Some(json!({ "error": "method not allowed on external server" }));
         }
         let client = reqwest::Client::builder()

@@ -275,7 +275,7 @@ Options:
 
 ## See Also
 
-- [System Daemon](../system-daemon.md) — for input forwarding
-- [UI Runtime](../ui-runtime.md) — for the primary client
-- [Policy Broker](../policy-broker.md) — for the confirmation surface
-- [MCP Bus](../mcp-bus.md) — for the message protocol
+- [System Daemon](./system-daemon.md) — for input forwarding
+- [UI Runtime](./ui-runtime.md) — for the primary client
+- [Policy Broker](./policy-broker.md) — for the confirmation surface
+- [MCP Bus](./mcp-bus.md) — for the message protocol

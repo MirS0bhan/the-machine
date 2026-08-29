@@ -90,9 +90,11 @@ impl Registry {
     pub fn register_route(&mut self, entry: RouteEntry) -> anyhow::Result<()> {
         if entry.pattern.contains('*') {
             // Reject duplicate wildcard in same namespace.
-            if self.wildcards.iter().any(|e| {
-                e.namespace == entry.namespace && e.pattern == entry.pattern
-            }) {
+            if self
+                .wildcards
+                .iter()
+                .any(|e| e.namespace == entry.namespace && e.pattern == entry.pattern)
+            {
                 anyhow::bail!(
                     "route collision: {} in {:?}",
                     entry.pattern,
@@ -168,10 +170,8 @@ impl Registry {
             self.wildcards
                 .retain(|e| !(e.namespace == namespace && e.pattern == pattern));
             self.wildcards.len() < before
-        } else if self.exact.remove(pattern).is_some() {
-            true
         } else {
-            false
+            self.exact.remove(pattern).is_some()
         }
     }
 }

@@ -314,6 +314,6 @@ audio.set_default(name: string) → {}
 
 ## See Also
 
-- [Policy Broker](../policy-broker.md) — for capability enforcement
-- [Compositor](../compositor.md) — for input rendering
-- [MCP Bus](../mcp-bus.md) — for the message protocol
+- [Policy Broker](./policy-broker.md) — for capability enforcement
+- [Compositor](./compositor.md) — for input rendering
+- [MCP Bus](./mcp-bus.md) — for the message protocol

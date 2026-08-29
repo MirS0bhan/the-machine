@@ -1,0 +1,31 @@
+name: Improvement
+description: A better way to do something already in the tree.
+title: "improve: "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - runtime / sockets
+        - policy / security
+        - UI / compositor
+        - build / pipelines
+        - documentation
+        - developer experience
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Current pain
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: true

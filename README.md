@@ -10,7 +10,7 @@ Agent-Native OS — where an AI agent sits between human intent and system mecha
 
 | Layer | Component | Status |
 |-------|-----------|--------|
-| L0 | System Daemon | Rust — evdev input, mock kernel ops |
+| L0 | System Daemon | Rust — evdev input, sysfs-backed power/net/audio/display |
 | L1 | Lambda Server | Rust (seccomp sandbox, synthesis) + Python (tests) |
 | L1 | State Store | Rust (sled + watch) + Python (RocksDB/memory) |
 | L1 | Event Bus | Rust (scheduler, D-Bus/inotify/audio adapters) |
