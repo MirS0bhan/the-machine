@@ -19,7 +19,7 @@ if [[ -z "${KERNEL}" || ! -f "${KERNEL}" ]]; then
 fi
 
 if [[ ! -f "${INITRAMFS}" ]]; then
-  echo "ERROR: initramfs not found at ${INITRAMFS}. Run 'make initramfs' first." >&2
+  echo "ERROR: initramfs not found at ${INITRAMFS}. Run 'make initramfs-release' first." >&2
   exit 1
 fi
 
@@ -27,12 +27,17 @@ echo "==> Building ISO"
 rm -rf "${ISO_DIR}"
 mkdir -p "${ISO_DIR}/boot/grub"
 
-if [[ -n "${KERNEL}" && -f "${KERNEL}" ]]; then
-  cp "${KERNEL}" "${ISO_DIR}/boot/vmlinuz" 2>/dev/null || sudo cp "${KERNEL}" "${ISO_DIR}/boot/vmlinuz"
+# Kernel may be root-owned (e.g. on GitHub Actions after apt install).
+KERNEL_STAGE="${BUILD_DIR}/vmlinuz"
+if cp "${KERNEL}" "${KERNEL_STAGE}" 2>/dev/null; then
+  :
+elif sudo cp "${KERNEL}" "${KERNEL_STAGE}" 2>/dev/null; then
+  :
 else
-  echo "ERROR: kernel required for ISO" >&2
+  echo "ERROR: cannot read kernel at ${KERNEL}" >&2
   exit 1
 fi
+cp "${KERNEL_STAGE}" "${ISO_DIR}/boot/vmlinuz"
 cp "${INITRAMFS}" "${ISO_DIR}/boot/initramfs.cpio.gz"
 
 cat > "${ISO_DIR}/boot/grub/grub.cfg" <<'GRUB'

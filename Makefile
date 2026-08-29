@@ -8,7 +8,7 @@ ISO        ?= build/the-machine.iso
 MEM        ?= 1G
 PYTHON     ?= python3
 
-.PHONY: all build build-release initramfs initramfs-release iso qemu run run-console clean \
+.PHONY: all build build-release initramfs initramfs-release iso iso-release qemu run run-console clean \
         test test-rust test-python test-all docs help \
         services-start services-stop ci-package
 
@@ -29,6 +29,9 @@ initramfs-release:
 
 # Build a bootable ISO (GRUB) that loads the kernel + initramfs.
 iso: initramfs
+	bash build/mkiso.sh "$(KERNEL)" "$(INITRAMFS)" "$(ISO)"
+
+iso-release: initramfs-release
 	bash build/mkiso.sh "$(KERNEL)" "$(INITRAMFS)" "$(ISO)"
 
 # Boot directly from the kernel + initramfs (fast iteration, no ISO).
@@ -72,7 +75,7 @@ services-stop:
 	bash scripts/stop-services.sh
 
 # Package per-component builds + ISO for CI (run after initramfs-release + iso).
-ci-package: build-release initramfs-release iso
+ci-package: build-release initramfs-release iso-release
 	bash build/ci-package-artifacts.sh build/artifacts release
 
 help:

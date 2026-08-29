@@ -203,7 +203,7 @@ jobs:
       - name: Build release initramfs + ISO
         run: |
           make initramfs-release
-          make iso KERNEL=/boot/vmlinuz
+          make iso-release KERNEL=/boot/vmlinuz-$(uname -r)
 
       - name: Upload initramfs
         uses: actions/upload-artifact@v4
