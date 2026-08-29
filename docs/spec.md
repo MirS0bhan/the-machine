@@ -1,8 +1,8 @@
 # Agent-Native OS — Architecture Definition
  
 **Codename:** (unnamed)
-**Version:** 0.1 (design draft)
-**Status:** Conceptual architecture, pre-implementation
+**Version:** 0.1  
+**Status:** Hybrid implementation — Rust boot daemons + Python reference servers (see [overlap guide](./guides/python-rust-overlap.md))
  
 ---
  

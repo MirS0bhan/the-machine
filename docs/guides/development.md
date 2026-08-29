@@ -72,9 +72,10 @@ THE_MACHINE_RUNTIME=python  # Python HTTP servers only (no socket bus)
 ## CI checklist
 
 ```bash
+make verify        # recommended: full local verification
 make build
 make test-all
 make docs
-make initramfs
-make iso
+make initramfs-release
+make iso-release
 ```

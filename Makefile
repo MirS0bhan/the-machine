@@ -9,7 +9,7 @@ MEM        ?= 1G
 PYTHON     ?= python3
 
 .PHONY: all build build-release initramfs initramfs-release iso iso-release qemu run run-console clean \
-        test test-rust test-python test-all docs help \
+        test test-rust test-python test-all verify docs help \
         services-start services-stop ci-package
 
 all: build initramfs iso docs
@@ -60,10 +60,14 @@ test-python:
 	$(PYTHON) -m pytest ui-engine/test_engine.py -v
 	$(PYTHON) -m pytest ui-engine-demo/test_demo.py -v
 	$(PYTHON) -m pytest policy-broker/tests/ -v
+	$(PYTHON) -m pytest state-store/tests/ -v
 	$(PYTHON) -m pytest local-model/tests/ -v
 	cd lambda-server && $(PYTHON) test_server.py
 
 test-all: test-rust test-python
+
+verify:
+	bash scripts/verify-all.sh
 
 docs:
 	$(MAKE) -C docs html
@@ -90,6 +94,7 @@ help:
 	@echo "  qemu           - Boot kernel+initramfs directly in QEMU"
 	@echo "  run            - Boot the ISO in QEMU"
 	@echo "  test           - Run all tests (Rust + Python)"
+	@echo "  verify         - Full verification (tests + builds + docs + inventory)"
 	@echo "  test-rust      - Run Rust workspace tests"
 	@echo "  test-python    - Run Python unit + integration tests"
 	@echo "  docs           - Build documentation"

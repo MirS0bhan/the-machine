@@ -43,25 +43,41 @@ The build uses only the Python standard library plus the `markdown` package
 
 ### Running a component
 
-Each implemented component is a Python package with its own `pyproject.toml` and an
-MCP server entry point. From the repository root:
+> **Note:** The repo is migrating Python → Rust. Several components exist in both
+> languages. See [Python ↔ Rust Overlap Guide](../guides/python-rust-overlap.md).
+
+**Boot / ISO path (Rust daemons, Unix sockets):**
 
 ```bash
-cd lambda-server && uv run python -m lambda_server.server      # HTTP + MCP API
-cd state-store    && uv run python -m state_store.mcp_server
-cd policy-broker  && uv run python -m policy_broker.mcp_server
-cd event-bus      && uv run python -m event_bus.mcp_server
-cd agent-core     && cargo run --bin agent-core
-cd local-model    && uv run python -m local_model.mcp_server
-cd ui-engine      && uv run python -m ui_engine.server
+cargo run --bin mcp-bus
+cargo run --bin system-daemon
+cargo run --bin policy-broker      # stub — use hybrid mode for full policy
+cargo run --bin state-store
+cargo run --bin event-bus
+cargo run --bin lambda-server
+cargo run --bin agent-core
+cargo run --bin ui-runtime
 ```
+
+**Dev / test path (Python reference servers, HTTP):**
+
+```bash
+pip install -e lambda-server policy-broker state-store local-model ui-engine event-bus
+cd policy-broker && uvicorn policy_broker.mcp_server:app --port 8001
+cd state-store    && STATE_STORE_BACKEND=memory uvicorn state_store.mcp_server:app --port 8002
+cd lambda-server  && python3 test_server.py   # in-process tests
+cd local-model    && python3 -m local_model.mcp_server
+cd ui-engine      && python3 -m server
+```
+
+Or start everything: `THE_MACHINE_RUNTIME=hybrid ./scripts/start-services.sh`
 
 ### Running the tests
 
 ```bash
-uv run pytest lambda-server/test_http_api.py     # 9/9 HTTP API tests
-uv run pytest ui-engine-demo/test_demo.py         # UI Engine demo tests
-uv run pytest state-store/tests event-bus policy-broker agent local-model
+make test-all                    # Rust + Python (recommended)
+make test-python                 # integration + component tests (mostly Python)
+pytest tests/integration/ -v     # 30 cross-component tests (in-process Python)
 ```
 
 The UI Engine demo (`ui-engine-demo/`) is the most complete end-to-end vertical:
@@ -111,8 +127,8 @@ system auditable: every action the agent takes is a logged MCP call.
 |---|---|---|---|
 | L1 | Lambda Execution Server | **Implemented + tested** | HTTP + MCP API, `LocalExecutor`, capability enforcement, registry, supervisor |
 | L1 | State Store | **Implemented** | MCP server, backend, capability-gated reads/writes, pub/sub |
-| L1 | Event/Scheduler Bus | **Implemented** | MCP server, router, event taxonomy, scheduling |
-| L2 | Policy Broker | **Implemented** | Rule interpreter, audit log, decision engine, MCP server |
+| L1 | Event/Scheduler Bus | **Implemented** | Rust daemon (full); Python harness for integration tests |
+| L2 | Policy Broker | **Implemented** | Python rule engine (canonical); Rust boot stub |
 | L4 | Agent Core | **Implemented** | Session loop, hybrid router, privacy gate, systemd control, skills |
 | L4 | Local Model Interface | **Implemented** | Engine, privacy tagging, embedding backend, MCP server |
 | L5 | UI Engine | **Implemented** | AUIL/ASL parser, runtime, patch protocol, renderer, models |
@@ -122,10 +138,22 @@ system auditable: every action the agent takes is a logged MCP call.
 | L5 | Wayland Compositor | **Partial** | Rust logical model; wlroots integration planned |
 | L3.7 | Fallback Shell | **Implemented** | Rust console recovery mode |
 
-The architecture, broker, state store, event bus, agent core, local model, and UI
-engine specs are carried forward verbatim in their chapters with live implementation
-references appended. The MCP Bus, System Daemon, Compositor, and Fallback Shell remain
-design-only and are marked as such in their chapters.
+The architecture specs are carried forward in their chapters with live implementation
+references appended where source code exists. See
+[Python ↔ Rust Overlap Guide](../guides/python-rust-overlap.md) for dual-language components.
+
+**Test coverage (run `make test-all`):**
+
+| Suite | Tests |
+|-------|-------|
+| Integration (`tests/integration/`) | 30 |
+| ui-engine | 10 |
+| ui-engine-demo | 20 |
+| policy-broker | 9 |
+| state-store | 8 |
+| local-model | 8 |
+| lambda-server (`test_server.py`) | all sections |
+| Rust workspace | `cargo test --workspace` |
 
 ---
 
@@ -168,21 +196,28 @@ design-only and are marked as such in their chapters.
 
 ```
 the-machine/
-├── docs/                     # this documentation set
+├── docs/                     # documentation set + guides/python-rust-overlap.md
 │   ├── spec.md               # architecture definition
 │   ├── *-spec.md             # component design specs
 │   ├── book/                 # expanded narrative + demo chapter
 │   ├── build.py              # documentation generator
 │   └── build/                # generated output (index.html, book.md)
-├── lambda-server/            # L1 sandboxed function runtime (HTTP + MCP)
-├── state-store/              # L1 UI + system state, pub/sub
-├── event-bus/                # L1 reactive routing + scheduler
-├── policy-broker/            # L2 capability enforcement + audit
-├── agent/                    # L4 hybrid LLM router + session loop
-├── local-model/              # L4 Tier-A local inference + privacy
-├── ui-engine/                # L5 AUIL/ASL parser, runtime, patch protocol
+├── agent-core/               # L4 hybrid LLM router (Rust)
+├── lambda-server/            # L1 sandboxed runtime (Python + Rust)
+├── state-store/              # L1 UI + system state (Python + Rust)
+├── event-bus/                # L1 reactive routing (Python harness + Rust daemon)
+├── policy-broker/            # L2 capability enforcement (Python + Rust)
+├── mcp-bus/                  # L3 message fabric (Rust)
+├── system-daemon/            # L0 I/O + kernel ops (Rust)
+├── compositor/               # L5 Wayland compositor (Rust, partial)
+├── fallback-shell/           # L5 recovery UI (Rust)
+├── ui-runtime/               # L5 declarative renderer daemon (Rust)
+├── local-model/              # L4 Tier-A inference (Python)
+├── ui-engine/                # L5 AUIL/ASL parser (Python)
 ├── ui-engine-demo/           # L5 terminal demo app
-└── Makefile                  # `make docs`, `make serve`, `make clean`
+├── build/                    # mkinitramfs.sh, mkiso.sh, CI packaging
+├── scripts/                  # start-services.sh, verify-all.sh
+└── Makefile                  # build, test, iso, ci-package
 ```
 
 See the per-component chapters for the full module inventory and test counts.
@@ -205,8 +240,8 @@ See the per-component chapters for the full module inventory and test counts.
 # Agent-Native OS — Architecture Definition
  
 **Codename:** (unnamed)
-**Version:** 0.1 (design draft)
-**Status:** Conceptual architecture, pre-implementation
+**Version:** 0.1  
+**Status:** Hybrid implementation — Rust boot daemons + Python reference servers (see [overlap guide](./guides/python-rust-overlap.md))
  
 ---
  
@@ -856,6 +891,8 @@ Scanned `state-store`. Module / public-symbol inventory:
     - `delete()`
     - `patch()`
     - `list_paths()`
+    - `create_snapshot()`
+    - `release_snapshot()`
     - `close()`
 - **`state_store/models.py`**
   - `class PatchOpType(str, Enum)`
@@ -878,7 +915,7 @@ Scanned `state-store`. Module / public-symbol inventory:
     - `release_snapshot()`
     - `get_snapshot()`
 
-**Tests discovered:** 7 `test_*` functions.
+**Tests discovered:** 11 `test_*` functions.
 
 
 ---

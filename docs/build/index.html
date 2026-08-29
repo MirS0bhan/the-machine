@@ -298,20 +298,33 @@ make clean         # remove docs/build
 <p>The build uses only the Python standard library plus the <code>markdown</code> package<br />
 (already present in the virtualenv). No <code>pandoc</code>/<code>mkdocs</code>/network access required.</p>
 <h3 id="running-a-component">Running a component</h3>
-<p>Each implemented component is a Python package with its own <code>pyproject.toml</code> and an<br />
-MCP server entry point. From the repository root:</p>
-<pre><code class="language-bash">cd lambda-server &amp;&amp; uv run python -m lambda_server.server      # HTTP + MCP API
-cd state-store    &amp;&amp; uv run python -m state_store.mcp_server
-cd policy-broker  &amp;&amp; uv run python -m policy_broker.mcp_server
-cd event-bus      &amp;&amp; uv run python -m event_bus.mcp_server
-cd agent-core     &amp;&amp; cargo run --bin agent-core
-cd local-model    &amp;&amp; uv run python -m local_model.mcp_server
-cd ui-engine      &amp;&amp; uv run python -m ui_engine.server
+<blockquote>
+<p><strong>Note:</strong> The repo is migrating Python → Rust. Several components exist in both<br />
+languages. See <a href="../guides/python-rust-overlap.md">Python ↔ Rust Overlap Guide</a>.</p>
+</blockquote>
+<p><strong>Boot / ISO path (Rust daemons, Unix sockets):</strong></p>
+<pre><code class="language-bash">cargo run --bin mcp-bus
+cargo run --bin system-daemon
+cargo run --bin policy-broker      # stub — use hybrid mode for full policy
+cargo run --bin state-store
+cargo run --bin event-bus
+cargo run --bin lambda-server
+cargo run --bin agent-core
+cargo run --bin ui-runtime
 </code></pre>
+<p><strong>Dev / test path (Python reference servers, HTTP):</strong></p>
+<pre><code class="language-bash">pip install -e lambda-server policy-broker state-store local-model ui-engine event-bus
+cd policy-broker &amp;&amp; uvicorn policy_broker.mcp_server:app --port 8001
+cd state-store    &amp;&amp; STATE_STORE_BACKEND=memory uvicorn state_store.mcp_server:app --port 8002
+cd lambda-server  &amp;&amp; python3 test_server.py   # in-process tests
+cd local-model    &amp;&amp; python3 -m local_model.mcp_server
+cd ui-engine      &amp;&amp; python3 -m server
+</code></pre>
+<p>Or start everything: <code>THE_MACHINE_RUNTIME=hybrid ./scripts/start-services.sh</code></p>
 <h3 id="running-the-tests">Running the tests</h3>
-<pre><code class="language-bash">uv run pytest lambda-server/test_http_api.py     # 9/9 HTTP API tests
-uv run pytest ui-engine-demo/test_demo.py         # UI Engine demo tests
-uv run pytest state-store/tests event-bus policy-broker agent local-model
+<pre><code class="language-bash">make test-all                    # Rust + Python (recommended)
+make test-python                 # integration + component tests (mostly Python)
+pytest tests/integration/ -v     # 30 cross-component tests (in-process Python)
 </code></pre>
 <p>The UI Engine demo (<code>ui-engine-demo/</code>) is the most complete end-to-end vertical:<br />
 an AUIL layout is parsed, patched through the real <code>patch_protocol</code>/<code>auil_parser</code><br />
@@ -373,13 +386,13 @@ system auditable: every action the agent takes is a logged MCP call.</p>
 <td>L1</td>
 <td>Event/Scheduler Bus</td>
 <td><strong>Implemented</strong></td>
-<td>MCP server, router, event taxonomy, scheduling</td>
+<td>Rust daemon (full); Python harness for integration tests</td>
 </tr>
 <tr>
 <td>L2</td>
 <td>Policy Broker</td>
 <td><strong>Implemented</strong></td>
-<td>Rule interpreter, audit log, decision engine, MCP server</td>
+<td>Python rule engine (canonical); Rust boot stub</td>
 </tr>
 <tr>
 <td>L4</td>
@@ -431,10 +444,52 @@ system auditable: every action the agent takes is a logged MCP call.</p>
 </tr>
 </tbody>
 </table>
-<p>The architecture, broker, state store, event bus, agent core, local model, and UI<br />
-engine specs are carried forward verbatim in their chapters with live implementation<br />
-references appended. The MCP Bus, System Daemon, Compositor, and Fallback Shell remain<br />
-design-only and are marked as such in their chapters.</p>
+<p>The architecture specs are carried forward in their chapters with live implementation<br />
+references appended where source code exists. See<br />
+<a href="../guides/python-rust-overlap.md">Python ↔ Rust Overlap Guide</a> for dual-language components.</p>
+<p><strong>Test coverage (run <code>make test-all</code>):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Suite</th>
+<th>Tests</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Integration (<code>tests/integration/</code>)</td>
+<td>30</td>
+</tr>
+<tr>
+<td>ui-engine</td>
+<td>10</td>
+</tr>
+<tr>
+<td>ui-engine-demo</td>
+<td>20</td>
+</tr>
+<tr>
+<td>policy-broker</td>
+<td>9</td>
+</tr>
+<tr>
+<td>state-store</td>
+<td>8</td>
+</tr>
+<tr>
+<td>local-model</td>
+<td>8</td>
+</tr>
+<tr>
+<td>lambda-server (<code>test_server.py</code>)</td>
+<td>all sections</td>
+</tr>
+<tr>
+<td>Rust workspace</td>
+<td><code>cargo test --workspace</code></td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="3-key-architectural-decisions-as-built">3. Key architectural decisions (as built)</h2>
 <ul>
@@ -498,21 +553,28 @@ design-only and are marked as such in their chapters.</p>
 <hr />
 <h2 id="5-project-layout">5. Project layout</h2>
 <pre><code>the-machine/
-├── docs/                     # this documentation set
+├── docs/                     # documentation set + guides/python-rust-overlap.md
 │   ├── spec.md               # architecture definition
 │   ├── *-spec.md             # component design specs
 │   ├── book/                 # expanded narrative + demo chapter
 │   ├── build.py              # documentation generator
 │   └── build/                # generated output (index.html, book.md)
-├── lambda-server/            # L1 sandboxed function runtime (HTTP + MCP)
-├── state-store/              # L1 UI + system state, pub/sub
-├── event-bus/                # L1 reactive routing + scheduler
-├── policy-broker/            # L2 capability enforcement + audit
-├── agent/                    # L4 hybrid LLM router + session loop
-├── local-model/              # L4 Tier-A local inference + privacy
-├── ui-engine/                # L5 AUIL/ASL parser, runtime, patch protocol
+├── agent-core/               # L4 hybrid LLM router (Rust)
+├── lambda-server/            # L1 sandboxed runtime (Python + Rust)
+├── state-store/              # L1 UI + system state (Python + Rust)
+├── event-bus/                # L1 reactive routing (Python harness + Rust daemon)
+├── policy-broker/            # L2 capability enforcement (Python + Rust)
+├── mcp-bus/                  # L3 message fabric (Rust)
+├── system-daemon/            # L0 I/O + kernel ops (Rust)
+├── compositor/               # L5 Wayland compositor (Rust, partial)
+├── fallback-shell/           # L5 recovery UI (Rust)
+├── ui-runtime/               # L5 declarative renderer daemon (Rust)
+├── local-model/              # L4 Tier-A inference (Python)
+├── ui-engine/                # L5 AUIL/ASL parser (Python)
 ├── ui-engine-demo/           # L5 terminal demo app
-└── Makefile                  # `make docs`, `make serve`, `make clean`
+├── build/                    # mkinitramfs.sh, mkiso.sh, CI packaging
+├── scripts/                  # start-services.sh, verify-all.sh
+└── Makefile                  # build, test, iso, ci-package
 </code></pre>
 <p>See the per-component chapters for the full module inventory and test counts.</p>
 <hr />
@@ -745,8 +807,8 @@ design-only and are marked as such in their chapters.</p>
 <hr />
 <h1 id="agent-native-os-architecture-definition">Agent-Native OS — Architecture Definition</h1>
 <p><strong>Codename:</strong> (unnamed)<br />
-<strong>Version:</strong> 0.1 (design draft)<br />
-<strong>Status:</strong> Conceptual architecture, pre-implementation</p>
+<strong>Version:</strong> 0.1<br />
+<strong>Status:</strong> Hybrid implementation — Rust boot daemons + Python reference servers (see <a href="./guides/python-rust-overlap.md">overlap guide</a>)</p>
 <hr />
 <h2 id="1-philosophy">1. Philosophy</h2>
 <p>Traditional operating systems separate <em>mechanism</em> (kernel, drivers, IPC) from <em>policy</em> (window managers, app frameworks, user intent), and every layer in between exists to let humans manually wire mechanism to policy: file managers, launchers, app stores, config files.</p>
@@ -1498,6 +1560,8 @@ async function x(input) {
 <li><code>delete()</code></li>
 <li><code>patch()</code></li>
 <li><code>list_paths()</code></li>
+<li><code>create_snapshot()</code></li>
+<li><code>release_snapshot()</code></li>
 <li><code>close()</code></li>
 </ul>
 </li>
@@ -1526,7 +1590,7 @@ async function x(input) {
 </ul>
 </li>
 </ul>
-<p><strong>Tests discovered:</strong> 7 <code>test_*</code> functions.</p>
+<p><strong>Tests discovered:</strong> 11 <code>test_*</code> functions.</p>
 <hr />
 <h1 id="eventscheduler-bus-reactive-routing-timers-agent-wake-decisions">Event/Scheduler Bus — Reactive Routing, Timers &amp; Agent Wake Decisions</h1>
 <p><strong>Fills:</strong> §3.2.3 of <code>agent-native-os-architecture.md</code> (Event/Scheduler Bus)<br />
