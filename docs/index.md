@@ -10,6 +10,9 @@ Welcome to the documentation for **The Machine**, an agent-native operating syst
 ## Quick Links
 
 - [Architecture Overview](./architecture/overview.md) — High-level system design
+- [Runtime Model](./architecture/runtime-model.md) — Agent→MCP→UI loop (implemented)
+- [Expansion Proposal](./architecture/expansion-proposal.md) — Roadmap to fully agentic OS
+- [Gap Analysis](./architecture/gap-analysis.md) — Living checklist vs north-star
 - [Design Philosophy](./architecture/philosophy.md) — Core principles and commitments
 - [Layer Reference](./architecture/layers.md) — Detailed layer-by-layer breakdown
 - [Component Reference](./components/) — Each component's spec

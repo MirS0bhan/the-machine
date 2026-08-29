@@ -308,8 +308,11 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
                 trusted: true,
             };
             let mut reg = state.registry.lock().await;
-            match reg.register_route(entry) {
-                Ok(()) => ok_bytes(id, serde_json::json!({ "registered": true })),
+            match reg.register_route(entry.clone()) {
+                Ok(()) => {
+                    persist_route(&entry).await;
+                    ok_bytes(id, serde_json::json!({ "registered": true }))
+                }
                 Err(e) => error_bytes(id, "E_COLLISION", &e.to_string()),
             }
         }
@@ -402,4 +405,34 @@ fn prefix_handler(method: &str) -> Option<String> {
         _ => return None,
     };
     Some(id.to_string())
+}
+
+/// Best-effort persist of a route to State Store (`perm.mcp_routes.*`).
+async fn persist_route(entry: &RouteEntry) {
+    let path = format!(
+        "perm.mcp_routes.{}.{}",
+        entry.namespace.as_str().replace('-', "_"),
+        entry.pattern.replace('.', "_")
+    );
+    let value = serde_json::json!({
+        "namespace": entry.namespace.as_str(),
+        "pattern": entry.pattern,
+        "handler": entry.handler,
+        "registered_by": entry.registered_by,
+        "manifest_ref": entry.manifest_ref,
+    });
+    let sock = std::env::var("THE_MACHINE_SOCKET_DIR")
+        .map(|d| format!("{}/state-store.sock", d))
+        .unwrap_or_else(|_| "/run/the-machine/state-store.sock".into());
+    let req = serde_json::json!({
+        "id": 0,
+        "kind": "Request",
+        "method": "state.set",
+        "params": { "path": path, "value": value }
+    });
+    if let Ok(mut stream) = UnixStream::connect(&sock).await {
+        let mut buf = serde_json::to_vec(&req).unwrap_or_default();
+        buf.push(b'\n');
+        let _ = stream.write_all(&buf).await;
+    }
 }

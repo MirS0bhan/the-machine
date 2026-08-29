@@ -195,6 +195,7 @@ class MCPControlInterface:
         input_schema = args.get("input_schema", {})
         output_schema = args.get("output_schema", {})
         exposes_mcp = args.get("exposes_mcp")
+        handles_event = args.get("handles_event")
         
         if not all([name, runtime, code, description]):
             return {"error": "name, runtime, code, and description are required"}
@@ -236,6 +237,7 @@ class MCPControlInterface:
             output_schema=output_schema,
             capabilities=capabilities,
             exposes_mcp=exposes_mcp,
+            handles_event=handles_event,
         )
         
         logger.info(f"Registered function '{name}' version {manifest.version}")

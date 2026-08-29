@@ -2,8 +2,8 @@
 
 **Fills:** §3.4 of `agent-native-os-architecture.md` (MCP Bus) — the component `auil-asl-spec.md` §8 and `event-bus-spec.md` §2 both assume exists but never specify
 **Related:** `auil-asl-spec.md` §8 (three-way handler classification this doc implements the routing table for), `lambda-server-spec.md` §7 (`exposes_mcp` registration), `event-bus-spec.md` §2 (`handles_event` registration — a parallel registry this doc's mechanism generalizes), `policy-broker-spec.md` §11 (registration validation)
-**Version:** 0.1 (design draft)
-**Status:** Conceptual, pre-implementation
+**Version:** 0.1  
+**Status:** Partially implemented — see `mcp-bus/src/` (dynamic registry, `bus.resolve`, `_bus.register`)
 
 ---
 

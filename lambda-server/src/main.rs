@@ -267,13 +267,18 @@ async fn register(params: Option<Value>, state: Arc<AppState>, id: Value) -> Val
     info!("registered function '{}'", manifest.name);
 
     // Register MCP intent routes with the bus (side effect per mcp-bus-spec §3).
-    for exposure in parse_exposes_mcp(&manifest) {
-        register_bus_route(&manifest.name, &exposure).await;
+    for exposure in parse_string_list(&manifest.exposes_mcp) {
+        register_bus_route("mcp-intent", &manifest.name, &exposure).await;
         state
             .mcp_exposures
             .lock()
             .await
             .insert(exposure, manifest.name.clone());
+    }
+
+    for event_key in parse_string_list(&manifest.handles_event) {
+        register_bus_route("event-handler", &manifest.name, &event_key).await;
+        register_event_handler(&manifest.name, &event_key).await;
     }
 
     ok(
@@ -500,10 +505,10 @@ async fn stop(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value {
     }
 }
 
-/// Parse `exposes_mcp` from a manifest (string or array of strings).
-fn parse_exposes_mcp(manifest: &Manifest) -> Vec<String> {
+/// Parse string or string-array manifest fields.
+fn parse_string_list(values: &[Value]) -> Vec<String> {
     let mut out = Vec::new();
-    for v in &manifest.exposes_mcp {
+    for v in values {
         if let Some(s) = v.as_str() {
             if !s.is_empty() {
                 out.push(s.to_string());
@@ -513,8 +518,8 @@ fn parse_exposes_mcp(manifest: &Manifest) -> Vec<String> {
     out
 }
 
-/// Tell the MCP Bus to add an mcp-intent route for this lambda.
-async fn register_bus_route(lambda_name: &str, pattern: &str) {
+/// Tell the MCP Bus to add a route for this lambda.
+async fn register_bus_route(namespace: &str, lambda_name: &str, pattern: &str) {
     let path = std::env::var("THE_MACHINE_SOCKET_DIR")
         .map(|d| format!("{}/mcp-bus.sock", d))
         .unwrap_or_else(|_| "/run/the-machine/mcp-bus.sock".into());
@@ -523,10 +528,37 @@ async fn register_bus_route(lambda_name: &str, pattern: &str) {
         "kind": "Request",
         "method": "_bus.register",
         "params": {
-            "namespace": "mcp-intent",
+            "namespace": namespace,
             "pattern": pattern,
             "handler": "lambda-server",
             "registered_by": "lambda-server",
+            "manifest_ref": lambda_name,
+        }
+    });
+    if let Ok(mut stream) = tokio::net::UnixStream::connect(&path).await {
+        let mut buf = serde_json::to_vec(&req).unwrap_or_default();
+        buf.push(b'\n');
+        let _ = stream.write_all(&buf).await;
+    }
+}
+
+/// Register an event handler with the Event Bus routing table.
+async fn register_event_handler(lambda_name: &str, event_key: &str) {
+    let (category, pattern) = match event_key.split_once('.') {
+        Some((c, p)) => (c.to_string(), p.to_string()),
+        None => (event_key.to_string(), "*".to_string()),
+    };
+    let path = std::env::var("THE_MACHINE_SOCKET_DIR")
+        .map(|d| format!("{}/event-bus.sock", d))
+        .unwrap_or_else(|_| "/run/the-machine/event-bus.sock".into());
+    let req = json!({
+        "id": 2,
+        "kind": "Request",
+        "method": "event.register_handler",
+        "params": {
+            "category": category,
+            "pattern": pattern,
+            "handler": "lambda-server",
             "manifest_ref": lambda_name,
         }
     });
