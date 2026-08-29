@@ -4,6 +4,7 @@ mod client;
 mod cloud;
 mod llm;
 mod planner;
+mod secrets;
 mod skills;
 
 use client::mcp_call;
@@ -137,15 +138,40 @@ async fn handle_request(
                 .await
                 .and_then(|v| v.get("status").and_then(|x| x.as_str()).map(|x| x.to_string()))
                 .unwrap_or_else(|| "unavailable".into());
+            let cloud_info = if let Some(router) = &s.cloud {
+                serde_json::json!({
+                    "available": true,
+                    "key_source": router.key_source(),
+                    "details": cloud::status(),
+                })
+            } else {
+                serde_json::json!({
+                    "available": false,
+                    "details": cloud::status(),
+                })
+            };
             success_response(
                 &id,
                 serde_json::json!({
                     "status": s.status,
                     "local_model": model_status,
                     "cloud_model": if s.local_only_mode || s.cloud.is_none() { "disabled" } else { "available" },
+                    "cloud": cloud_info,
                     "local_only_mode": s.local_only_mode,
                     "wakes_processed": s.wakes_processed,
                     "skills_loaded": s.skills.len(),
+                }),
+            )
+        }
+        "agent.cloud.status" => {
+            let s = state.lock().await;
+            success_response(
+                &id,
+                serde_json::json!({
+                    "enabled": !s.local_only_mode && s.cloud.is_some(),
+                    "local_only_mode": s.local_only_mode,
+                    "key": cloud::status(),
+                    "key_source": s.cloud.as_ref().map(|c| c.key_source()),
                 }),
             )
         }

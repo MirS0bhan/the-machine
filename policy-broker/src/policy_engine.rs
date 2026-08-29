@@ -259,6 +259,7 @@ pub fn default_policies() -> PolicyDoc {
                     "CAP_TIMER".into(),
                     "CAP_EVENT_ADMIN".into(),
                     "CAP_IPC_CALL".into(),
+                    "CAP_CLOUD_INFERENCE".into(),
                     "mcp.intent-register".into(),
                 ],
                 rate_limit: None,

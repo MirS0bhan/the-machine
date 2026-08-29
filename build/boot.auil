@@ -1,0 +1,3 @@
+stack#ui.root dir=v gap=m
+  text#ui.title(role=title) "The Machine"
+  button#ui.status_btn label=Status on:press=mcp:ui.status

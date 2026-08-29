@@ -76,8 +76,4 @@ Rust binaries ship in the initramfs for boot. Python servers remain the referenc
 
 ## Remaining Work
 
-See [Gap Analysis](./gap-analysis.md) and [Expansion Proposal](./expansion-proposal.md). Highlights:
-
-- **G1** — Production cloud API key management for agent-core
-- **G6** — Embed Python AUIL parser in boot path (ui-engine → ui-runtime)
-- **G16** — Full wlroots DRM/KMS compositor (framebuffer works today)
+See [Gap Analysis](./gap-analysis.md) and [Expansion Proposal](./expansion-proposal.md). Platform polish items (G7, G12–G14, G17 wlroots session) remain; critical path gaps G1/G6/G16 are closed.
