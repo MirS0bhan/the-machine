@@ -133,14 +133,16 @@ system auditable: every action the agent takes is a logged MCP call.
 | L4 | Local Model Interface | **Implemented** | Engine, privacy tagging, embedding backend, MCP server |
 | L5 | UI Engine | **Implemented** | AUIL/ASL parser, runtime, patch protocol, renderer, models |
 | L5 | UI Engine Demo | **Implemented** | Terminal `AbstractRenderer`, `demo.auil`, input loop, tests |
-| L3 | MCP Bus | **Implemented** | Rust daemon with method registry + socket forwarding |
+| L3 | MCP Bus | **Implemented** | Dynamic intent registry, pattern resolve (`calc.*`), `_bus.register` side effect |
 | L0 | System Daemon | **Implemented** | Rust daemon (mock kernel ops for dev) |
 | L5 | Wayland Compositor | **Partial** | Rust logical model; wlroots integration planned |
 | L3.7 | Fallback Shell | **Implemented** | Rust console recovery mode |
 
 The architecture specs are carried forward in their chapters with live implementation
 references appended where source code exists. See
-[Python ↔ Rust Overlap Guide](../guides/python-rust-overlap.md) for dual-language components.
+[Runtime Model](../architecture/runtime-model.md) for the end-to-end agent→MCP→UI loop,
+[Expansion Proposal](../architecture/expansion-proposal.md) for the roadmap to a fully agentic OS,
+and [Python ↔ Rust Overlap Guide](../guides/python-rust-overlap.md) for dual-language components.
 
 **Test coverage (run `make test-all`):**
 

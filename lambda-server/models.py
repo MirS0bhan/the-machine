@@ -156,6 +156,7 @@ class FunctionManifest:
         artifact_path: Path to compiled artifact (for compiled languages)
         build_log: Build log reference (for compiled languages)
         exposes_mcp: MCP pattern to expose (e.g., "calc.*")
+        handles_event: Event pattern to handle (e.g., "task-complete.download")
         status: Current status ("cold", "warm", "running")
         created_at: Unix timestamp when this version was created
     
@@ -185,6 +186,7 @@ class FunctionManifest:
     artifact_path: Optional[str] = None
     build_log: Optional[str] = None
     exposes_mcp: Optional[str] = None
+    handles_event: Optional[str] = None
     status: str = "cold"
     created_at: float = field(default_factory=time.time)
     
@@ -222,6 +224,7 @@ class FunctionManifest:
             "artifact_path": self.artifact_path,
             "build_log": self.build_log,
             "exposes_mcp": self.exposes_mcp,
+            "handles_event": self.handles_event,
             "status": self.status,
             "created_at": self.created_at,
         }

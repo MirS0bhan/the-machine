@@ -84,6 +84,7 @@ class FunctionRegistry:
         output_schema: Dict[str, Any],
         capabilities: Set[CapabilityGrant],
         exposes_mcp: Optional[str] = None,
+        handles_event: Optional[str] = None,
     ) -> FunctionManifest:
         """
         Create or update a function. Each call creates a new immutable version.
@@ -140,6 +141,7 @@ class FunctionRegistry:
             capabilities=capabilities,
             source_code=code,
             exposes_mcp=exposes_mcp,
+            handles_event=handles_event,
         )
         
         # Store version
@@ -150,6 +152,19 @@ class FunctionRegistry:
         if exposes_mcp:
             self._mcp_exposures[exposes_mcp] = name
             logger.info(f"Function '{name}' exposed as MCP pattern: {exposes_mcp}")
+            try:
+                from bus_client import register_mcp_intent
+                register_mcp_intent(name, exposes_mcp)
+            except ImportError:
+                pass
+
+        if handles_event:
+            logger.info(f"Function '{name}' handles event: {handles_event}")
+            try:
+                from bus_client import register_event_handler
+                register_event_handler(name, handles_event)
+            except ImportError:
+                pass
         
         logger.info(
             f"Function '{name}' registered successfully: "

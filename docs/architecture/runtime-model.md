@@ -66,7 +66,10 @@ Rust binaries ship in the initramfs for boot. Python servers remain the referenc
 
 ## Remaining Work
 
+See [Gap Analysis](./gap-analysis.md) and [Expansion Proposal](./expansion-proposal.md) for the full roadmap. Highlights:
+
 - **wlroots compositor** — real Wayland session instead of model-only compositor
 - **D-Bus / fs event adapters** — discrete event registrations in event-bus
 - **LLM integration** — wire `local-model` into agent-core `classify` / `plan`
 - **Policy gate on `_bus.register`** — broker validation before route insertion
+- **Registry persistence** — rebuild routes from State Store on bus restart

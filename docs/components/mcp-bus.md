@@ -3,7 +3,8 @@
 **Layer:** L3  
 **Type:** Deterministic, non-LLM  
 **Language:** Rust  
-**Dependencies:** State Store (for registry persistence)  
+**Dependencies:** State Store (for registry persistence — planned)  
+**Implementation:** `mcp-bus/src/` — dynamic registry, pattern matching, `bus.resolve`, `bus.list_routes`, internal `_bus.register`
 
 ---
 
@@ -321,47 +322,13 @@ struct Lease {
 
 ### Methods (Bus-specific)
 
-#### `bus.registry.lookup(method: string) → {handler: string, namespace: string}`
+#### `bus.resolve(method: string) → {handler, namespace, pattern}`
 
-Look up a method in the registry.
+Look up a method in the registry. Implemented as `bus.resolve` (replaces draft `bus.registry.lookup`).
 
-**Parameters:**
-- `method` — the MCP method name
+#### `bus.list_routes(namespace?: string) → RouteEntry[]`
 
-**Returns:**
-- `handler` — the handler identity
-- `namespace` — the registry namespace
-
-**Example:**
-```json
-// Request
-{"method": "bus.registry.lookup", "params": {"method": "video_player.play"}}
-
-// Response
-{"result": {"handler": "lambda:video_player", "namespace": "mcp-intent"}}
-```
-
-#### `bus.registry.list(namespace: string) → RegistryEntry[]`
-
-List all entries in a namespace.
-
-**Parameters:**
-- `namespace` — the namespace to list
-
-**Returns:**
-- Array of registry entries
-
-**Example:**
-```json
-// Request
-{"method": "bus.registry.list", "params": {"namespace": "mcp-intent"}}
-
-// Response
-{"result": [
-  {"key": "video_player.play", "handler": "lambda:video_player"},
-  {"key": "video_player.stop", "handler": "lambda:video_player"}
-]}
-```
+List all entries in a namespace. Implemented as `bus.list_routes`.
 
 #### `bus.lease(method: string, target: string) → {lease_id: string, socket_path: string}`
 
