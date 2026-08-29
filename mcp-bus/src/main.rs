@@ -53,6 +53,9 @@ async fn main() -> anyhow::Result<()> {
         reg.register("state.set", "state-store", true).unwrap();
         reg.register("state.patch", "state-store", true).unwrap();
         reg.register("state.watch", "state-store", true).unwrap();
+        reg.register("state.list", "state-store", true).unwrap();
+        reg.register("state.get_revision", "state-store", true).unwrap();
+        reg.register("state.stats", "state-store", true).unwrap();
 
         for m in [
             "event.publish",
@@ -71,10 +74,10 @@ async fn main() -> anyhow::Result<()> {
         ] {
             reg.register(m, "event-bus", true).unwrap();
         }
-        // Bus introspection + internal registration handled locally.
         reg.register("bus.resolve", "mcp-bus", true).unwrap();
         reg.register("bus.list_routes", "mcp-bus", true).unwrap();
         reg.register("_bus.register", "mcp-bus", true).unwrap();
+        reg.register("_bus.deregister", "mcp-bus", true).unwrap();
 
         for m in [
             "agent.status",
@@ -88,6 +91,7 @@ async fn main() -> anyhow::Result<()> {
         for m in [
             "lambda.invoke",
             "lambda.register",
+            "lambda.deprecate",
             "lambda.lease",
             "lambda.list",
             "lambda.health",
@@ -103,6 +107,9 @@ async fn main() -> anyhow::Result<()> {
             "policy.revoke",
             "policy.audit",
             "policy.list",
+            "policy.validate_register",
+            "policy.confirm",
+            "policy.confirm_result",
             "systemd.stop",
             "systemd.restart",
             "systemd.disable",
@@ -117,6 +124,9 @@ async fn main() -> anyhow::Result<()> {
             reg.register(m, "compositor", true).unwrap();
         }
     }
+
+    // Rebuild dynamic routes persisted in State Store (Phase 3).
+    reload_routes_from_state(&state).await;
 
     let socket_path = std::env::var("THE_MACHINE_SOCKET_DIR")
         .unwrap_or_else(|_| "/run/the-machine".to_string());
@@ -187,8 +197,20 @@ async fn process_mcp_message(data: &[u8], state: &AppState) -> Option<Vec<u8>> {
     debug!("Handling method: {}", method);
 
     // Bus-local introspection and internal registration.
-    if method == "bus.resolve" || method == "bus.list_routes" || method == "_bus.register" {
+    if method == "bus.resolve"
+        || method == "bus.list_routes"
+        || method == "_bus.register"
+        || method == "_bus.deregister"
+    {
         return Some(handle_bus_local(method, &msg, state).await);
+    }
+
+    // Policy middleware: gate MCP calls before forwarding (Phase 3).
+    if requires_policy_check(method) {
+        let params = msg.get("params").cloned();
+        if !policy_allows(method, params.as_ref()).await {
+            return Some(error_bytes(id, "E_POLICY_DENY", "policy denied"));
+        }
     }
 
     let reg = state.registry.lock().await;
@@ -299,6 +321,12 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
                 .get("manifest_ref")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
+
+            // Broker validates registration (policy-broker-spec §11).
+            if !validate_registration(&params).await {
+                return error_bytes(id, "E_POLICY_DENY", "registration denied by policy broker");
+            }
+
             let entry = RouteEntry {
                 namespace,
                 pattern,
@@ -314,6 +342,36 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
                     ok_bytes(id, serde_json::json!({ "registered": true }))
                 }
                 Err(e) => error_bytes(id, "E_COLLISION", &e.to_string()),
+            }
+        }
+        "_bus.deregister" => {
+            let registered_by = params
+                .get("registered_by")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            let allowed = matches!(
+                registered_by,
+                "lambda-server" | "event-bus" | "policy-broker" | "boot"
+            );
+            if !allowed {
+                return error_bytes(id, "E_FORBIDDEN", "deregistration not allowed");
+            }
+            let namespace = params
+                .get("namespace")
+                .and_then(|v| v.as_str())
+                .and_then(registry::Namespace::from_str)
+                .unwrap_or(Namespace::McpIntent);
+            let pattern = match params.get("pattern").and_then(|v| v.as_str()) {
+                Some(p) if !p.is_empty() => p.to_string(),
+                _ => return error_bytes(id, "E_INVALID", "pattern required"),
+            };
+            let mut reg = state.registry.lock().await;
+            let removed = reg.deregister_route(namespace, &pattern);
+            if removed {
+                delete_persisted_route(namespace, &pattern).await;
+                ok_bytes(id, serde_json::json!({ "deregistered": true }))
+            } else {
+                error_bytes(id, "E_NOT_FOUND", "route not found")
             }
         }
         _ => error_bytes(id, "E_NOT_FOUND", "unknown bus method"),
@@ -434,5 +492,220 @@ async fn persist_route(entry: &RouteEntry) {
         let mut buf = serde_json::to_vec(&req).unwrap_or_default();
         buf.push(b'\n');
         let _ = stream.write_all(&buf).await;
+    }
+}
+
+async fn delete_persisted_route(namespace: Namespace, pattern: &str) {
+    let path = format!(
+        "perm.mcp_routes.{}.{}",
+        namespace.as_str().replace('-', "_"),
+        pattern.replace('.', "_")
+    );
+    let sock = std::env::var("THE_MACHINE_SOCKET_DIR")
+        .map(|d| format!("{}/state-store.sock", d))
+        .unwrap_or_else(|_| "/run/the-machine/state-store.sock".into());
+    let req = serde_json::json!({
+        "id": 0,
+        "kind": "Request",
+        "method": "state.set",
+        "params": { "path": path, "value": null }
+    });
+    if let Ok(mut stream) = UnixStream::connect(&sock).await {
+        let mut buf = serde_json::to_vec(&req).unwrap_or_default();
+        buf.push(b'\n');
+        let _ = stream.write_all(&buf).await;
+    }
+}
+
+async fn reload_routes_from_state(state: &AppState) {
+    let sock = std::env::var("THE_MACHINE_SOCKET_DIR")
+        .map(|d| format!("{}/state-store.sock", d))
+        .unwrap_or_else(|_| "/run/the-machine/state-store.sock".into());
+    let req = serde_json::json!({
+        "id": 0,
+        "kind": "Request",
+        "method": "state.list",
+        "params": { "prefix": "perm.mcp_routes." }
+    });
+    let Ok(mut stream) = UnixStream::connect(&sock).await else {
+        return;
+    };
+    let mut buf = serde_json::to_vec(&req).unwrap_or_default();
+    buf.push(b'\n');
+    if stream.write_all(&buf).await.is_err() {
+        return;
+    }
+    let mut reader = BufReader::new(stream);
+    let mut line = String::new();
+    if reader.read_line(&mut line).await.is_err() {
+        return;
+    }
+    let resp: serde_json::Value = serde_json::from_str(&line).unwrap_or(serde_json::Value::Null);
+    let paths = resp
+        .get("result")
+        .and_then(|r| r.get("paths"))
+        .and_then(|p| p.as_array());
+    let Some(paths) = paths else {
+        return;
+    };
+    let mut reg = state.registry.lock().await;
+    let mut loaded = 0u64;
+    for item in paths {
+        let value = item.get("value").cloned().unwrap_or(serde_json::Value::Null);
+        if value.is_null() {
+            continue;
+        }
+        let namespace = value
+            .get("namespace")
+            .and_then(|v| v.as_str())
+            .and_then(registry::Namespace::from_str)
+            .unwrap_or(Namespace::McpIntent);
+        let pattern = value
+            .get("pattern")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let handler = value
+            .get("handler")
+            .and_then(|v| v.as_str())
+            .unwrap_or("lambda-server")
+            .to_string();
+        let registered_by = value
+            .get("registered_by")
+            .and_then(|v| v.as_str())
+            .unwrap_or("boot")
+            .to_string();
+        let manifest_ref = value
+            .get("manifest_ref")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        if pattern.is_empty() {
+            continue;
+        }
+        let entry = RouteEntry {
+            namespace,
+            pattern,
+            handler,
+            registered_by,
+            manifest_ref,
+            trusted: true,
+        };
+        if reg.register_route(entry).is_ok() {
+            loaded += 1;
+        }
+    }
+    if loaded > 0 {
+        info!("reloaded {} MCP routes from state store", loaded);
+    }
+}
+
+fn requires_policy_check(method: &str) -> bool {
+    if method.starts_with("policy.")
+        || method.starts_with("bus.")
+        || method == "_bus.register"
+        || method == "_bus.deregister"
+    {
+        return false;
+    }
+    true
+}
+
+async fn policy_allows(method: &str, params: Option<&serde_json::Value>) -> bool {
+    let capability = infer_capability(method);
+    let path = params
+        .and_then(|p| p.get("path"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| method.to_string());
+    let principal = params
+        .and_then(|p| p.get("principal"))
+        .and_then(|v| v.as_str())
+        .or_else(|| params.and_then(|p| p.get("registered_by")).and_then(|v| v.as_str()))
+        .unwrap_or("mcp-bus");
+
+    let sock = std::env::var("THE_MACHINE_SOCKET_DIR")
+        .map(|d| format!("{}/policy-broker.sock", d))
+        .unwrap_or_else(|_| "/run/the-machine/policy-broker.sock".into());
+    let req = serde_json::json!({
+        "id": 1,
+        "kind": "Request",
+        "method": "policy.check",
+        "params": {
+            "capability": capability,
+            "path": path,
+            "principal": principal,
+            "method": method,
+        }
+    });
+    let Ok(mut stream) = UnixStream::connect(&sock).await else {
+        // If broker unavailable, fail open for boot path resilience.
+        return true;
+    };
+    let mut buf = serde_json::to_vec(&req).unwrap_or_default();
+    buf.push(b'\n');
+    if stream.write_all(&buf).await.is_err() {
+        return true;
+    }
+    let mut reader = BufReader::new(stream);
+    let mut line = String::new();
+    if reader.read_line(&mut line).await.is_err() {
+        return true;
+    }
+    let resp: serde_json::Value = serde_json::from_str(&line).unwrap_or(serde_json::Value::Null);
+    resp.get("result")
+        .and_then(|r| r.get("decision"))
+        .and_then(|d| d.as_str())
+        == Some("ALLOW")
+}
+
+async fn validate_registration(params: &serde_json::Value) -> bool {
+    let sock = std::env::var("THE_MACHINE_SOCKET_DIR")
+        .map(|d| format!("{}/policy-broker.sock", d))
+        .unwrap_or_else(|_| "/run/the-machine/policy-broker.sock".into());
+    let req = serde_json::json!({
+        "id": 2,
+        "kind": "Request",
+        "method": "policy.validate_register",
+        "params": params,
+    });
+    let Ok(mut stream) = UnixStream::connect(&sock).await else {
+        return true;
+    };
+    let mut buf = serde_json::to_vec(&req).unwrap_or_default();
+    buf.push(b'\n');
+    if stream.write_all(&buf).await.is_err() {
+        return true;
+    }
+    let mut reader = BufReader::new(stream);
+    let mut line = String::new();
+    if reader.read_line(&mut line).await.is_err() {
+        return true;
+    }
+    let resp: serde_json::Value = serde_json::from_str(&line).unwrap_or(serde_json::Value::Null);
+    resp.get("result")
+        .and_then(|r| r.get("allowed"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+fn infer_capability(method: &str) -> String {
+    if method.starts_with("state.") {
+        if matches!(method, "state.get" | "state.watch" | "state.list" | "state.get_revision" | "state.stats") {
+            "CAP_STATE_READ".into()
+        } else {
+            "CAP_STATE_WRITE".into()
+        }
+    } else if method.starts_with("event.") || method.starts_with("bus.") {
+        if method.contains("schedule") || method == "event.cancel" {
+            "CAP_TIMER".into()
+        } else if method.contains("register") || method.contains("subscribe") {
+            "CAP_EVENT_ADMIN".into()
+        } else {
+            "CAP_EVENT_PUBLISH".into()
+        }
+    } else if method.starts_with("lambda.") {
+        "CAP_IPC_CALL".into()
+    } else {
+        "CAP_IPC_CALL".into()
     }
 }

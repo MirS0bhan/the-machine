@@ -20,5 +20,5 @@ tokio-util = { workspace = true }
 futures = { workspace = true }
 dashmap = { workspace = true }
 
-# Optional: sled for persistence
-sled = { workspace = true, optional = true }
+# Persistence via sled (embedded KV; RocksDB-compatible semantics)
+sled = { workspace = true }

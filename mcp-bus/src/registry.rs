@@ -160,6 +160,20 @@ impl Registry {
         out.sort_by(|a, b| a.pattern.cmp(&b.pattern));
         out
     }
+
+    /// Remove a route by namespace + pattern (internal `_bus.deregister`).
+    pub fn deregister_route(&mut self, namespace: Namespace, pattern: &str) -> bool {
+        if pattern.contains('*') {
+            let before = self.wildcards.len();
+            self.wildcards
+                .retain(|e| !(e.namespace == namespace && e.pattern == pattern));
+            self.wildcards.len() < before
+        } else if self.exact.remove(pattern).is_some() {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 /// Infer namespace from method prefix per mcp-bus-spec.md §2.

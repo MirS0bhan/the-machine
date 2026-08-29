@@ -51,8 +51,8 @@ The build uses only the Python standard library plus the `markdown` package
 ```bash
 cargo run --bin mcp-bus
 cargo run --bin system-daemon
-cargo run --bin policy-broker      # stub — use hybrid mode for full policy
-cargo run --bin state-store
+cargo run --bin policy-broker      # full rule engine (boot path)
+cargo run --bin state-store        # sled or memory; STATE_STORE_PATH for persistence
 cargo run --bin event-bus
 cargo run --bin lambda-server
 cargo run --bin agent-core

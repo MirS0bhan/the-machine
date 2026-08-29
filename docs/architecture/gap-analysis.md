@@ -17,17 +17,17 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 - [x] Initramfs keeps compositor + ui-runtime running
 - [x] Python lambda-server bus registration (`bus_client.py`)
 - [x] `handles_event` manifest → bus + event-bus registration
+- [x] Rust policy-broker rule engine ported (interpreter parity, audit, confirmation)
+- [x] MCP broker middleware gates all non-exempt MCP calls via `policy.check`
+- [x] Registry lifecycle: `_bus.deregister`, `lambda.deprecate`, boot reload from `perm.mcp_routes.*`
+- [x] Rust state-store sled persistence + `state.watch` broadcast subscriptions
 
 ---
-
-## Open — Critical Path
 
 | ID | Gap | Component | Priority |
 |----|-----|-----------|----------|
 | G1 | Agent uses heuristic classifier, not LLM | agent-core + local-model | P0 |
 | G2 | No wlroots / Wayland pixels | compositor | P0 |
-| G3 | Rust policy-broker is deny-by-default stub | policy-broker | P0 |
-| G4 | MCP registry persist on register; rebuild on bus restart not yet implemented | mcp-bus + state-store | P1 |
 | G5 | UI input not routed compositor → ui.event | compositor + ui-runtime | P1 |
 | G6 | Python AUIL parser not in boot path | ui-engine → ui-runtime | P1 |
 
@@ -40,7 +40,7 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 | G7 | No D-Bus event adapter | event-bus | P2 |
 | G8 | No filesystem watch adapter | event-bus | P2 |
 | G9 | No OCI/Firecracker sandbox | lambda-server | P2 |
-| G10 | Rust state-store in-memory only | state-store | P2 |
+| G10 | ~~Rust state-store in-memory only~~ (sled backend + watch shipped; RocksDB optional later) | state-store | — |
 | G11 | `local-model` not in initramfs | build + local-model | P2 |
 | G12 | No fast-path MCP leases | mcp-bus | P3 |
 | G13 | No rootfs / installer (initramfs only) | build | P3 |

@@ -226,6 +226,7 @@ async fn handle_request(value: Value, state: Arc<AppState>) -> Value {
         "lambda.status" => status(params, state, id).await,
         "lambda.list" => list(state, id).await,
         "lambda.search" => search(params, state, id).await,
+        "lambda.deprecate" => deprecate(params, state, id).await,
         "lambda.health" => health(state, id).await,
         "lambda.stop" => stop(params, state, id).await,
         _ => err(id, "E_NOT_FOUND", &format!("unknown method: {}", method)),
@@ -473,6 +474,28 @@ async fn search(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value
     ok(id, json!({ "functions": items, "total": items.len() }))
 }
 
+async fn deprecate(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value {
+    let p = params.unwrap_or(Value::Null);
+    let name = match p.get("name").and_then(|v| v.as_str()) {
+        Some(n) => n.to_string(),
+        None => return err(id, "E_NOT_FOUND", "name required"),
+    };
+    let rec = {
+        let mut fns = state.functions.lock().await;
+        match fns.remove(&name) {
+            Some(r) => r,
+            None => return err(id, "E_NOT_FOUND", "function not found"),
+        }
+    };
+    for exposure in parse_string_list(&rec.manifest.exposes_mcp) {
+        deregister_bus_route("mcp-intent", &exposure).await;
+    }
+    for event_key in parse_string_list(&rec.manifest.handles_event) {
+        deregister_bus_route("event-handler", &event_key).await;
+    }
+    ok(id, json!({ "deprecated": name, "status": "Removed" }))
+}
+
 async fn health(state: Arc<AppState>, id: Value) -> Value {
     let leases = state.leases.lock().await;
     let fns = state.functions.lock().await;
@@ -533,6 +556,28 @@ async fn register_bus_route(namespace: &str, lambda_name: &str, pattern: &str) {
             "handler": "lambda-server",
             "registered_by": "lambda-server",
             "manifest_ref": lambda_name,
+        }
+    });
+    if let Ok(mut stream) = tokio::net::UnixStream::connect(&path).await {
+        let mut buf = serde_json::to_vec(&req).unwrap_or_default();
+        buf.push(b'\n');
+        let _ = stream.write_all(&buf).await;
+    }
+}
+
+/// Remove a route from the MCP Bus.
+async fn deregister_bus_route(namespace: &str, pattern: &str) {
+    let path = std::env::var("THE_MACHINE_SOCKET_DIR")
+        .map(|d| format!("{}/mcp-bus.sock", d))
+        .unwrap_or_else(|_| "/run/the-machine/mcp-bus.sock".into());
+    let req = json!({
+        "id": 3,
+        "kind": "Request",
+        "method": "_bus.deregister",
+        "params": {
+            "namespace": namespace,
+            "pattern": pattern,
+            "registered_by": "lambda-server",
         }
     });
     if let Ok(mut stream) = tokio::net::UnixStream::connect(&path).await {

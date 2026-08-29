@@ -22,8 +22,8 @@ Set `THE_MACHINE_RUNTIME=python|rust|hybrid` when starting services (see below).
 | Component | Python path | Rust path | Canonical — tests | Canonical — boot/ISO | Migration |
 |-----------|-------------|-----------|-------------------|----------------------|-----------|
 | **Lambda Server** | `lambda-server/*.py` | `lambda-server/src/` | **Python** | **Rust** (seccomp sandbox) | Rust absorbing sandbox; Python keeps agent dev ergonomics |
-| **Policy Broker** | `policy-broker/policy_broker/` | `policy-broker/src/` | **Python** | Python preferred* | Port rule engine to Rust; delete Python when parity reached |
-| **State Store** | `state-store/state_store/` | `state-store/src/` | **Python** | Rust (in-mem stub) | Port RocksDB + watch to Rust |
+| **Policy Broker** | `policy-broker/policy_broker/` | `policy-broker/src/` | **Python** | **Rust** (rule engine ported) | Parity tests via sockets; delete Python when suite green |
+| **State Store** | `state-store/state_store/` | `state-store/src/` | **Python** | **Rust** (sled + watch) | RocksDB crate optional; sled avoids C++ dep in CI |
 | **Event Bus** | `event-bus/event_bus/` | `event-bus/src/` | Python (in-proc router) | **Rust** (full scheduler) | Python harness shrinks to test doubles only |
 | **UI rendering** | `ui-engine/` (AUIL/ASL) | `ui-runtime/` (patch tree) | **Python** | **Rust** (daemon) | Share patch grammar; ui-engine stays reference parser |
 | **Agent Core** | — (removed) | `agent-core/` | **Rust** | **Rust** | Python `agent/` never landed; Rust only |
@@ -33,8 +33,8 @@ Set `THE_MACHINE_RUNTIME=python|rust|hybrid` when starting services (see below).
 | **Compositor** | — | `compositor/` | **Rust** | **Rust** | Python never existed |
 | **Fallback Shell** | — | `fallback-shell/` | **Rust** | **Rust** | Python never existed |
 
-\* Boot initramfs currently ships **Rust** policy-broker (deny-by-default stub). For a
-working policy-gated dev stack, use `THE_MACHINE_RUNTIME=hybrid` or `python`.
+\* Boot initramfs ships **Rust** policy-broker with full rule engine. Use
+`THE_MACHINE_RUNTIME=hybrid` only when you need the Python HTTP servers for dev tooling.
 
 ---
 
@@ -57,9 +57,10 @@ they do not share storage.
 
 | | Python | Rust |
 |---|--------|------|
-| Rule interpreter | ✅ `interpreter.py` | ❌ deny-by-default stub |
-| Audit log | ✅ | partial |
-| Rate limiting | ✅ | ❌ |
+| Rule interpreter | ✅ `interpreter.py` | ✅ `policy_engine.rs` |
+| Audit log | ✅ | ✅ in-memory + registration records |
+| Rate limiting | ✅ | ✅ per-capability windows |
+| Confirmation (CONFIRM/HOLD) | ✅ | ✅ pending map + resolve |
 | Unix socket MCP | ❌ (FastAPI HTTP) | ✅ |
 
 Integration tests use the **Python interpreter directly** (in-process), not either daemon.
@@ -68,8 +69,8 @@ Integration tests use the **Python interpreter directly** (in-process), not eith
 
 | | Python | Rust |
 |---|--------|------|
-| Persistence | RocksDB or `MemoryBackend` | in-memory `HashMap` only |
-| `state.watch` | SSE polling | broadcast stub |
+| Persistence | RocksDB or `MemoryBackend` | sled (`STATE_STORE_BACKEND=sled`) or memory |
+| `state.watch` | SSE polling | Unix-socket streaming with ack + replay |
 | MCP transport | FastAPI HTTP | Unix socket |
 
 ### Event Bus
@@ -105,7 +106,7 @@ THE_MACHINE_RUNTIME=hybrid  # Rust bus + daemons, Python policy-broker + lambda-
 | Variable | Effect |
 |----------|--------|
 | `THE_MACHINE_SOCKET_DIR` | Unix socket directory (default `/tmp/the-machine/run`) |
-| `STATE_STORE_BACKEND=memory` | Force Python state-store off RocksDB |
+| `STATE_STORE_BACKEND=memory\|sled` | Rust/Python backend selection (`STATE_STORE_PATH` for sled) |
 | `LOCAL_MODEL_PATH` | GGUF path; omit for stub mode |
 
 ---
@@ -120,12 +121,12 @@ lambda-server/
 
 policy-broker/
 ├── policy_broker/    ← Python reference (tests, rule engine)
-├── src/              ← Rust stub (boot placeholder)
+├── src/              ← Rust daemon (rule engine, boot path)
 └── README.md
 
 state-store/
 ├── state_store/      ← Python reference (persistence)
-├── src/              ← Rust in-memory daemon
+├── src/              ← Rust daemon (sled/memory + watch)
 └── README.md
 
 event-bus/

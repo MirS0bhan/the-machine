@@ -1,25 +1,26 @@
 //! Policy Broker - Capability Enforcement, Confirmation, Audit Log
 //!
-//! **Migration note:** This Rust crate is a boot-path placeholder. The canonical
-//! rule engine lives in `policy_broker/` (Python). See `docs/guides/python-rust-overlap.md`.
-//! Do not add business logic here until porting from Python is intentional.
+//! Rust implementation of the Python `policy_broker/` rule engine (Phase 3).
 
 use common::*;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::net::UnixListener;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::UnixListener;
 use tokio::sync::{Mutex, RwLock};
-use tracing::{info, warn, error};
+use tracing::{error, info};
 
-mod policy_engine;
 mod audit;
 mod confirmation;
+mod policy_engine;
+mod types;
+
+use policy_engine::PolicyEngine;
+use types::CheckRequest;
 
 #[derive(Clone)]
 struct AppState {
-    policy_engine: Arc<Mutex<policy_engine::PolicyEngine>>,
+    policy_engine: Arc<Mutex<PolicyEngine>>,
     audit_log: Arc<Mutex<audit::AuditLog>>,
     confirmation: Arc<Mutex<confirmation::ConfirmationDaemon>>,
     tokens: Arc<RwLock<HashMap<Uuid, GrantToken>>>,
@@ -34,15 +35,20 @@ async fn main() -> anyhow::Result<()> {
     info!("Starting Policy Broker");
 
     let state = AppState {
-        policy_engine: Arc::new(Mutex::new(policy_engine::PolicyEngine::new())),
+        policy_engine: Arc::new(Mutex::new(PolicyEngine::new())),
         audit_log: Arc::new(Mutex::new(audit::AuditLog::new())),
         confirmation: Arc::new(Mutex::new(confirmation::ConfirmationDaemon::new())),
         tokens: Arc::new(RwLock::new(HashMap::new())),
     };
 
-    let socket_path = "/run/the-machine/policy-broker.sock";
-    let _ = std::fs::remove_file(socket_path);
-    let listener = UnixListener::bind(socket_path)?;
+    let socket_dir =
+        std::env::var("THE_MACHINE_SOCKET_DIR").unwrap_or_else(|_| "/run/the-machine".to_string());
+    let socket_path = format!("{}/policy-broker.sock", socket_dir);
+    if let Some(parent) = std::path::Path::new(&socket_path).parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+    let _ = tokio::fs::remove_file(&socket_path).await;
+    let listener = UnixListener::bind(&socket_path)?;
     info!("Policy Broker listening on {}", socket_path);
 
     loop {
@@ -65,9 +71,11 @@ async fn handle_connection(stream: tokio::net::UnixStream, state: AppState) {
             Ok(0) => break,
             Ok(_) => {
                 if let Ok(response) = process_message(&line, &state).await {
-                    if let Err(e) = writer.write_all(response.as_bytes()).await {
-                        error!("Write error: {}", e);
-                        break;
+                    if !response.is_empty() {
+                        if let Err(e) = writer.write_all(response.as_bytes()).await {
+                            error!("Write error: {}", e);
+                            break;
+                        }
                     }
                 }
             }
@@ -81,11 +89,11 @@ async fn handle_connection(stream: tokio::net::UnixStream, state: AppState) {
 
 async fn process_message(line: &str, state: &AppState) -> anyhow::Result<String> {
     let msg: McpMessage = serde_json::from_str(line.trim())?;
-    
+
     let response = match msg.kind {
         MessageKind::Request => {
             if let Some(method) = msg.method {
-                handle_request(method, msg.params, state).await
+                handle_request(method, msg.params, &msg.id, state).await
             } else {
                 error_response(&msg.id, "E_INVALID_REQUEST", "Missing method")
             }
@@ -96,104 +104,261 @@ async fn process_message(line: &str, state: &AppState) -> anyhow::Result<String>
     Ok(serde_json::to_string(&response)? + "\n")
 }
 
-async fn handle_request(method: String, params: Option<serde_json::Value>, state: &AppState) -> McpMessage {
-    let id = Uuid::new_v4();
-    
+async fn handle_request(
+    method: String,
+    params: Option<serde_json::Value>,
+    req_id: &Uuid,
+    state: &AppState,
+) -> McpMessage {
     match method.as_str() {
         "policy.check" => {
-            if let Some(params) = params {
-                let method_name = params.get("method").and_then(|v| v.as_str()).unwrap_or("");
-                let request = params.get("request").cloned();
-                let provenance = params.get("provenance").cloned();
-                
-                let result = state.policy_engine.lock().await.check(method_name, request.clone(), provenance).await;
-                
-                // Audit log
-                state.audit_log.lock().await.record(&id, "policy.check", &method_name, &result).await;
-                
-                // If decision is ALLOW, issue token
-                if result.decision == "ALLOW" {
-                    let token = GrantToken {
-                        token_id: Uuid::new_v4(),
-                        issued_at: current_timestamp(),
-                        expires_at: current_timestamp() + 300, // 5 min
-                        scope: GrantScope {
-                            method: method_name.to_string(),
-                            request_hash: format!("{:x}", request.unwrap_or(serde_json::json!({})).to_string().len()),
-                            requester_identity: "agent-core".to_string(), // hardcoded for now
-                        },
-                        signature: vec![0u8; 64], // placeholder
-                    };
-                    state.tokens.write().await.insert(token.token_id, token.clone());
-                    
-                    success_response(&id, serde_json::json!({
-                        "decision": result.decision,
-                        "token": serde_json::to_string(&token).unwrap(),
-                        "reason": result.reason
-                    }))
-                } else {
-                    success_response(&id, serde_json::json!({
-                        "decision": result.decision,
-                        "reason": result.reason
-                    }))
-                }
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let check_req: CheckRequest = if params.get("capability").is_some() {
+                serde_json::from_value(params.clone()).unwrap_or_else(|_| CheckRequest {
+                    capability: String::new(),
+                    path: None,
+                    principal: None,
+                    method: None,
+                    request: None,
+                    provenance: None,
+                })
             } else {
-                error_response(&id, "E_INVALID_REQUEST", "Missing parameters")
+                let m = params
+                    .get("method")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let capability = infer_capability(m);
+                CheckRequest {
+                    capability,
+                    path: params
+                        .get("request")
+                        .and_then(|r| r.get("path"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .or_else(|| Some(m.to_string())),
+                    principal: params
+                        .get("provenance")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .or_else(|| {
+                            params
+                                .get("request")
+                                .and_then(|r| r.get("principal"))
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string())
+                        }),
+                    method: Some(m.to_string()),
+                    request: params.get("request").cloned(),
+                    provenance: params
+                        .get("provenance")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                }
+            };
+
+            let mut engine = state.policy_engine.lock().await;
+            let resp = engine.check_request(&check_req);
+            let decision = policy_engine::PolicyDecision {
+                decision: resp.decision.clone(),
+                reason: resp.message.clone().unwrap_or_default(),
+                correlation_id: resp.correlation_id.clone(),
+            };
+            drop(engine);
+
+            state
+                .audit_log
+                .lock()
+                .await
+                .record(
+                    req_id,
+                    &check_req.capability,
+                    check_req.path.as_deref(),
+                    check_req.principal.as_deref().unwrap_or("unknown"),
+                    &decision,
+                )
+                .await;
+
+            if resp.decision == "CONFIRM" || resp.decision == "HOLD" {
+                if let Some(ref cid) = resp.correlation_id {
+                    state.confirmation.lock().await.register_pending(
+                        cid,
+                        &check_req.capability,
+                        check_req.path.as_deref(),
+                        check_req.principal.as_deref().unwrap_or("unknown"),
+                    );
+                }
+            }
+
+            if resp.decision == "ALLOW" {
+                let m = check_req.method.as_deref().unwrap_or(&check_req.capability);
+                let token = GrantToken {
+                    token_id: Uuid::new_v4(),
+                    issued_at: current_timestamp(),
+                    expires_at: current_timestamp() + 300,
+                    scope: GrantScope {
+                        method: m.to_string(),
+                        request_hash: format!("{:x}", params.to_string().len()),
+                        requester_identity: check_req
+                            .principal
+                            .clone()
+                            .unwrap_or_else(|| "unknown".into()),
+                    },
+                    signature: vec![0u8; 64],
+                };
+                state.tokens.write().await.insert(token.token_id, token.clone());
+                success_response(
+                    req_id,
+                    serde_json::json!({
+                        "decision": resp.decision,
+                        "token": serde_json::to_string(&token).unwrap(),
+                        "correlation_id": resp.correlation_id,
+                    }),
+                )
+            } else {
+                success_response(
+                    req_id,
+                    serde_json::json!({
+                        "decision": resp.decision,
+                        "message": resp.message,
+                        "correlation_id": resp.correlation_id,
+                    }),
+                )
             }
         }
         "policy.register" => {
-            if let Some(params) = params {
-                let policy_doc = params.get("policy").cloned();
-                match state.policy_engine.lock().await.register(policy_doc).await {
-                    Ok(_) => success_response(&id, serde_json::json!({})),
-                    Err(e) => error_response(&id, "E_INVALID_POLICY", &e),
-                }
-            } else {
-                error_response(&id, "E_INVALID_REQUEST", "Missing parameters")
+            let policy = params.and_then(|p| p.get("policy").cloned().or(Some(p)));
+            match state.policy_engine.lock().await.register(policy).await {
+                Ok(_) => success_response(req_id, serde_json::json!({ "ok": true })),
+                Err(e) => error_response(req_id, "E_INVALID_POLICY", &e),
             }
         }
-        "policy.audit_query" => {
-            if let Some(params) = params {
-                let query = params.get("query").cloned();
-                let entries = state.audit_log.lock().await.query(query).await;
-                success_response(&id, serde_json::json!({ "entries": entries }))
+        "policy.audit_query" | "policy.audit" => {
+            let query = params.and_then(|p| p.get("query").cloned().or(Some(p)));
+            let entries = state.audit_log.lock().await.query(query).await;
+            success_response(req_id, serde_json::json!({ "entries": entries }))
+        }
+        "policy.confirm_result" => {
+            let cid = params
+                .as_ref()
+                .and_then(|p| p.get("correlation_id"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if let Some(pending) = state.confirmation.lock().await.get_status(cid) {
+                success_response(
+                    req_id,
+                    serde_json::json!({
+                        "status": pending.status,
+                        "correlation_id": cid,
+                    }),
+                )
             } else {
-                error_response(&id, "E_INVALID_REQUEST", "Missing parameters")
+                error_response(req_id, "E_NOT_FOUND", "unknown correlation_id")
             }
+        }
+        "policy.confirm" => {
+            let cid = params
+                .as_ref()
+                .and_then(|p| p.get("correlation_id"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let approved = params
+                .as_ref()
+                .and_then(|p| p.get("approved"))
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if let Some(resp) = state.confirmation.lock().await.resolve(cid, approved) {
+                success_response(req_id, serde_json::to_value(resp).unwrap_or_default())
+            } else {
+                error_response(req_id, "E_NOT_FOUND", "unknown correlation_id")
+            }
+        }
+        "policy.validate_register" => {
+            // Internal: validate MCP intent/event route registration (mcp-bus-spec §3).
+            let p = params.unwrap_or(serde_json::Value::Null);
+            let pattern = p.get("pattern").and_then(|v| v.as_str()).unwrap_or("");
+            let registered_by = p
+                .get("registered_by")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            let check_req = CheckRequest {
+                capability: "mcp.intent-register".into(),
+                path: Some(pattern.to_string()),
+                principal: Some(registered_by.to_string()),
+                method: Some("_bus.register".into()),
+                request: Some(p.clone()),
+                provenance: Some(registered_by.to_string()),
+            };
+            let mut engine = state.policy_engine.lock().await;
+            let resp = engine.check_request(&check_req);
+            let decision = resp.decision.clone();
+            drop(engine);
+            state
+                .audit_log
+                .lock()
+                .await
+                .record_registration(
+                    pattern,
+                    p.get("namespace")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("mcp-intent"),
+                    registered_by,
+                    &decision,
+                )
+                .await;
+            success_response(
+                req_id,
+                serde_json::json!({
+                    "allowed": decision == "ALLOW",
+                    "decision": decision,
+                }),
+            )
         }
         "policy.revoke_token" => {
-            if let Some(params) = params {
-                if let Some(token_id_str) = params.get("token_id").and_then(|v| v.as_str()) {
-                    if let Ok(token_id) = Uuid::parse_str(token_id_str) {
-                        state.tokens.write().await.remove(&token_id);
-                        success_response(&id, serde_json::json!({}))
-                    } else {
-                        error_response(&id, "E_INVALID_REQUEST", "Invalid token_id")
-                    }
-                } else {
-                    error_response(&id, "E_INVALID_REQUEST", "Missing token_id")
+            if let Some(token_id_str) = params
+                .as_ref()
+                .and_then(|p| p.get("token_id"))
+                .and_then(|v| v.as_str())
+            {
+                if let Ok(token_id) = Uuid::parse_str(token_id_str) {
+                    state.tokens.write().await.remove(&token_id);
+                    return success_response(req_id, serde_json::json!({}));
                 }
-            } else {
-                error_response(&id, "E_INVALID_REQUEST", "Missing parameters")
             }
+            error_response(req_id, "E_INVALID_REQUEST", "Invalid token_id")
         }
-        "policy.hold_status" => {
-            if let Some(params) = params {
-                if let Some(hold_id) = params.get("hold_id").and_then(|v| v.as_str()) {
-                    // Stub: return pending always
-                    success_response(&id, serde_json::json!({
-                        "status": "Pending",
-                        "reason": "Rate limit exceeded",
-                        "estimated_resolution": "2024-01-15T10:35:00Z"
-                    }))
-                } else {
-                    error_response(&id, "E_INVALID_REQUEST", "Missing hold_id")
-                }
-            } else {
-                error_response(&id, "E_INVALID_REQUEST", "Missing parameters")
-            }
+        "policy.hold_status" => success_response(
+            req_id,
+            serde_json::json!({
+                "status": "Pending",
+                "reason": "Awaiting confirmation",
+            }),
+        ),
+        _ => error_response(req_id, "E_NOT_FOUND", &format!("Unknown method: {}", method)),
+    }
+}
+
+/// Map an MCP method name to the capability checked by the broker middleware.
+pub fn infer_capability(method: &str) -> String {
+    if method.starts_with("state.") {
+        if method == "state.get" || method == "state.watch" || method == "state.list" {
+            "CAP_STATE_READ".into()
+        } else {
+            "CAP_STATE_WRITE".into()
         }
-        _ => error_response(&id, "E_NOT_FOUND", &format!("Unknown method: {}", method)),
+    } else if method.starts_with("event.") || method.starts_with("bus.") {
+        if method.contains("schedule") || method == "event.cancel" {
+            "CAP_TIMER".into()
+        } else if method.contains("register") || method.contains("subscribe") {
+            "CAP_EVENT_ADMIN".into()
+        } else {
+            "CAP_EVENT_PUBLISH".into()
+        }
+    } else if method.starts_with("lambda.") {
+        "CAP_IPC_CALL".into()
+    } else if method == "_bus.register" {
+        "mcp.intent-register".into()
+    } else {
+        "CAP_IPC_CALL".into()
     }
 }
 

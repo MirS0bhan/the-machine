@@ -1,58 +1,116 @@
-//! In-memory state store with revision tracking.
+//! State store with revision tracking, patch ops, and watch notifications.
 
-use std::collections::HashMap;
 use serde_json::Value;
+use tokio::sync::broadcast;
 
-/// Holds the UI/system state tree and tracks a monotonically increasing
-/// revision counter for watch/subscribe semantics.
+use crate::backend::{open_backend, Backend, StoredValue};
+
+#[derive(Debug, Clone)]
+pub struct PatchEvent {
+    pub path: String,
+    pub old_value: Option<Value>,
+    pub new_value: Option<Value>,
+    pub revision: u64,
+}
+
 pub struct Store {
-    data: HashMap<String, Value>,
-    revision: u64,
+    backend: Box<dyn Backend>,
+    watch_tx: broadcast::Sender<PatchEvent>,
 }
 
 impl Store {
     pub fn new() -> Self {
+        let (watch_tx, _) = broadcast::channel(1024);
         Self {
-            data: HashMap::new(),
-            revision: 0,
+            backend: open_backend(),
+            watch_tx,
         }
+    }
+
+    pub fn subscribe(&self) -> broadcast::Receiver<PatchEvent> {
+        self.watch_tx.subscribe()
     }
 
     pub fn get(&self, path: &str) -> Option<Value> {
-        self.data.get(path).cloned()
+        self.backend.get(path).map(|s| s.value)
+    }
+
+    pub fn get_stored(&self, path: &str) -> Option<StoredValue> {
+        self.backend.get(path)
     }
 
     pub fn set(&mut self, path: &str, value: Option<Value>) -> u64 {
-        self.revision += 1;
-        match value {
+        let old = self.backend.get(path).map(|s| s.value);
+        let (new_value, revision) = match value {
             Some(v) => {
-                self.data.insert(path.to_string(), v);
+                let sv = self.backend.put(path, v);
+                (Some(sv.value), sv.revision)
             }
             None => {
-                self.data.remove(path);
+                self.backend.delete(path);
+                (None, self.backend.global_revision())
             }
-        }
-        self.revision
+        };
+        let _ = self.watch_tx.send(PatchEvent {
+            path: path.to_string(),
+            old_value: old,
+            new_value,
+            revision,
+        });
+        revision
     }
 
     pub fn patch(&mut self, ops: &[Value]) -> u64 {
-        self.revision += 1;
+        let mut last_rev = self.backend.global_revision();
         for op in ops {
-            if let Some(path) = op.get("path").and_then(|p| p.as_str()) {
-                match op.get("value").cloned() {
-                    Some(v) => {
-                        self.data.insert(path.to_string(), v);
+            let path = match op.get("path").and_then(|p| p.as_str()) {
+                Some(p) => p,
+                None => continue,
+            };
+            let op_type = op
+                .get("op")
+                .and_then(|v| v.as_str())
+                .unwrap_or("SET");
+            match op_type.to_uppercase().as_str() {
+                "SET" | "UPDATE" => {
+                    if let Some(value) = op.get("value").cloned() {
+                        last_rev = self.set(path, Some(value));
                     }
-                    None => {
-                        self.data.remove(path);
+                }
+                "INCREMENT" => {
+                    let cur = self.get(path).and_then(|v| v.as_i64()).unwrap_or(0);
+                    let delta = op.get("value").and_then(|v| v.as_i64()).unwrap_or(1);
+                    last_rev = self.set(path, Some(Value::from(cur + delta)));
+                }
+                "DECREMENT" => {
+                    let cur = self.get(path).and_then(|v| v.as_i64()).unwrap_or(0);
+                    let delta = op.get("value").and_then(|v| v.as_i64()).unwrap_or(1);
+                    last_rev = self.set(path, Some(Value::from(cur - delta)));
+                }
+                "TOGGLE" => {
+                    let cur = self.get(path).and_then(|v| v.as_bool()).unwrap_or(false);
+                    last_rev = self.set(path, Some(Value::from(!cur)));
+                }
+                "DELETE" | "REMOVE" => {
+                    last_rev = self.set(path, None);
+                }
+                _ => {
+                    if let Some(value) = op.get("value").cloned() {
+                        last_rev = self.set(path, Some(value));
+                    } else {
+                        last_rev = self.set(path, None);
                     }
                 }
             }
         }
-        self.revision
+        last_rev
+    }
+
+    pub fn list_prefix(&self, prefix: &str) -> Vec<(String, StoredValue)> {
+        self.backend.list_prefix(prefix)
     }
 
     pub fn revision(&self) -> u64 {
-        self.revision
+        self.backend.global_revision()
     }
 }

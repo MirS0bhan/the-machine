@@ -1,27 +1,77 @@
-//! Audit log: append-only record of policy decisions.
+//! Audit log — append-only record of policy decisions.
 
-use serde_json::Value;
+use chrono::Utc;
+use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::policy_engine::PolicyDecision;
+use crate::types::AuditEntry;
 
-/// Append-only audit log (in-memory placeholder).
 pub struct AuditLog {
-    _entries: Vec<Value>,
+    entries: Vec<AuditEntry>,
 }
 
 impl AuditLog {
     pub fn new() -> Self {
         Self {
-            _entries: Vec::new(),
+            entries: Vec::new(),
         }
     }
 
-    pub async fn record(&self, _id: &Uuid, _action: &str, _target: &str, _decision: &PolicyDecision) {
-        // Placeholder: append to persistent audit store.
+    pub async fn record(
+        &mut self,
+        _id: &Uuid,
+        capability: &str,
+        path: Option<&str>,
+        principal: &str,
+        decision: &PolicyDecision,
+    ) {
+        self.entries.push(AuditEntry {
+            timestamp: Utc::now().to_rfc3339(),
+            method: capability.to_string(),
+            request: json!({ "path": path, "principal": principal }),
+            provenance: principal.to_string(),
+            decision: decision.decision.clone(),
+            correlation_id: decision.correlation_id.clone(),
+        });
     }
 
-    pub async fn query(&self, _query: Option<Value>) -> Value {
-        Value::Array(vec![])
+    pub async fn record_registration(
+        &mut self,
+        pattern: &str,
+        namespace: &str,
+        registered_by: &str,
+        decision: &str,
+    ) {
+        self.entries.push(AuditEntry {
+            timestamp: Utc::now().to_rfc3339(),
+            method: "mcp.intent-register".into(),
+            request: json!({
+                "pattern": pattern,
+                "namespace": namespace,
+                "registered_by": registered_by,
+            }),
+            provenance: registered_by.to_string(),
+            decision: decision.to_string(),
+            correlation_id: None,
+        });
+    }
+
+    pub async fn query(&self, query: Option<Value>) -> Value {
+        let mut out: Vec<Value> = self
+            .entries
+            .iter()
+            .map(|e| serde_json::to_value(e).unwrap_or(Value::Null))
+            .collect();
+        if let Some(q) = query {
+            if let Some(decision) = q.get("decision").and_then(|v| v.as_str()) {
+                out.retain(|e| {
+                    e.get("decision")
+                        .and_then(|v| v.as_str())
+                        == Some(decision)
+                });
+            }
+        }
+        Value::Array(out)
     }
 }

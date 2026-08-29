@@ -61,6 +61,30 @@ def register_mcp_intent(lambda_name: str, pattern: str) -> bool:
     return result is not None
 
 
+def deregister_mcp_intent(pattern: str) -> bool:
+    result = _bus_call(
+        "_bus.deregister",
+        {
+            "namespace": "mcp-intent",
+            "pattern": pattern,
+            "registered_by": "lambda-server",
+        },
+    )
+    return result is not None
+
+
+def deregister_event_handler(event_key: str) -> bool:
+    result = _bus_call(
+        "_bus.deregister",
+        {
+            "namespace": "event-handler",
+            "pattern": event_key,
+            "registered_by": "lambda-server",
+        },
+    )
+    return result is not None
+
+
 def register_event_handler(lambda_name: str, event_key: str) -> bool:
     """
     Register handles_event: bus event-handler namespace + event-bus routing table.
