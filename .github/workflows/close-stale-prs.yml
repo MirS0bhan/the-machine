@@ -1,8 +1,20 @@
 name: Close stale automation PRs
 
-# Manual only — do not auto-run on push (would close legitimate open PRs).
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List PRs only (do not close)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/close-stale-prs.yml
     inputs:
       dry_run:
         description: "List PRs only (do not close)"
