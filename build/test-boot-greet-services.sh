@@ -20,11 +20,11 @@ export THE_MACHINE_POLICY_FAIL_OPEN=1
 
 cleanup() {
   bash "${ROOT}/scripts/stop-services.sh" >/dev/null 2>&1 || true
-  pkill -f '/workspace/target/debug/' >/dev/null 2>&1 || true
+  pkill -f "${ROOT}/target/debug/" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
-pkill -f '/workspace/target/debug/' >/dev/null 2>&1 || true
+pkill -f "${ROOT}/target/debug/" >/dev/null 2>&1 || true
 sleep 1
 rm -rf "${BASE}"
 mkdir -p "${SOCKET_DIR}" "${PID_DIR}" "${LOG_DIR}"
