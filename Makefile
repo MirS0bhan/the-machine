@@ -107,6 +107,10 @@ test-python:
 
 test-all: test-rust test-python test-build-scripts
 
+# Full E2E proof with QEMU boot + artifact capture (see build/test-boot-e2e-proof.sh).
+test-e2e-proof:
+	bash build/test-boot-e2e-proof.sh
+
 verify:
 	bash scripts/verify-all.sh
 
