@@ -105,7 +105,7 @@ async fn handle_connection(stream: tokio::net::UnixStream, state: Arc<Mutex<AppS
 
 async fn process_message(line: &str, state: &Arc<Mutex<AppState>>) -> anyhow::Result<String> {
     let msg: McpMessage = serde_json::from_str(line.trim())?;
-    let id = msg.id;
+    let _id = msg.id;
     match msg.kind {
         MessageKind::Notification => {
             let params = msg.params.clone().unwrap_or(serde_json::Value::Null);
@@ -276,7 +276,7 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
         .and_then(|v| v.as_str())
         .or_else(|| payload.get("query").and_then(|v| v.as_str()))
         .or_else(|| payload.get("summary").and_then(|v| v.as_str()))
-        .or_else(|| Some(pattern.as_str()))
+        .or(Some(pattern.as_str()))
         .unwrap_or("")
         .to_string();
 
@@ -491,6 +491,17 @@ fn extract_chat_text(params: &Option<serde_json::Value>) -> String {
 mod tests {
     use super::*;
 
+    async fn test_state(local_only_mode: bool, cloud: Option<CloudRouter>) -> Arc<Mutex<AppState>> {
+        Arc::new(Mutex::new(AppState {
+            status: "running".to_string(),
+            local_only_mode,
+            skills: skills::builtin_skills(),
+            interrupted: false,
+            wakes_processed: 7,
+            cloud,
+        }))
+    }
+
     #[test]
     fn extract_chat_text_reads_nested_payload() {
         let params = Some(serde_json::json!({
@@ -498,6 +509,87 @@ mod tests {
             "payload": { "text": "hello from chat" }
         }));
         assert_eq!(extract_chat_text(&params), "hello from chat");
+    }
+
+    #[tokio::test]
+    async fn agent_status_reports_running_without_cloud() {
+        let state = test_state(true, None).await;
+        let resp = handle_request("agent.status".into(), None, &state).await;
+        assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
+        let result = resp.result.expect("result");
+        assert_eq!(
+            result.get("status").and_then(|v| v.as_str()),
+            Some("running")
+        );
+        assert_eq!(
+            result.get("local_model").and_then(|v| v.as_str()),
+            Some("unavailable")
+        );
+        assert_eq!(
+            result.get("cloud_model").and_then(|v| v.as_str()),
+            Some("disabled")
+        );
+        assert_eq!(
+            result.get("local_only_mode").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            result.get("wakes_processed").and_then(|v| v.as_u64()),
+            Some(7)
+        );
+        assert!(
+            result
+                .get("skills_loaded")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0)
+                > 0
+        );
+    }
+
+    #[tokio::test]
+    async fn agent_cloud_status_reflects_local_only_mode() {
+        let state = test_state(true, None).await;
+        let resp = handle_request("agent.cloud.status".into(), None, &state).await;
+        assert!(resp.error.is_none());
+        let result = resp.result.expect("result");
+        assert_eq!(
+            result.get("enabled").and_then(|v| v.as_bool()),
+            Some(false)
+        );
+        assert_eq!(
+            result.get("local_only_mode").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+        assert!(result.get("key").is_some());
+    }
+
+    #[tokio::test]
+    async fn agent_local_only_mode_toggles_state() {
+        let state = test_state(false, None).await;
+        let resp = handle_request(
+            "agent.local_only_mode".into(),
+            Some(serde_json::json!({ "enabled": true })),
+            &state,
+        )
+        .await;
+        assert!(resp.error.is_none());
+        let result = resp.result.expect("result");
+        assert_eq!(result.get("ok").and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(
+            result.get("local_only_mode").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+        assert!(state.lock().await.local_only_mode);
+    }
+
+    #[tokio::test]
+    async fn unknown_method_is_not_found() {
+        let state = test_state(true, None).await;
+        let resp = handle_request("agent.nope".into(), None, &state).await;
+        assert_eq!(
+            resp.error.as_ref().map(|e| e.code.as_str()),
+            Some("E_NOT_FOUND")
+        );
     }
 }
 

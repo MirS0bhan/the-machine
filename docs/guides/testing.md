@@ -46,6 +46,7 @@ artifact and must only treat same-named executables as service binaries.
 | compositor | `pixel.rs` | framebuffer buffer, color hash |
 | system-daemon | `input.rs` | evdev struct size |
 | lambda-server | `validate.rs` | forbidden patterns, schema inference |
+| agent-core | `main.rs` | `agent.status`, `agent.cloud.status`, local_only_mode guards |
 | agent-core | `planner.rs` | heartbeat + calculator plans |
 | local-model-daemon | `engine.rs` | classify stub, embed determinism |
 
