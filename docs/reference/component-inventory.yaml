@@ -126,3 +126,14 @@ mcp_services:
   fallback-shell:
     - shell.status
     - shell.activate
+
+# Cross-component Python integration tests in tests/integration/.
+# Each method must appear under mcp_services above.
+integration_tests:
+  lambda.register: tests/integration/test_agent_lambda.py
+  lambda.invoke: tests/integration/test_agent_lambda.py
+  lambda.search: tests/integration/test_lambda_search.py
+  policy.check: tests/integration/test_policy_audit.py
+  state.patch: tests/integration/test_ui_state.py
+  state.watch: tests/integration/test_ui_state.py
+  event.publish: tests/integration/test_event_agent.py
