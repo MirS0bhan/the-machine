@@ -11,10 +11,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT}"
 
 echo "==> boot greet e2e: boot.auil layout"
-rg -q 'ui\.greeting' build/boot.auil
-rg -q 'ui\.chat_log' build/boot.auil
-rg -q 'ui\.chat_input' build/boot.auil
-rg -q 'agent\.chat\.send' build/boot.auil
+grep -q 'ui\.greeting' build/boot.auil
+grep -q 'ui\.chat_log' build/boot.auil
+grep -q 'ui\.chat_input' build/boot.auil
+grep -q 'agent\.chat\.send' build/boot.auil
 
 echo "==> boot greet e2e: AUIL parser"
 cargo test -p ui-runtime auil::tests::boot_auil_does_not_insert_root_under_itself --quiet
