@@ -1,0 +1,53 @@
+name: Close stale automation PRs
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List PRs only (do not close)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close open PRs with deleted or automation branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          mapfile -t rows < <(gh pr list --state open --limit 500 \
+            --json number,title,headRefName \
+            -q '.[] | "\(.number)\t\(.headRefName)\t\(.title)"')
+
+          echo "Found ${#rows[@]} open PR(s)"
+          closed=0
+          for row in "${rows[@]}"; do
+            num="${row%%$'\t'*}"
+            rest="${row#*$'\t'}"
+            branch="${rest%%$'\t'*}"
+            title="${rest#*$'\t'}"
+
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "WOULD CLOSE #${num} (${branch}): ${title}"
+              continue
+            fi
+
+            echo "Closing #${num}: ${title}"
+            gh pr close "$num" \
+              --comment "Bulk-closed: duplicate automation PR; work already merged to main." \
+              || echo "  warning: failed to close #${num}"
+            closed=$((closed + 1))
+          done
+
+          echo "Closed ${closed} PR(s)"
