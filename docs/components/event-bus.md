@@ -563,6 +563,20 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## Event Adapters
+
+Production ingress adapters run inside the Rust `event-bus` binary and publish via `event.publish` on the local socket:
+
+| Adapter | Patterns | Mechanism |
+|---------|----------|-----------|
+| D-Bus | `desktop.notify`, `login.prepare_sleep` | Native **zbus** subscriptions on the system bus (`org.freedesktop.Notifications.Notify`, `org.freedesktop.login1.Manager.PrepareForSleep`). Set `THE_MACHINE_DISABLE_DBUS` to skip. |
+| inotify | `fs.change.*` | Filesystem watches (`THE_MACHINE_FS_WATCHES` or default download paths) |
+| audio | `pipewire.state` | PipeWire socket presence polling (decision events only) |
+
+The D-Bus adapter no longer shells out to `dbus-monitor`; signal bodies are decoded in-process and normalized to JSON payloads before routing.
+
+---
+
 ## See Also
 
 - [State Store](./state-store.md) — for the underlying storage and subscriptions

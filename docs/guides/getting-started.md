@@ -67,6 +67,7 @@ Boot services started by `scripts/start-services.sh` (rust mode):
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `THE_MACHINE_SOCKET_DIR` | `/tmp/the-machine/run` | Unix socket directory |
+| `THE_MACHINE_DISABLE_DBUS` | — | Skip event-bus D-Bus adapter (headless/CI) |
 | `THE_MACHINE_RUNTIME` | `rust` | `rust` \| `hybrid` \| `python` |
 | `STATE_STORE_BACKEND` | `memory` (dev), `sled` (boot) | Persistence backend |
 | `STATE_STORE_PATH` | — | sled database path |

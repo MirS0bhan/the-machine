@@ -33,7 +33,7 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 - [x] **D4** README/runtime-model sync (`make verify-docs` + component-inventory.yaml)
 - [x] **C1** CI release bundle rust-coverage artifact trap (`build/assemble-release.sh`)
 - [x] **C2** Dev-harness sockets ignore `THE_MACHINE_SOCKET_DIR` (`common::paths`, bus forward)
-- [x] **D5** Component See Also links resolve to sibling pages (`verify-docs-code.py`)
+- [x] **G7** Native zbus D-Bus adapter (`event-bus/adapters/dbus.rs`; no `dbus-monitor` dependency)
 
 ---
 
@@ -47,7 +47,6 @@ _None — all P0/P1 gaps from the expansion campaign are closed._
 
 | ID | Gap | Component | Priority |
 |----|-----|-----------|----------|
-| G7 | D-Bus adapter requires `dbus-monitor` on host | event-bus | P2 |
 | G12 | `bus.lease` metadata only (no socket fast-path yet) | mcp-bus | P3 |
 | G13 | Rootfs installer needs debootstrap + kernel on target HW | build | P3 |
 | G14 | system-daemon mutations (wifi, display mode, netlink) still refuse; reads use sysfs/proc | system-daemon | P3 |
