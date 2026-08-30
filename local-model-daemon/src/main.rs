@@ -1,7 +1,6 @@
 mod engine;
 mod gguf;
 
-use common::*;
 use engine::Engine;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -9,7 +8,6 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
 use tokio::sync::Mutex;
 use tracing::{error, info};
-use uuid::Uuid;
 
 struct AppState {
     engine: Engine,
@@ -54,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-async fn handle_connection(mut stream: tokio::net::UnixStream, state: Arc<Mutex<AppState>>) {
+async fn handle_connection(stream: tokio::net::UnixStream, state: Arc<Mutex<AppState>>) {
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
