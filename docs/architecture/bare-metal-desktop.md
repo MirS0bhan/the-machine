@@ -8,14 +8,21 @@
 |-------|--------|--------|
 | **A — Boot & install (G13)** | debootstrap rootfs, kernel in `/boot`, GRUB `LABEL=the-machine`, GPU firmware + Mesa packages | Done |
 | **B — Display (G14 + G16)** | sysfs/DRM mode query + `display.set_mode`; compositor DRM fb fix | Done |
-| **C — Network (G14)** | `net.list_interfaces` via sysfs; `ip link` for up/down | Done |
-| **D — Wayland session (G17)** | `wl_compositor` / `wl_output` / `wl_seat` globals on `wayland-server` scaffold | Done |
+| **C — Network (G14)** | `net.list_interfaces` via rtnetlink; `net.set_interface_state` via RTM_SETLINK (`ip` fallback) | Done |
+| **D — Wayland session (G17)** | `wl_compositor` / `wl_output` / `wl_seat` / `wl_shm`; surface commit → pixel paint | Done |
 | **E — Polish** | PipeWire audio (`pactl`), wpa_supplicant wifi (`wpa_cli`), udev hotplug rules | Done |
 
 ## Boot paths
 
 1. **ISO / initramfs** (demo) — `make iso` + USB boot. Needs host kernel with KMS + evdev.
 2. **Installed rootfs** — `make rootfs-release && sudo build/installer/install.sh /dev/sdX`.
+
+## G13 validation
+
+```bash
+bash build/rootfs-validate.sh build/rootfs    # after make rootfs-release
+bash build/test-rootfs-validate.sh            # CI: skeleton + optional debootstrap
+```
 
 ## Runtime requirements (bare metal)
 
@@ -39,4 +46,4 @@ make build && make test-all && make verify-docs
 make rootfs-release   # when debootstrap available
 ```
 
-On hardware: confirm `/dev/dri/card0`, evdev nodes, `display.get_modes` returns EDID modes, and `WAYLAND_DISPLAY` socket accepts `wl_compositor` binds.
+On hardware: confirm `/dev/dri/card0`, evdev nodes, `display.get_modes` returns EDID modes, and Wayland clients can attach SHM buffers.

@@ -44,10 +44,9 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 - [x] `shell.*` / `hello` routed to fallback-shell
 - [x] `net.get_wifi_status` implemented; `connect_wifi` no longer returns `status: null`
 - [x] **G12** `bus.lease` optional fast-path relay socket when `THE_MACHINE_LEASE_FAST_PATH=1` (`mcp-bus/src/lease.rs`)
-- [x] **G14 (partial)** `power.set_profile` via cpufreq sysfs (`system-daemon/src/power.rs`)
-- [x] **G14 (partial)** wifi connect via `wpa_cli`; PipeWire audio via `pactl`; display + net done
-- [x] **G17 (partial)** Wayland globals (`wl_compositor`, `wl_output`, `wl_seat`) on `wayland-server` scaffold
-- [x] **G13 (partial)** Rootfs installer: debootstrap packages, kernel in `/boot`, GRUB `LABEL=the-machine` (`build/mkrootfs.sh`, `build/installer/install.sh`)
+- [x] **G13 (partial)** Rootfs installer + `build/rootfs-validate.sh` CI validation (`build/mkrootfs.sh`, `build/installer/install.sh`)
+- [x] **G14 (partial)** rtnetlink list/set link; wifi via `wpa_cli`; PipeWire via `pactl`; display + power done
+- [x] **G17 (partial)** Wayland globals + `wl_shm` surface commit → pixel paint (`compositor/src/wl_globals.rs`, `wl_shm.rs`)
 
 ---
 
@@ -61,9 +60,10 @@ _None — all P0/P1 gaps from the expansion campaign are closed._
 
 | ID | Gap | Component | Priority |
 |----|-----|-----------|----------|
-| G13 | Rootfs installer: debootstrap + kernel link done; needs target-HW validation | build | P3 |
-| G14 | netlink admin still unwired; display + net + power + wifi + audio done | system-daemon | P3 |
-| G17 | Surface commit → pixel paint; full wlroots compositing | compositor | P3 |
+| G13 | Rootfs validated in CI; full debootstrap boot needs target-HW smoke test | build | P3 |
+| G17 | Full wlroots compositing (xdg-shell, input routing); SHM paint path done | compositor | P3 |
+
+_None critical — G14 rtnetlink + wifi/audio closed._
 
 ---
 

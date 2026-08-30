@@ -1,10 +1,19 @@
-//! Network interface discovery and basic link state via sysfs + `ip`.
+//! Network interface discovery and link state via rtnetlink (fallback: sysfs + `ip`).
 
 use common::NetworkInterface;
 use std::fs;
 use std::path::Path;
 
-pub fn list_interfaces() -> Vec<NetworkInterface> {
+use crate::netlink;
+
+pub async fn list_interfaces() -> Vec<NetworkInterface> {
+    if let Ok(ifaces) = netlink::list_interfaces_netlink().await {
+        return ifaces;
+    }
+    list_interfaces_sysfs()
+}
+
+pub fn list_interfaces_sysfs() -> Vec<NetworkInterface> {
     let mut out = Vec::new();
     let Ok(entries) = fs::read_dir("/sys/class/net") else {
         return fallback_interfaces();
@@ -52,14 +61,28 @@ pub async fn set_interface_state(name: &str, state: &str) -> Result<(), String> 
     if !Path::new(&format!("/sys/class/net/{name}")).exists() {
         return Err(format!("unknown interface: {name}"));
     }
+    let up = match state {
+        "up" => true,
+        "down" => false,
+        other => return Err(format!("unsupported state: {other} (use up or down)")),
+    };
+
+    if let Ok(()) = netlink::set_interface_state_netlink(name, up).await {
+        return Ok(());
+    }
+    set_interface_state_ip(name, state).await
+}
+
+async fn set_interface_state_ip(name: &str, state: &str) -> Result<(), String> {
     let action = match state {
         "up" => "up",
         "down" => "down",
         other => return Err(format!("unsupported state: {other} (use up or down)")),
     };
-    let status = std::process::Command::new("ip")
+    let status = tokio::process::Command::new("ip")
         .args(["link", "set", name, action])
         .status()
+        .await
         .map_err(|e| format!("ip link failed: {e}"))?;
     if status.success() {
         Ok(())
@@ -82,9 +105,9 @@ fn fallback_interfaces() -> Vec<NetworkInterface> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn list_interfaces_includes_loopback() {
-        let ifaces = list_interfaces();
+    #[tokio::test]
+    async fn list_interfaces_includes_loopback() {
+        let ifaces = list_interfaces().await;
         assert!(ifaces.iter().any(|i| i.name == "lo"));
     }
 }

@@ -71,6 +71,7 @@ test-build-scripts:
 	bash build/test-assemble-release.sh
 	bash build/test-mkrootfs-layout.sh
 	bash build/test-fetch-busybox.sh
+	bash build/test-rootfs-validate.sh
 
 test-rust:
 	$(CARGO) test --workspace

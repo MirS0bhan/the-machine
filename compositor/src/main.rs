@@ -6,6 +6,7 @@ mod pixel;
 mod wayland_backend;
 mod wl_globals;
 mod wl_session;
+mod wl_shm;
 
 use common::*;
 use model::{Compositor, Geometry, Surface};
@@ -27,9 +28,9 @@ async fn main() -> anyhow::Result<()> {
         "WAYLAND_DISPLAY",
         std::env::var("WAYLAND_DISPLAY").unwrap_or_else(|_| "wayland-0".into()),
     );
-    let wayland: Arc<Option<wayland_backend::WaylandSession>> =
-        Arc::new(wayland_backend::try_start());
     let pixels: SharedPixel = Arc::new(Mutex::new(PixelBackend::open()));
+    let wayland: Arc<Option<wayland_backend::WaylandSession>> =
+        Arc::new(wayland_backend::try_start(pixels.clone()));
     let comp: Arc<Mutex<Compositor>> = Arc::new(Mutex::new(Compositor::new()));
 
     // Background present loop.

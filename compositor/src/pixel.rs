@@ -115,6 +115,27 @@ impl PixelBackend {
         }
     }
 
+    pub fn blit_bgra(
+        &mut self,
+        dst_x: i32,
+        dst_y: i32,
+        width: u32,
+        height: u32,
+        stride: u32,
+        data: &[u8],
+    ) {
+        for row in 0..height {
+            for col in 0..width {
+                let src_off = (row * stride + col * 4) as usize;
+                if src_off + 3 >= data.len() {
+                    break;
+                }
+                let pixel = [data[src_off], data[src_off + 1], data[src_off + 2], 0u8];
+                self.put_pixel(dst_x + col as i32, dst_y + row as i32, &pixel);
+            }
+        }
+    }
+
     pub fn fill_rect(&mut self, x: i32, y: i32, w: u32, h: u32, r: u8, g: u8, b: u8) {
         let pixel = [b, g, r, 0u8];
         for dy in 0..h {

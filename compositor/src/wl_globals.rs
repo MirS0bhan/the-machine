@@ -1,11 +1,10 @@
 //! Wayland protocol globals (G17) — `wl_compositor`, `wl_output`, `wl_seat`.
 //!
 //! Uses `wayland-server` directly (no wlroots C dependency). Clients can bind
-//! core globals; surface commit → pixel paint is future work.
+//! core globals; `wl_surface` commit blits SHM buffers into the pixel backend.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::thread::{self, JoinHandle};
+use std::sync::{Arc, Mutex};
 
 use tracing::{info, warn};
 use wayland_server::{
@@ -16,10 +15,11 @@ use wayland_server::{
     protocol::wl_seat::{self, WlSeat},
     protocol::wl_surface::{self, WlSurface},
     protocol::wl_touch::{self, WlTouch},
-    Display, DisplayHandle, GlobalDispatch,
+    Display, DisplayHandle, GlobalDispatch, Resource,
 };
 
 use crate::wl_session::CompositorState;
+use crate::wl_shm::BufferData;
 
 #[derive(Debug, Clone)]
 pub struct OutputInfo {
@@ -46,23 +46,35 @@ struct OutputGlobal {
 
 struct SeatGlobal;
 
-struct SurfaceData;
+struct SurfaceData {
+    inner: Mutex<SurfaceInner>,
+}
+
+struct SurfaceInner {
+    attached: Option<BufferData>,
+    x: i32,
+    y: i32,
+}
 
 /// Background display dispatch + registered globals.
 pub struct WlGlobals {
     pub output: OutputInfo,
     stop: Arc<AtomicBool>,
-    thread: Option<JoinHandle<()>>,
+    thread: Option<std::thread::JoinHandle<()>>,
 }
 
 impl WlGlobals {
-    pub fn spawn(display: Display<CompositorState>, output: OutputInfo) -> Self {
+    pub fn spawn(
+        display: Display<CompositorState>,
+        output: OutputInfo,
+        state: Arc<Mutex<CompositorState>>,
+    ) -> Self {
         let stop = Arc::new(AtomicBool::new(false));
         let stop_flag = stop.clone();
-        let thread = thread::Builder::new()
+        let thread = std::thread::Builder::new()
             .name("wl-display".into())
             .spawn(move || {
-                run_display_loop(display, stop_flag);
+                run_display_loop(display, state, stop_flag);
             })
             .ok();
         if thread.is_none() {
@@ -77,7 +89,7 @@ impl WlGlobals {
 
     pub fn status(&self) -> serde_json::Value {
         serde_json::json!({
-            "globals": ["wl_compositor", "wl_output", "wl_seat"],
+            "globals": ["wl_compositor", "wl_output", "wl_seat", "wl_shm"],
             "output": {
                 "name": self.output.name,
                 "width": self.output.width,
@@ -112,21 +124,30 @@ pub fn register_globals(
     );
     handle.create_global::<CompositorState, WlSeat, _>(7, SeatGlobal);
     info!(
-        "registered wl_compositor, wl_output ({}x{}), wl_seat",
+        "registered wl_compositor, wl_output ({}x{}), wl_seat, wl_shm",
         output.width, output.height
     );
     Ok(())
 }
 
-fn run_display_loop(mut display: Display<CompositorState>, stop: Arc<AtomicBool>) {
+fn run_display_loop(
+    mut display: Display<CompositorState>,
+    state: Arc<Mutex<CompositorState>>,
+    stop: Arc<AtomicBool>,
+) {
     loop {
         if stop.load(Ordering::SeqCst) {
             break;
         }
-        if let Err(e) = display.dispatch_clients(&mut CompositorState::default()) {
+        let mut st = match state.lock() {
+            Ok(g) => g,
+            Err(_) => break,
+        };
+        if let Err(e) = display.dispatch_clients(&mut *st) {
             warn!("wl_display dispatch error: {e}");
             break;
         }
+        drop(st);
         if let Err(e) = display.flush_clients() {
             warn!("wl_display flush error: {e}");
             break;
@@ -159,7 +180,16 @@ impl wayland_server::Dispatch<WlCompositor, ()> for CompositorState {
         data_init: &mut wayland_server::DataInit<'_, Self>,
     ) {
         if let wl_compositor::Request::CreateSurface { id } = request {
-            let _surface = data_init.init(id, SurfaceData);
+            let _surface = data_init.init(
+                id,
+                SurfaceData {
+                    inner: Mutex::new(SurfaceInner {
+                        attached: None,
+                        x: 0,
+                        y: 0,
+                    }),
+                },
+            );
         }
     }
 }
@@ -254,14 +284,53 @@ impl wayland_server::Dispatch<WlSeat, ()> for CompositorState {
 
 impl wayland_server::Dispatch<WlSurface, SurfaceData> for CompositorState {
     fn request(
-        _state: &mut Self,
+        state: &mut Self,
         _client: &wayland_server::Client,
         _resource: &WlSurface,
-        _request: wl_surface::Request,
-        _data: &SurfaceData,
+        request: wl_surface::Request,
+        data: &SurfaceData,
         _dhandle: &DisplayHandle,
         _data_init: &mut wayland_server::DataInit<'_, Self>,
     ) {
+        let mut inner = data.inner.lock().unwrap();
+        match request {
+            wl_surface::Request::Attach { buffer, x, y } => {
+                inner.x = x;
+                inner.y = y;
+                inner.attached = buffer
+                    .as_ref()
+                    .and_then(|b| b.data::<BufferData>().cloned());
+            }
+            wl_surface::Request::Commit => {
+                if let (Some(buf), Some(pixels)) = (&inner.attached, &state.pixels) {
+                    let offset = buf.offset.max(0) as usize;
+                    let need = (buf.stride * buf.height) as usize;
+                    let mem = if offset + need <= buf.pool.len() {
+                        &buf.pool[offset..offset + need]
+                    } else if offset < buf.pool.len() {
+                        &buf.pool[offset..]
+                    } else {
+                        return;
+                    };
+                    let mut px = pixels.blocking_lock();
+                    px.blit_bgra(
+                        inner.x,
+                        inner.y,
+                        buf.width as u32,
+                        buf.height as u32,
+                        buf.stride as u32,
+                        mem,
+                    );
+                    px.present();
+                }
+            }
+            wl_surface::Request::Damage { .. } => {}
+            wl_surface::Request::Frame { .. } => {}
+            wl_surface::Request::SetOpaqueRegion { .. } => {}
+            wl_surface::Request::SetInputRegion { .. } => {}
+            wl_surface::Request::Destroy => {}
+            _ => {}
+        }
     }
 }
 

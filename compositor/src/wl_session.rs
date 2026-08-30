@@ -1,16 +1,25 @@
 //! Wayland display scaffold (G17) — binds `wl_display` via `wayland-server`.
 //!
-//! Registers `wl_compositor`, `wl_output`, and `wl_seat` globals so clients can
-//! connect. Full surface commit → pixel paint remains future work.
+//! Registers core globals and paints `wl_surface` commits into the pixel backend.
+
+use std::sync::{Arc, Mutex};
 
 use tracing::{info, warn};
 use wayland_server::{BindError, Display, ListeningSocket};
 
+use crate::pixel::SharedPixel;
 use crate::wl_globals::{self, OutputInfo, WlGlobals};
 
-/// Minimal compositor state for the Wayland display event loop.
-#[derive(Debug, Default)]
-pub struct CompositorState;
+/// Compositor state shared with the Wayland dispatch thread.
+pub struct CompositorState {
+    pub pixels: Option<SharedPixel>,
+}
+
+impl Default for CompositorState {
+    fn default() -> Self {
+        Self { pixels: None }
+    }
+}
 
 /// Active Wayland session: listening socket + display dispatch thread.
 pub struct WlSession {
@@ -51,7 +60,7 @@ fn output_info() -> OutputInfo {
 }
 
 /// Bind `wl_display` and a listening socket when [`should_bind_display`] is true.
-pub fn try_init() -> Option<WlSession> {
+pub fn try_init(pixels: SharedPixel) -> Option<WlSession> {
     if !should_bind_display() {
         return None;
     }
@@ -70,6 +79,7 @@ pub fn try_init() -> Option<WlSession> {
         warn!("Wayland global registration failed: {e}");
         return None;
     }
+    crate::wl_shm::register_shm_global(&display);
 
     let socket = match ListeningSocket::bind(&preferred) {
         Ok(s) => s,
@@ -92,9 +102,12 @@ pub fn try_init() -> Option<WlSession> {
         .unwrap_or(preferred);
     std::env::set_var("WAYLAND_DISPLAY", &display_name);
 
-    let globals = WlGlobals::spawn(display, output);
+    let state = Arc::new(Mutex::new(CompositorState {
+        pixels: Some(pixels),
+    }));
+    let globals = WlGlobals::spawn(display, output, state);
     info!(
-        "wl_display bound with compositor/output/seat globals; WAYLAND_DISPLAY={}",
+        "wl_display bound with compositor/output/seat/shm; WAYLAND_DISPLAY={}",
         display_name
     );
 
@@ -111,6 +124,7 @@ impl WlSession {
             "bound": true,
             "display": self.display_name,
             "engine": "wayland-server",
+            "surface_paint": true,
             "wlroots": false,
         });
         if let Some(obj) = status.as_object_mut() {
@@ -127,11 +141,11 @@ impl WlSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
+    use std::sync::{Mutex as StdMutex, OnceLock};
 
-    fn env_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
+    fn env_lock() -> &'static StdMutex<()> {
+        static LOCK: OnceLock<StdMutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| StdMutex::new(()))
     }
 
     struct EnvRestore(Vec<(String, Option<String>)>);
@@ -198,11 +212,14 @@ mod tests {
         let _backend = EnvRestore::set("THE_MACHINE_COMPOSITOR_BACKEND", "wayland");
         let _display = EnvRestore::set("WAYLAND_DISPLAY", "wayland-test");
 
-        let session = try_init().expect("wl_display session");
+        let pixels =
+            std::sync::Arc::new(tokio::sync::Mutex::new(crate::pixel::PixelBackend::open()));
+        let session = try_init(pixels).expect("wl_display session");
         assert_eq!(session.display_name, "wayland-test");
         let status = session.status();
         assert!(status["bound"].as_bool().unwrap());
         assert!(status["globals"].is_array());
+        assert_eq!(status["surface_paint"], true);
 
         drop(session);
         let _ = std::fs::remove_dir_all(&dir);

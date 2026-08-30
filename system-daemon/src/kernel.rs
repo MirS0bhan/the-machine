@@ -18,8 +18,8 @@ impl KernelHandler {
         display::get_display_modes()
     }
 
-    pub fn list_interfaces(&self) -> Vec<NetworkInterface> {
-        net::list_interfaces()
+    pub async fn list_interfaces(&self) -> Vec<NetworkInterface> {
+        net::list_interfaces().await
     }
 
     pub fn list_audio_devices(&self) -> Vec<AudioDevice> {
