@@ -8,6 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
+| fallback-shell MCP handler tests | cursor/maintenance-audit-fallback-shell-mcp-e1cee1b | — | pr-open | 2026-08-30 | shell.status + shell.activate unit tests |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -15,6 +16,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-30 | audit | fallback-shell MCP handler tests | pr-open |
 | 2026-08-30 | gap | G14 udev hotplug events | merged to main (#145) |
 | 2026-08-30 | audit | hardware-smoke CI | merged to main (#143) |
 | 2026-08-30 | audit | system-daemon MCP handler tests | merged to main (#146) |
@@ -36,5 +38,6 @@ Rotate when completing a row. Prefer top item not in cooldown.
 
 1. **G17** — compositor: wlroots seat/output + `wl_compositor` global (cooldown until 2026-09-06)
 2. **G13** — validate installed rootfs on bare metal (debootstrap + GRUB)
-3. **audit** — dead code / clippy in one crate (-p compositor)
-4. **audit** — `make verify` + fix first failure
+3. **audit** — dead code / clippy in one crate (-p compositor) — PRs #150/#151 in flight
+4. **audit** — missing MCP handler tests (event-bus, marketplace)
+5. **audit** — `make verify` + fix first failure
