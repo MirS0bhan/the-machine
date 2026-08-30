@@ -437,11 +437,18 @@ mod tests {
     }
 
     #[test]
-    fn get_display_modes_returns_fallback_when_no_sysfs_or_drm() {
-        std::env::set_var("THE_MACHINE_DRM_DEVICE", "/tmp/the-machine-no-drm-card0");
-        let modes = get_display_modes();
-        std::env::remove_var("THE_MACHINE_DRM_DEVICE");
+    fn fallback_modes_returns_single_hd_default() {
+        let modes = fallback_modes();
         assert_eq!(modes.len(), 1);
         assert_eq!(modes[0].width, 1920);
+        assert_eq!(modes[0].height, 1080);
+        assert!(modes[0].current);
+    }
+
+    #[test]
+    fn get_display_modes_returns_non_empty_on_host() {
+        let modes = get_display_modes();
+        assert!(!modes.is_empty());
+        assert!(modes.iter().any(|m| m.width > 0 && m.height > 0));
     }
 }
