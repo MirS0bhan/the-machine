@@ -34,15 +34,17 @@ fi
 
 parted -s "${TARGET_DISK}" mklabel gpt
 parted -s "${TARGET_DISK}" mkpart primary ext4 1MiB 100%
-if [[ "${TARGET_DISK}" != *"loop"* ]]; then
-  partprobe "${TARGET_DISK}" 2>/dev/null || true
+partprobe "${TARGET_DISK}" 2>/dev/null || blockdev --rereadpt "${TARGET_DISK}" 2>/dev/null || true
+if command -v udevadm >/dev/null 2>&1; then
+  udevadm settle --timeout=10 2>/dev/null || true
 fi
 PART="${TARGET_DISK}1"
 if [[ "${TARGET_DISK}" == *"nvme"* || "${TARGET_DISK}" == *"loop"* ]]; then
   PART="${TARGET_DISK}p1"
 fi
-for _ in 1 2 3 4 5; do
+for _ in 1 2 3 4 5 6 7 8 9 10; do
   [[ -b "${PART}" ]] && break
+  partprobe "${TARGET_DISK}" 2>/dev/null || blockdev --rereadpt "${TARGET_DISK}" 2>/dev/null || true
   sleep 1
 done
 [[ -b "${PART}" ]] || { echo "ERROR: partition ${PART} not found" >&2; exit 1; }
