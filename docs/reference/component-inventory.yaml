@@ -53,6 +53,8 @@ env_vars:
   - THE_MACHINE_DISABLE_DBUS
   - OPENAI_API_KEY
   - RUST_LOG
+  - THE_MACHINE_TOKEN_SECRET
+  - THE_MACHINE_POLICY_FAIL_OPEN
 
 mcp_services:
   system-daemon:
@@ -62,6 +64,10 @@ mcp_services:
     - display.set_mode
     - net.list_interfaces
     - net.set_interface_state
+    - net.get_wifi_status
+    - net.connect_wifi
+    - audio.list_devices
+    - audio.set_default
   policy-broker:
     - policy.check
     - policy.register
@@ -109,7 +115,12 @@ mcp_services:
     - bus.list_routes
     - _bus.register
     - _bus.deregister
+    - bus.lease
+    - bus.external.register
   marketplace:
     - marketplace.list
     - marketplace.install
     - marketplace.installed
+  fallback-shell:
+    - shell.status
+    - shell.activate

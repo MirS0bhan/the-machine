@@ -199,11 +199,8 @@ async fn handle_request(
 
             if resp.decision == "ALLOW" {
                 let m = check_req.method.as_deref().unwrap_or(&check_req.capability);
-                let token = GrantToken {
-                    token_id: Uuid::new_v4(),
-                    issued_at: current_timestamp(),
-                    expires_at: current_timestamp() + 300,
-                    scope: GrantScope {
+                let token = shared_verifier().issue_token(
+                    GrantScope {
                         method: m.to_string(),
                         request_hash: format!("{:x}", params.to_string().len()),
                         requester_identity: check_req
@@ -211,8 +208,8 @@ async fn handle_request(
                             .clone()
                             .unwrap_or_else(|| "unknown".into()),
                     },
-                    signature: vec![0u8; 64],
-                };
+                    300,
+                );
                 state.tokens.write().await.insert(token.token_id, token.clone());
                 success_response(
                     req_id,

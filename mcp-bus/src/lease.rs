@@ -1,4 +1,8 @@
 //! Fast-path MCP leases for hot loops (bypass repeated bus resolution).
+//!
+//! G12: leases are metadata today. We advertise the already-running
+//! handler socket so callers can skip registry lookup, but we do **not**
+//! invent a `leases/<id>.sock` path that nothing listens on.
 
 use dashmap::DashMap;
 use serde_json::{json, Value};
@@ -10,7 +14,7 @@ pub struct LeaseRecord {
     pub lease_id: String,
     pub method: String,
     pub handler: String,
-    pub socket_path: String,
+    pub handler_socket: String,
     pub expires_at: Instant,
 }
 
@@ -30,14 +34,14 @@ impl LeaseManager {
     pub fn create(&self, method: &str, handler: &str, ttl_secs: Option<u64>) -> Value {
         let lease_id = Uuid::new_v4().to_string();
         let ttl = Duration::from_secs(ttl_secs.unwrap_or(self.default_ttl.as_secs()));
-        let socket_path = common::lease_socket(&lease_id);
+        let handler_socket = common::component_socket(handler);
         self.leases.insert(
             lease_id.clone(),
             LeaseRecord {
                 lease_id: lease_id.clone(),
                 method: method.to_string(),
                 handler: handler.to_string(),
-                socket_path: socket_path.clone(),
+                handler_socket: handler_socket.clone(),
                 expires_at: Instant::now() + ttl,
             },
         );
@@ -45,7 +49,8 @@ impl LeaseManager {
             "lease_id": lease_id,
             "method": method,
             "handler": handler,
-            "socket_path": socket_path,
+            "handler_socket": handler_socket,
+            "fast_path": false,
             "ttl_secs": ttl.as_secs(),
         })
     }
@@ -69,7 +74,7 @@ impl LeaseManager {
                     lease_id: r.lease_id.clone(),
                     method: r.method.clone(),
                     handler: r.handler.clone(),
-                    socket_path: r.socket_path.clone(),
+                    handler_socket: r.handler_socket.clone(),
                     expires_at: r.expires_at,
                 })
             }
@@ -82,3 +87,20 @@ impl LeaseManager {
 }
 
 pub type SharedLeases = Arc<LeaseManager>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lease_does_not_advertise_unbound_socket() {
+        let mgr = LeaseManager::new(60);
+        let v = mgr.create("calc.add", "lambda-server", Some(45));
+        assert_eq!(v["fast_path"], false);
+        assert!(v.get("socket_path").is_none());
+        assert_eq!(v["handler"], "lambda-server");
+        let sock = v["handler_socket"].as_str().unwrap();
+        assert!(sock.ends_with("/lambda-server.sock"));
+        assert_eq!(v["ttl_secs"], 45);
+    }
+}

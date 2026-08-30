@@ -70,16 +70,16 @@ esac
 # L0
 start_rust system-daemon
 
-# L3
-start_rust mcp-bus
-
-# L2
+# L2 before L3 so the bus can fail-closed against a live broker.
 if [[ "${RUNTIME}" == "hybrid" ]] && python3 -c "import policy_broker" 2>/dev/null; then
   start_python policy-broker \
     "cd policy-broker && uvicorn policy_broker.mcp_server:app --host 127.0.0.1 --port 8001"
 else
   start_rust policy-broker
 fi
+
+# L3
+start_rust mcp-bus
 
 # L1
 start_rust state-store

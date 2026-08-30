@@ -163,8 +163,8 @@ The shared secret is compiled into both the System Daemon and Broker binaries at
 | `display.set_mode` | Use DRM/KMS `drmModeSetCrtc` | Requires grant token |
 | `net.list_interfaces` | Use `rtnetlink` (RTM_GETLINK) | Returns all interfaces |
 | `net.set_interface_state` | Use `rtnetlink` (RTM_SETLINK) | Requires grant token |
-| `net.get_wifi_status` | Use `wpa_supplicant` D-Bus API | Returns connection status |
-| `net.connect_wifi` | Use `wpa_supplicant` D-Bus API | Credential ref only, never raw password |
+| `net.get_wifi_status` | Read `/proc/net/wireless` when present | `"disconnected"` or `"associated"` |
+| `net.connect_wifi` | Grant-gated; host `wpa_supplicant` adapter not wired | Returns `E_UNAVAILABLE` rather than a fake success |
 | `audio.list_devices` | Use ALSA `snd_card_next` or PipeWire | Returns audio devices |
 | `audio.set_default` | Update PipeWire or ALSA default symlink | Requires grant token |
 
@@ -262,6 +262,8 @@ display.get_current_mode() → {"width": u32, "height": u32, "refresh": f32}
 
 net.list_interfaces() → {"interfaces": [{"name": string, "type": string, "state": string}, ...]}
 
+net.get_wifi_status() → {"status": "disconnected" | "associated", "interface": string | null, "ssid": string | null}
+
 audio.list_devices() → {"devices": [{"name": string, "type": "input" | "output", "default": bool}, ...]}
 
 system-daemon.stats() → {
@@ -283,9 +285,9 @@ display.set_mode(width: u32, height: u32, refresh: f32) → {}
 
 net.set_interface_state(name: string, state: "up" | "down") → {}
 
-net.connect_wifi(ssid: string, credential_ref: string) → {"status": "connecting" | "connected" | "failed"}
+net.connect_wifi(ssid: string, credential_ref: string, token: GrantToken) → {"status": string} | E_UNAVAILABLE
 
-audio.set_default(name: string) → {}
+audio.set_default(name: string, token: GrantToken) → {}
 ```
 
 ---

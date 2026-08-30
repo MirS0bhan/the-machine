@@ -35,6 +35,14 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 - [x] **C2** Dev-harness sockets ignore `THE_MACHINE_SOCKET_DIR` (`common::paths`, bus forward)
 - [x] **D5** Component See Also links resolve to sibling pages (`verify-docs-code.py`)
 - [x] **G7** Native D-Bus adapter via `zbus` (`event-bus/src/adapters/dbus.rs`; no `dbus-monitor` dependency)
+- [x] Policy middleware fail-closed for mutations when broker is down (`THE_MACHINE_POLICY_FAIL_OPEN=1` override)
+- [x] System-daemon mutations verify HMAC grant tokens (`common::token`)
+- [x] `bus.external.register` rejects open-proxy URLs/wildcards
+- [x] Synthesized Python lambdas use a shebang script path (sandbox bind-mount)
+- [x] Lambda entrypoints must live under `THE_MACHINE_LAMBDA_DIR`
+- [x] Marketplace bundle HMAC check + no `eval(` in pack sources
+- [x] `shell.*` / `hello` routed to fallback-shell
+- [x] `net.get_wifi_status` implemented; `connect_wifi` no longer returns `status: null`
 
 ---
 
@@ -48,9 +56,9 @@ _None — all P0/P1 gaps from the expansion campaign are closed._
 
 | ID | Gap | Component | Priority |
 |----|-----|-----------|----------|
-| G12 | `bus.lease` metadata only (no socket fast-path yet) | mcp-bus | P3 |
+| G12 | `bus.lease` returns handler + `handler_socket` but does not bind a dedicated fast-path socket | mcp-bus | P3 |
 | G13 | Rootfs installer needs debootstrap + kernel on target HW | build | P3 |
-| G14 | system-daemon mutations (wifi, display mode, netlink) still refuse; reads use sysfs/proc | system-daemon | P3 |
+| G14 | system-daemon mutations still refuse on real HW (wifi/display/netlink); reads + grant tokens exist | system-daemon | P3 |
 | G17 | Full wlroots Wayland session (DRM dumb buffer works today) | compositor | P3 |
 
 ---
