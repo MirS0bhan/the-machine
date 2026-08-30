@@ -183,6 +183,30 @@ def main() -> None:
             if not grep_method_in_source(method):
                 errors.append(f"MCP method {method!r} ({service}) not found in Rust sources")
 
+    for method, test_path in inv.get("integration_tests", {}).items():
+        rel = ROOT / test_path
+        if not rel.exists():
+            errors.append(f"integration_tests[{method!r}] missing file: {test_path}")
+            continue
+        if method not in test_path and method not in rel.read_text(errors="replace"):
+            errors.append(
+                f"integration_tests[{method!r}] file {test_path} does not reference method"
+            )
+        listed = False
+        for service_methods in inv.get("mcp_services", {}).values():
+            if method in service_methods:
+                listed = True
+                break
+        if not listed:
+            errors.append(f"integration_tests method {method!r} not in mcp_services")
+
+<<<<<<< HEAD
+=======
+    docs_tree = "\n".join(p.read_text(errors="replace") for p in (ROOT / "docs").rglob("*") if p.is_file())
+    if "<<<<<<<" in docs_tree or ">>>>>>>" in docs_tree:
+        errors.append("docs/ contains unresolved git merge conflict markers")
+
+>>>>>>> origin/main
     # Component See Also links must resolve on disk (sibling ./ paths).
     components_dir = ROOT / "docs/components"
     link_re = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
@@ -251,6 +275,20 @@ def main() -> None:
     for var in inv["env_vars"]:
         if var not in env_docs and var not in (ROOT / "scripts/start-services.sh").read_text():
             errors.append(f"env var {var} not documented in guides or start scripts")
+
+    # Reject unresolved git merge conflict markers in architecture/docs trees.
+    conflict_markers = ("<<<<<<<", ">>>>>>>")
+    for path in sorted((ROOT / "docs").rglob("*")):
+        if not path.is_file():
+            continue
+        if path.suffix not in (".md", ".yaml", ".yml", ".sh"):
+            continue
+        text = path.read_text(errors="replace")
+        for marker in conflict_markers:
+            if marker in text:
+                errors.append(
+                    f"{path.relative_to(ROOT)} contains git conflict marker {marker!r}"
+                )
 
     if errors:
         print("Documentation ↔ code verification FAILED:\n", file=sys.stderr)

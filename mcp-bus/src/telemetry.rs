@@ -2,7 +2,6 @@
 
 use dashmap::DashMap;
 use serde_json::{json, Value};
-use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
@@ -86,5 +85,3 @@ fn now_ms() -> u64 {
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
 }
-
-pub type SharedTelemetry = Arc<Telemetry>;

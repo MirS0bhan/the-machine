@@ -13,3 +13,4 @@ __pycache__/
 /build/coverage.lcov
 /build/tools
 
+build/iso-kernel.path
