@@ -11,6 +11,10 @@ on:
         options:
           - "false"
           - "true"
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/close-stale-prs.yml
 
 permissions:
   pull-requests: write
@@ -35,10 +39,10 @@ jobs:
               -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/${REPO}/pulls?state=open&per_page=100&page=${page}")
             count=$(echo "$resp" | jq 'length')
-            if [[ "$count" -eq 0 ]]; then
-              break
-            fi
-            echo "$resp" | jq -r '.[] | "\(.number)\t\(.head.ref)\t\(.title)"' | while IFS=$'\t' read -r num branch title; do
+            [[ "$count" -eq 0 ]] && break
+
+            while IFS=$'\t' read -r num branch title; do
+              [[ -z "$num" ]] && continue
               if [[ "$DRY_RUN" == "true" ]]; then
                 echo "WOULD CLOSE #${num} (${branch}): ${title}"
                 continue
@@ -54,10 +58,9 @@ jobs:
               else
                 echo "  warning: close #${num} returned HTTP ${code}"
               fi
-            done
-            if [[ "$count" -lt 100 ]]; then
-              break
-            fi
+            done < <(echo "$resp" | jq -r '.[] | "\(.number)\t\(.head.ref)\t\(.title)"')
+
+            [[ "$count" -lt 100 ]] && break
             page=$((page + 1))
           done
           echo "Closed ${closed} PR(s)"
