@@ -11,12 +11,13 @@ make iso
 make run-debug
 ```
 
-Or manually (matches your command + logging):
+`run-debug` uses **virtio-vga** (not legacy `-vga std`) so the bundled `virtio-gpu` kernel module can create `/dev/fb0`. If you boot manually:
 
 ```bash
 qemu-system-x86_64 -accel kvm -m 2G \
   -cdrom build/the-machine.iso \
-  -boot d -vga std \
+  -boot d \
+  -vga none -device virtio-vga \
   -serial mon:stdio
 ```
 
@@ -77,15 +78,17 @@ KERNEL=/boot/vmlinuz-6.8.0-XX-generic make iso
 
 If `/var/log/compositor-backend` contains `backend=memory`, pixels never reach the display. Check the display probe in `/var/log/boot.log`:
 
-- `fb0: missing` — no legacy framebuffer (common in QEMU without proper VGA setup)
+- `fb0: missing` — no legacy framebuffer (common in QEMU without virtio-vga or kernel modules)
 - `drm: /dev/dri missing` — no KMS device
 
-**Fix:** ensure the kernel has VGA/DRM drivers (host kernel when building ISO), or force framebuffer:
+**Fix:** rebuild the ISO (initramfs bundles `virtio-gpu` + deps) and boot with virtio VGA:
 
 ```bash
-# In /init before compositor starts (temporary test):
-export THE_MACHINE_COMPOSITOR_BACKEND=framebuffer
+qemu-system-x86_64 ... -vga none -device virtio-vga -serial mon:stdio
+# or: make run-debug
 ```
+
+Legacy `-vga std` needs `bochs.ko`, which is often **not packaged** in Ubuntu generic modules — prefer virtio-vga.
 
 ### 2. DRM opens but scanout fails
 
@@ -98,6 +101,25 @@ Use the **debug** GRUB entry or remove `quiet` from `build/mkiso.sh`.
 ### 4. Services crash before compositor
 
 `boot_dump_status` in `/var/log/boot.log` lists each service as `running` or `NOT RUNNING` with log tails.
+
+#### `/the-machine/<service>: not found` (binary exists)
+
+If every service log shows:
+
+```
+/init: line 41: /the-machine/system-daemon: not found
+```
+
+the ELF is present but the **dynamic linker** (`/lib64/ld-linux-x86-64.so.2`) is missing from the initramfs. Rust binaries are dynamically linked against glibc on the build host; busybox alone is not enough.
+
+**Fix:** rebuild the initramfs/ISO — `build/mkinitramfs.sh` bundles shared libraries via `build/bundle-shared-libs.sh`. Verify with:
+
+```bash
+bash build/test-initramfs-libs.sh
+make iso
+```
+
+At early boot, `/init` also warns when the linker is absent (`boot_check_dynamic_linker` in `build/boot-init.sh`).
 
 ## Bare metal (USB stick)
 
@@ -117,5 +139,6 @@ make qemu    # kernel + initramfs directly, nographic, debug cmdline
 - `build/boot-init.sh` — PID 1 service launcher
 - `build/boot-log-lib.sh` — `boot_log`, `boot_probe_display`, `boot_dump_status`
 - `build/collect-boot-logs.sh` — aggregate report script (also installed at `/collect-boot-logs.sh`)
-- `build/mkiso.sh` — GRUB entries
+- `build/mkinitramfs.sh` — assembles initramfs; bundles glibc via `build/bundle-shared-libs.sh`
+- `build/bundle-shared-libs.sh` — copies `ld-linux`, `libc`, and other `ldd` deps into the initramfs
 - `compositor/src/pixel.rs` — writes `/var/log/compositor-backend`
