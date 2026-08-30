@@ -563,6 +563,18 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## External Adapters
+
+The Rust event-bus daemon runs optional ingress adapters that publish into the bus via `event.publish`:
+
+| Adapter | Source | Events | Notes |
+|---------|--------|--------|-------|
+| D-Bus | `org.freedesktop.Notifications`, `org.freedesktop.login1.Manager` | `desktop.notify`, `login.prepare_sleep` | Native **zbus** match rules on the system bus; disable with `THE_MACHINE_DISABLE_DBUS` |
+| inotify | Configured paths (`THE_MACHINE_FS_WATCHES`, default download dirs) | `fs.change.*` | Uses the `notify` crate |
+| Audio | PipeWire socket presence | `pipewire.state` | Decision events only; no audio buffers |
+
+---
+
 ## See Also
 
 - [State Store](./state-store.md) — for the underlying storage and subscriptions
