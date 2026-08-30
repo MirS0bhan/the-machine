@@ -8,9 +8,15 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| audit state.get/set/list integration | cursor/maintenance-audit-state-get-set-integration-05da786 | — | pr-open | 2026-08-30 | policy-gated get/set/list cross-component tests |
-| G13 target-HW validation | cursor/maintenance-g13-target-hw-validate-05da786 | #168 | pr-open | 2026-08-30 | operator installed-rootfs validation |
-| audit ledger conflict fix | cursor/maintenance-verify-fix-ledger-conflicts-05da786 | #170 | pr-open | 2026-08-30 | resolve maintenance-ledger conflict markers |
+| audit ui-runtime MCP handlers | cursor/maintenance-audit-ui-runtime-mcp-05da786 | #162 | pr-open | 2026-08-30 | ui.patch/get/tree/event/status/auil + unknown method |
+| audit event-bus MCP handlers | cursor/maintenance-audit-event-bus-mcp-05da786 | #163 | pr-open | 2026-08-30 | event.publish/subscribe/schedule/register_handler |
+| audit local-model-daemon MCP handlers | cursor/maintenance-audit-local-model-daemon-mcp-05da786 | #164 | pr-open | 2026-08-30 | localmodel.health/complete/classify_intent/embed |
+| audit lambda-server MCP handlers | cursor/maintenance-audit-lambda-server-mcp-05da786 | #165 | pr-open | 2026-08-30 | lambda.register/invoke/search/deprecate |
+| audit mcp-bus MCP handlers | cursor/maintenance-audit-mcp-bus-mcp-05da786 | #166 | pr-open | 2026-08-30 | bus.resolve/list_routes/_bus.register/deregister/lease/external |
+| audit local-model-daemon clippy | cursor/maintenance-audit-local-model-daemon-clippy-05da786 | #167 | pr-open | 2026-08-30 | unused imports, dead_code |
+| G13 operator rootfs validation | cursor/maintenance-g13-target-hw-validate-05da786 | #168 | pr-open | 2026-08-30 | installed-rootfs software checks |
+| audit state-store clippy | cursor/maintenance-audit-state-store-clippy-05da786 | #169 | pr-open | 2026-08-30 | clippy/dead-code cleanup |
+| verify-fix ledger conflict guard | cursor/maintenance-verify-fix-ledger-conflicts-05da786 | — | pr-open | 2026-08-30 | resolve markers + verify-docs guard |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -18,13 +24,21 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | audit | state.get/set/list integration tests | pr-open |
-| 2026-08-30 | audit | state-store MCP handler unit tests | merged (#161) |
-| 2026-08-30 | audit | agent-core MCP handler unit tests | merged (#160) |
-| 2026-08-30 | audit | policy-broker MCP handler tests | merged (#156) |
-| 2026-08-30 | gap | G13 installer fstab for target HW | merged (#159) |
-| 2026-08-30 | gap | G13 boot.auil in installed rootfs | merged (#157) |
-| 2026-08-30 | audit | lambda-server clippy/dead-code | merged (#155) |
+| 2026-08-30 | verify-fix | maintenance-ledger conflict markers | pr-open |
+| 2026-08-30 | audit | state-store clippy/dead-code | pr-open (#169) |
+| 2026-08-30 | gap | G13 operator installed-rootfs validation | pr-open (#168) |
+| 2026-08-30 | audit | local-model-daemon clippy/dead-code | pr-open (#167) |
+| 2026-08-30 | audit | mcp-bus MCP handler unit tests | pr-open (#166) |
+| 2026-08-30 | audit | lambda-server MCP handler unit tests | pr-open (#165) |
+| 2026-08-30 | audit | local-model-daemon MCP handler unit tests | pr-open (#164) |
+| 2026-08-30 | audit | event-bus MCP handler unit tests | pr-open (#163) |
+| 2026-08-30 | audit | ui-runtime MCP handler unit tests | pr-open (#162) |
+| 2026-08-30 | audit | state-store MCP handler unit tests | merged to main (#161) |
+| 2026-08-30 | audit | agent-core MCP handler unit tests | merged to main (#160) |
+| 2026-08-30 | gap | G13 installer fstab for target HW | merged to main (#159) |
+| 2026-08-30 | gap | G13 boot.auil in installed rootfs | merged to main (#157) |
+| 2026-08-30 | audit | policy-broker MCP handler tests | merged to main (#156) |
+| 2026-08-30 | audit | lambda-server clippy/dead-code | merged to main (#155) |
 | 2026-08-30 | gap | boot greet e2e (GRUB → chat UI) | merged to main |
 | 2026-08-30 | gap | G13 loopback installer GRUB | merged to main (#148) |
 | 2026-08-30 | audit | compositor clippy/dead code | merged to main (#150) |
@@ -52,6 +66,6 @@ until the PR is merged to `main`.
 Rotate when completing a row. Prefer top item not in cooldown.
 
 1. **G17** — compositor: wlroots seat/output (cooldown until 2026-09-06)
-2. **G13** — operator target-HW validation on installed rootfs (software checks complete; PR #168)
-3. **audit** — missing MCP integration test in component-inventory.yaml (e.g. `bus.resolve`, `localmodel.complete`)
+2. **audit** — missing Python integration test for an MCP method (see `component-inventory.yaml`)
+3. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
 4. **audit** — `make verify` + fix first failure
