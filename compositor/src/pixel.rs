@@ -292,12 +292,15 @@ mod tests {
     #[test]
     fn memory_buffer_paints_pixels() {
         std::env::set_var("THE_MACHINE_COMPOSITOR_BACKEND", "memory");
-        std::env::set_var("THE_MACHINE_FB_DUMP", "/tmp/compositor-test.ppm");
+        if std::env::var("THE_MACHINE_FB_DUMP").is_err() {
+            std::env::set_var("THE_MACHINE_FB_DUMP", "/tmp/compositor-test.ppm");
+        }
+        let dump_path = std::env::var("THE_MACHINE_FB_DUMP").unwrap();
         let mut px = PixelBackend::open();
         assert_eq!(px.backend_name(), "memory");
         px.clear(0, 0, 0);
         px.fill_rect(10, 10, 50, 30, 255, 0, 0);
         px.present();
-        assert!(Path::new("/tmp/compositor-test.ppm").exists());
+        assert!(Path::new(&dump_path).exists());
     }
 }

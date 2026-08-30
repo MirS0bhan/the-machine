@@ -1,5 +1,6 @@
 //! Compositor — surface model + real pixel output (framebuffer / wlroots).
 
+mod bitmap_font;
 mod drm;
 mod env;
 mod model;
@@ -88,15 +89,28 @@ async fn paint_frame(comp: &Arc<Mutex<Compositor>>, pixels: &SharedPixel) {
         } else {
             hash_color(&s.id)
         };
+        let w = s.geometry.width.max(40);
+        let h = s.geometry.height.max(24);
         px.fill_rect(
             s.geometry.x,
             s.geometry.y,
-            s.geometry.width.max(40),
-            s.geometry.height.max(24),
-            r,
-            g,
-            b,
+            w,
+            h,
+            r.saturating_sub(20),
+            g.saturating_sub(20),
+            b.saturating_sub(10),
         );
+        if !s.label.is_empty() {
+            bitmap_font::draw_text(
+                &mut px,
+                s.geometry.x + 8,
+                s.geometry.y + 8,
+                &s.label,
+                240,
+                240,
+                245,
+            );
+        }
     }
     px.present();
 }

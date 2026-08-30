@@ -74,6 +74,7 @@ test-build-scripts:
 	bash build/test-rootfs-validate.sh
 	bash build/test-mkiso-bootable.sh
 	bash build/hardware-smoke.sh
+	bash build/test-boot-greet-e2e.sh
 
 test-rust:
 	$(CARGO) test --workspace

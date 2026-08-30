@@ -51,7 +51,7 @@ struct Theme {
     typography: HashMap<String, serde_json::Value>,
 }
 
-struct UiTree {
+pub(crate) struct UiTree {
     nodes: HashMap<String, UiNode>,
     root_id: String,
     theme: Theme,
@@ -84,7 +84,7 @@ impl UiTree {
         }
     }
 
-    fn get(&self, id: &str) -> Option<&UiNode> {
+    pub(crate) fn get(&self, id: &str) -> Option<&UiNode> {
         self.nodes.get(id)
     }
 
@@ -133,6 +133,11 @@ async fn main() -> anyhow::Result<()> {
     // Load boot AUIL layout if present (G6 — parser embedded in Rust boot path).
     if let Err(e) = load_boot_auil(&tree).await {
         warn!("boot AUIL not loaded: {}", e);
+    } else {
+        let tree_boot = tree.clone();
+        tokio::spawn(async move {
+            publish_boot_ready(tree_boot).await;
+        });
     }
 
     // Subscribe to external ui.root changes via state.watch (best-effort).
@@ -501,19 +506,14 @@ async fn apply_patch(tree: &SharedTree, ops: Vec<serde_json::Value>) -> Result<u
     }
     t.revision += 1;
     let rev = t.revision;
+    let root_snapshot = renderer::serialize_subtree(&t, &t.root_id);
     t.dirty.clear();
     drop(t);
 
-    // Reflect the updated subtree to the State Store (best-effort).
-    let root = {
-        let t = tree.lock().await;
-        t.get(&t.root_id).cloned()
-    };
-    if let Some(node) = root {
+    if let Ok(node) = serde_json::from_value::<UiNode>(root_snapshot.clone()) {
         let _ = reflect_to_state(&node).await;
-        let serialized = serde_json::to_value(&node).unwrap_or(serde_json::Value::Null);
-        let _ = renderer::sync_tree_to_compositor(&serialized).await;
     }
+    let _ = renderer::sync_tree_to_compositor(&root_snapshot).await;
     Ok(rev)
 }
 
@@ -581,6 +581,55 @@ async fn load_boot_auil(tree: &SharedTree) -> Result<(), String> {
     apply_patch(tree, ops).await?;
     info!("loaded boot AUIL from {}", path);
     Ok(())
+}
+
+/// After compositor is up, sync surfaces and wake the agent for the boot greeting.
+async fn publish_boot_ready(tree: SharedTree) {
+    for _ in 0..30 {
+        if compositor_ready().await {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+    for attempt in 0..10 {
+        let snapshot = {
+            let t = tree.lock().await;
+            renderer::serialize_subtree(&t, &t.root_id)
+        };
+        let synced = renderer::sync_tree_to_compositor(&snapshot).await;
+        if synced > 0 {
+            info!("boot UI synced {} compositor surfaces", synced);
+            break;
+        }
+        warn!("boot compositor sync retry {}", attempt + 1);
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+    let _ = mcp_call(
+        "event.publish",
+        serde_json::json!({
+            "category": "boot",
+            "pattern": "system.ready",
+            "requires_decision": true,
+            "payload": {
+                "text": "boot greet",
+                "summary": "First boot — show hello chat UI"
+            }
+        }),
+    )
+    .await;
+    info!("published boot.system.ready");
+}
+
+async fn compositor_ready() -> bool {
+    mcp_call("compositor.status", serde_json::json!({}))
+        .await
+        .map(|v| {
+            v.get("status")
+                .and_then(|s| s.as_str())
+                .map(|s| s == "running")
+                .unwrap_or(false)
+        })
+        .unwrap_or(false)
 }
 
 /// Execute a widget binding: `mcp:method` invokes via bus; `state:path` reads/writes state.

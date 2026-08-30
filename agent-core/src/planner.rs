@@ -15,6 +15,7 @@ pub fn build_plan_heuristic(
     text: &str,
 ) -> Vec<PlanStep> {
     match intent {
+        "boot.greet" => boot_greet_plan(),
         "heartbeat" => vec![PlanStep {
             action: "state.patch".into(),
             params: serde_json::json!({
@@ -63,6 +64,7 @@ pub fn build_plan_heuristic(
             action: "state.set".into(),
             params: serde_json::json!({ "path": "task.last_query", "value": payload }),
         }],
+        "chat.message" => chat_message_plan(text),
         _ => vec![PlanStep {
             action: "state.set".into(),
             params: serde_json::json!({ "path": "task.last_intent", "value": intent }),
@@ -127,6 +129,49 @@ print(json.dumps({"result": result}))
     ]
 }
 
+fn boot_greet_plan() -> Vec<PlanStep> {
+    vec![
+        PlanStep {
+            action: "ui.patch".into(),
+            params: serde_json::json!({
+                "ops": [
+                    {
+                        "op": "update",
+                        "id": "ui.greeting",
+                        "props": { "text": "Hello! I'm The Machine." }
+                    },
+                    {
+                        "op": "update",
+                        "id": "ui.chat_log",
+                        "props": { "text": "Assistant: Welcome aboard. This is your local LLM chat — type a message below and press Send." }
+                    }
+                ]
+            }),
+        },
+        PlanStep {
+            action: "state.set".into(),
+            params: serde_json::json!({
+                "path": "ui.boot_greeted",
+                "value": true
+            }),
+        },
+    ]
+}
+
+fn chat_message_plan(text: &str) -> Vec<PlanStep> {
+    let user_line = format!("You: {text}\nAssistant: I received your message locally. LLM reply wiring is next.");
+    vec![PlanStep {
+        action: "ui.patch".into(),
+        params: serde_json::json!({
+            "ops": [{
+                "op": "update",
+                "id": "ui.chat_log",
+                "props": { "text": user_line }
+            }]
+        }),
+    }]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,5 +188,36 @@ mod tests {
         let plan = build_plan_heuristic("calculator", &serde_json::json!({}), "calc 2+2");
         assert!(plan.iter().any(|s| s.action == "lambda.register"));
         assert!(plan.iter().any(|s| s.action == "ui.patch"));
+    }
+
+    #[test]
+    fn boot_greet_plan_updates_chat_ui() {
+        let plan = build_plan_heuristic("boot.greet", &serde_json::json!({}), "");
+        assert_eq!(plan.len(), 2);
+        assert_eq!(plan[0].action, "ui.patch");
+        let ops = plan[0].params.get("ops").and_then(|v| v.as_array()).unwrap();
+        assert!(ops.iter().any(|op| {
+            op.get("id").and_then(|v| v.as_str()) == Some("ui.chat_log")
+        }));
+    }
+
+    #[test]
+    fn chat_message_plan_appends_user_line() {
+        let plan = build_plan_heuristic(
+            "chat.message",
+            &serde_json::json!({}),
+            "hello world",
+        );
+        assert_eq!(plan.len(), 1);
+        let text = plan[0]
+            .params
+            .get("ops")
+            .and_then(|v| v.as_array())
+            .and_then(|ops| ops.first())
+            .and_then(|op| op.get("props"))
+            .and_then(|p| p.get("text"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        assert!(text.contains("You: hello world"));
     }
 }

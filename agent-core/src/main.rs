@@ -11,7 +11,6 @@ use client::mcp_call;
 use cloud::{new_trace, CloudRouter};
 use common::*;
 use llm::{classify_intent, plan_from_model};
-use planner::PlanStep;
 use skills::{load_skills, seed_default_skills_if_empty, skills_for_wake, Skill};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -213,6 +212,30 @@ async fn handle_request(
             let skills = load_skills().await;
             state.lock().await.skills = skills;
             success_response(&id, serde_json::json!({ "ok": true }))
+        }
+        "agent.chat.send" => {
+            let text = params
+                .as_ref()
+                .and_then(|p| {
+                    p.get("text")
+                        .or_else(|| p.get("message"))
+                        .and_then(|v| v.as_str())
+                })
+                .unwrap_or("")
+                .to_string();
+            let state = state.clone();
+            tokio::spawn(async move {
+                process_wake(
+                    serde_json::json!({
+                        "category": "input",
+                        "pattern": "chat.message",
+                        "payload": { "text": text, "source": "chat_ui" }
+                    }),
+                    state,
+                )
+                .await;
+            });
+            success_response(&id, serde_json::json!({ "ok": true, "queued": true }))
         }
         _ => error_response(&id, "E_NOT_FOUND", &format!("Unknown method: {}", method)),
     }

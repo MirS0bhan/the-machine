@@ -48,12 +48,12 @@ set timeout=3
 set default=0
 
 menuentry "The Machine" {
-  linux /boot/vmlinuz console=ttyS0,115200 rdinit=/init quiet
+  linux /boot/vmlinuz console=tty0 console=ttyS0,115200 rdinit=/init quiet
   initrd /boot/initramfs.cpio.gz
 }
 
 menuentry "The Machine (debug shell)" {
-  linux /boot/vmlinuz console=ttyS0,115200 rdinit=/init single
+  linux /boot/vmlinuz console=tty0 console=ttyS0,115200 rdinit=/init single
   initrd /boot/initramfs.cpio.gz
 }
 GRUB

@@ -124,6 +124,8 @@ async fn main() -> anyhow::Result<()> {
             "agent.interrupt",
             "agent.local_only_mode",
             "agent.skills.list",
+            "agent.skills.reload",
+            "agent.chat.send",
         ] {
             reg.register(m, "agent-core", true).unwrap();
         }
