@@ -10,13 +10,21 @@ INITRAMFS="${2:-${BUILD_DIR}/initramfs.cpio.gz}"
 OUTPUT="${3:-${BUILD_DIR}/the-machine.iso}"
 
 if [[ -z "${KERNEL}" ]]; then
+  KERNEL="$(bash "${ROOT}/build/select-kernel.sh" || true)"
+fi
+
+if [[ -z "${KERNEL}" ]]; then
   KERNEL="$(ls -1 /boot/vmlinuz-* 2>/dev/null | sort -V | tail -1 || true)"
 fi
 
 if [[ -z "${KERNEL}" || ! -f "${KERNEL}" ]]; then
-  echo "ERROR: No kernel found. Install linux-image-virtual or set KERNEL=/path/to/vmlinuz" >&2
+  echo "ERROR: No kernel found. Install linux-image-generic and set KERNEL=/boot/vmlinuz-*-generic" >&2
   exit 1
 fi
+
+bash "${ROOT}/build/select-kernel.sh" --warn-if-cloud "${KERNEL}"
+echo "==> Using kernel ${KERNEL}"
+echo "${KERNEL}" > "${BUILD_DIR}/iso-kernel.path"
 
 if [[ ! -f "${INITRAMFS}" ]]; then
   echo "ERROR: initramfs not found at ${INITRAMFS}. Run 'make initramfs-release' first." >&2
@@ -52,8 +60,13 @@ menuentry "The Machine" {
   initrd /boot/initramfs.cpio.gz
 }
 
-menuentry "The Machine (debug shell)" {
-  linux /boot/vmlinuz console=tty0 console=ttyS0,115200 rdinit=/init single
+menuentry "The Machine (debug)" {
+  linux /boot/vmlinuz console=tty0 console=ttyS0,115200 rdinit=/init the-machine.debug loglevel=7
+  initrd /boot/initramfs.cpio.gz
+}
+
+menuentry "The Machine (rescue shell)" {
+  linux /boot/vmlinuz console=tty0 console=ttyS0,115200 rdinit=/init the-machine.rescue
   initrd /boot/initramfs.cpio.gz
 }
 GRUB

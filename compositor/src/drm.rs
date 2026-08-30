@@ -184,7 +184,20 @@ impl DrmBackend {
         if unsafe { libc::ioctl(fd, 0xc0b064b8u64 as libc::c_ulong, &mut fb_cmd) } == 0 {
             fb_id = fb_cmd.fb_id;
         }
-        let _ = set_crtc(fd, fb_id, width, height);
+        if !set_crtc(fd, fb_id, width, height) {
+            warn!(
+                "DRM: MODE_SETCRTC failed on {} — falling back to framebuffer/memory",
+                path
+            );
+            unsafe {
+                libc::munmap(ptr as *mut _, len);
+            }
+            let mut destroy = DrmModeDestroyDumb {
+                handle: create.handle,
+            };
+            let _ = unsafe { libc::ioctl(fd, DRM_IOCTL_MODE_DESTROY_DUMB as _, &mut destroy) };
+            return None;
+        }
         info!(
             "DRM/KMS backend: {} {}x{} pitch={} (dumb buffer)",
             path, width, height, create.pitch

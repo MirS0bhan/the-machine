@@ -52,5 +52,14 @@ done
   echo "FAIL: missing machine.conf" >&2
   exit 1
 }
+grep -q 'THE_MACHINE_BOOT_AUIL=/etc/the-machine/boot.auil' \
+  "${THE_MACHINE_ROOTFS_DIR}/etc/the-machine/machine.conf" || {
+  echo "FAIL: machine.conf missing THE_MACHINE_BOOT_AUIL" >&2
+  exit 1
+}
+[[ -f "${THE_MACHINE_ROOTFS_DIR}/etc/the-machine/boot.auil" ]] || {
+  echo "FAIL: missing boot.auil in skeleton rootfs" >&2
+  exit 1
+}
 
 echo "OK: rootfs layout + kernel symlink helpers (G13)"

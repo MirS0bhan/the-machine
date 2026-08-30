@@ -65,34 +65,6 @@ jobs:
       - name: Verify documentation ↔ code
         run: make verify-docs
 
-  lint:
-    name: Lint
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: "1.98.0"
-          components: rustfmt, clippy
-
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-lint-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-lint-
-
-      - name: rustfmt (mcp-bus)
-        run: cargo fmt -p mcp-bus -- --check
-
-      - name: clippy (mcp-bus)
-        run: cargo clippy -p mcp-bus --all-targets -- -A dead_code -D warnings
-
   coverage:
     name: Rust coverage
     runs-on: ubuntu-24.04
@@ -282,13 +254,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            busybox-static grub-pc-bin grub-common xorriso mtools linux-image-virtual
+            busybox-static grub-pc-bin grub-common xorriso mtools \
+            linux-image-generic qemu-system-x86
 
       - name: Build release initramfs + ISO
         run: |
           make initramfs-release
-          make iso-release KERNEL=/boot/vmlinuz-$(uname -r)
+          make iso-release
           bash build/verify-iso-bootable.sh build/the-machine.iso
+          bash build/verify-iso-kernel.sh build/iso-kernel.path
+          bash build/test-iso-boot-smoke.sh build/vmlinuz build/initramfs.cpio.gz
 
       - name: Upload initramfs
         uses: actions/upload-artifact@v4

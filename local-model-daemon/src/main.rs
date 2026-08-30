@@ -1,7 +1,6 @@
 mod engine;
 mod gguf;
 
-use common::*;
 use engine::Engine;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -9,7 +8,6 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
 use tokio::sync::Mutex;
 use tracing::{error, info};
-use uuid::Uuid;
 
 struct AppState {
     engine: Engine,
@@ -54,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-async fn handle_connection(mut stream: tokio::net::UnixStream, state: Arc<Mutex<AppState>>) {
+async fn handle_connection(stream: tokio::net::UnixStream, state: Arc<Mutex<AppState>>) {
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
@@ -161,4 +159,146 @@ fn ok(id: Value, result: Value) -> Value {
 }
 fn err(id: Value, code: &str, message: &str) -> Value {
     json!({ "id": id, "error": { "code": code, "message": message } })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_state(native_loaded: bool) -> Arc<Mutex<AppState>> {
+        Arc::new(Mutex::new(AppState {
+            engine: Engine::new(),
+            model_path: "/models/test.gguf".into(),
+            native_loaded,
+        }))
+    }
+
+    fn mcp_request(id: u64, method: &str, params: Value) -> Value {
+        json!({ "id": id, "method": method, "params": params })
+    }
+
+    #[tokio::test]
+    async fn localmodel_health_reports_stub_backend_without_gguf() {
+        let state = test_state(false);
+        let resp = handle_request(
+            mcp_request(1, "localmodel.health", json!({})),
+            state,
+        )
+        .await;
+        assert!(resp.get("error").is_none());
+        let result = resp.get("result").expect("result");
+        assert_eq!(result.get("model_path").and_then(|v| v.as_str()), Some("/models/test.gguf"));
+        assert_eq!(result.get("gguf_loaded").and_then(|v| v.as_bool()), Some(false));
+        assert_eq!(result.get("status").and_then(|v| v.as_str()), Some("stub"));
+        assert!(result.get("backend").is_some());
+    }
+
+    #[tokio::test]
+    async fn localmodel_health_reports_ready_when_gguf_loaded() {
+        let state = test_state(true);
+        let resp = handle_request(
+            mcp_request(2, "localmodel.health", json!({})),
+            state,
+        )
+        .await;
+        assert!(resp.get("error").is_none());
+        let result = resp.get("result").expect("result");
+        assert_eq!(result.get("gguf_loaded").and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(result.get("status").and_then(|v| v.as_str()), Some("ready"));
+    }
+
+    #[tokio::test]
+    async fn localmodel_complete_returns_text_and_privacy_tag() {
+        let state = test_state(false);
+        let resp = handle_request(
+            mcp_request(
+                3,
+                "localmodel.complete",
+                json!({ "prompt": "hello", "max_tokens": 32, "temperature": 0.5 }),
+            ),
+            state,
+        )
+        .await;
+        assert!(resp.get("error").is_none());
+        let result = resp.get("result").expect("result");
+        assert!(result.get("text").and_then(|v| v.as_str()).unwrap_or("").contains("hello"));
+        assert_eq!(
+            result.get("privacy_tag").and_then(|v| v.as_str()),
+            Some("none")
+        );
+    }
+
+    #[tokio::test]
+    async fn localmodel_classify_intent_returns_routing_fields() {
+        let state = test_state(false);
+        let resp = handle_request(
+            mcp_request(
+                4,
+                "localmodel.classify_intent",
+                json!({ "text": "open settings", "category": "input" }),
+            ),
+            state,
+        )
+        .await;
+        assert!(resp.get("error").is_none());
+        let result = resp.get("result").expect("result");
+        assert!(result.get("intent").and_then(|v| v.as_str()).is_some());
+        assert!(result.get("confidence").and_then(|v| v.as_f64()).is_some());
+        assert!(result.get("complexity").and_then(|v| v.as_str()).is_some());
+        assert!(result.get("routing").and_then(|v| v.as_str()).is_some());
+        assert!(result.get("requires_cloud").and_then(|v| v.as_bool()).is_some());
+        assert_eq!(
+            result.get("privacy_tag").and_then(|v| v.as_str()),
+            Some("none")
+        );
+    }
+
+    #[tokio::test]
+    async fn localmodel_embed_returns_embedding_vector() {
+        let state = test_state(false);
+        let resp = handle_request(
+            mcp_request(5, "localmodel.embed", json!({ "text": "embed me" })),
+            state,
+        )
+        .await;
+        assert!(resp.get("error").is_none());
+        let result = resp.get("result").expect("result");
+        let embedding = result
+            .get("embedding")
+            .and_then(|v| v.as_array())
+            .expect("embedding array");
+        assert!(!embedding.is_empty());
+        assert_eq!(
+            result.get("privacy_tag").and_then(|v| v.as_str()),
+            Some("none")
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_method_returns_invalid_request() {
+        let state = test_state(false);
+        let resp = handle_request(json!({ "id": 6 }), state).await;
+        assert_eq!(
+            resp.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|v| v.as_str()),
+            Some("E_INVALID_REQUEST")
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_method_returns_not_found() {
+        let state = test_state(false);
+        let resp = handle_request(
+            mcp_request(7, "localmodel.nope", json!({})),
+            state,
+        )
+        .await;
+        assert_eq!(
+            resp.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|v| v.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
 }

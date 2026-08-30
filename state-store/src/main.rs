@@ -333,3 +333,199 @@ fn error_response(id: &Uuid, code: &str, message: &str) -> McpMessage {
         }),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_state() -> AppState {
+        std::env::set_var("STATE_STORE_BACKEND", "memory");
+        AppState {
+            store: Arc::new(Mutex::new(Store::new())),
+            subscriptions: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    #[tokio::test]
+    async fn state_get_missing_path_returns_null() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request(
+            "state.get".into(),
+            Some(serde_json::json!({ "path": "ui.missing" })),
+            &id,
+            &state,
+        )
+        .await;
+        assert_eq!(resp.id, id);
+        assert!(resp.error.is_none());
+        assert_eq!(
+            resp.result
+                .as_ref()
+                .and_then(|v| v.get("value"))
+                .unwrap_or(&serde_json::Value::Null),
+            &serde_json::Value::Null
+        );
+    }
+
+    #[tokio::test]
+    async fn state_set_and_get_roundtrip() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let set_resp = handle_request(
+            "state.set".into(),
+            Some(serde_json::json!({ "path": "ui.task.name", "value": "Ada" })),
+            &id,
+            &state,
+        )
+        .await;
+        assert!(set_resp.error.is_none());
+        assert!(set_resp
+            .result
+            .as_ref()
+            .and_then(|v| v.get("revision"))
+            .and_then(|v| v.as_u64())
+            .is_some());
+
+        let get_id = Uuid::new_v4();
+        let get_resp = handle_request(
+            "state.get".into(),
+            Some(serde_json::json!({ "path": "ui.task.name" })),
+            &get_id,
+            &state,
+        )
+        .await;
+        assert!(get_resp.error.is_none());
+        assert_eq!(
+            get_resp
+                .result
+                .as_ref()
+                .and_then(|v| v.get("value"))
+                .and_then(|v| v.as_str()),
+            Some("Ada")
+        );
+    }
+
+    #[tokio::test]
+    async fn state_patch_increment_updates_value() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        handle_request(
+            "state.set".into(),
+            Some(serde_json::json!({ "path": "ui.counter", "value": 3 })),
+            &id,
+            &state,
+        )
+        .await;
+
+        let patch_id = Uuid::new_v4();
+        let patch_resp = handle_request(
+            "state.patch".into(),
+            Some(serde_json::json!({
+                "ops": [{ "op": "INCREMENT", "path": "ui.counter", "value": 2 }]
+            })),
+            &patch_id,
+            &state,
+        )
+        .await;
+        assert!(patch_resp.error.is_none());
+
+        let get_resp = handle_request(
+            "state.get".into(),
+            Some(serde_json::json!({ "path": "ui.counter" })),
+            &Uuid::new_v4(),
+            &state,
+        )
+        .await;
+        assert_eq!(
+            get_resp
+                .result
+                .as_ref()
+                .and_then(|v| v.get("value"))
+                .and_then(|v| v.as_i64()),
+            Some(5)
+        );
+    }
+
+    #[tokio::test]
+    async fn state_list_returns_prefix_matches() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        handle_request(
+            "state.set".into(),
+            Some(serde_json::json!({ "path": "ui.task.a", "value": 1 })),
+            &id,
+            &state,
+        )
+        .await;
+        handle_request(
+            "state.set".into(),
+            Some(serde_json::json!({ "path": "ui.task.b", "value": 2 })),
+            &Uuid::new_v4(),
+            &state,
+        )
+        .await;
+        handle_request(
+            "state.set".into(),
+            Some(serde_json::json!({ "path": "other.x", "value": 9 })),
+            &Uuid::new_v4(),
+            &state,
+        )
+        .await;
+
+        let list_resp = handle_request(
+            "state.list".into(),
+            Some(serde_json::json!({ "prefix": "ui.task." })),
+            &Uuid::new_v4(),
+            &state,
+        )
+        .await;
+        assert!(list_resp.error.is_none());
+        let paths = list_resp
+            .result
+            .as_ref()
+            .and_then(|v| v.get("paths"))
+            .and_then(|v| v.as_array())
+            .expect("paths array");
+        assert_eq!(paths.len(), 2);
+        let path_names: Vec<&str> = paths
+            .iter()
+            .filter_map(|p| p.get("path").and_then(|v| v.as_str()))
+            .collect();
+        assert!(path_names.contains(&"ui.task.a"));
+        assert!(path_names.contains(&"ui.task.b"));
+    }
+
+    #[tokio::test]
+    async fn state_stats_reports_revision_and_subscriptions() {
+        let state = test_state();
+        handle_request(
+            "state.set".into(),
+            Some(serde_json::json!({ "path": "ui.x", "value": true })),
+            &Uuid::new_v4(),
+            &state,
+        )
+        .await;
+
+        let resp = handle_request("state.stats".into(), None, &Uuid::new_v4(), &state).await;
+        assert!(resp.error.is_none());
+        let result = resp.result.expect("result");
+        assert!(result.get("revision").and_then(|v| v.as_u64()).unwrap_or(0) >= 1);
+        assert_eq!(
+            result.get("subscriptions").and_then(|v| v.as_u64()),
+            Some(0)
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_method_returns_not_found() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request("state.nope".into(), None, &id, &state).await;
+        assert_eq!(resp.id, id);
+        assert_eq!(
+            resp.error.as_ref().map(|e| e.code.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
+}

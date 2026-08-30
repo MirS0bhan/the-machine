@@ -23,6 +23,8 @@ make iso
 
 Boot requirements: x86_64 CPU, 1 GB+ RAM, kernel with KMS + evdev (most modern Linux live environments qualify for building the ISO).
 
+**Blank screen after GRUB?** See [Boot Debugging Guide](boot-debugging.md) — use `make run-debug` or the **The Machine (debug)** GRUB entry and check `/var/log/boot-report.txt`.
+
 ---
 
 ## Full install (disk)
@@ -35,7 +37,7 @@ sudo build/installer/install.sh /dev/sdX
 
 The installer:
 - Creates a GPT partition labeled `the-machine`
-- Copies the rootfs and installs GRUB
+- Copies the rootfs, writes `/etc/fstab` (`LABEL=the-machine`), and installs GRUB
 - Expects `/vmlinuz` or `/boot/vmlinuz` in the rootfs
 
 Validate a rootfs tree before writing to disk:
@@ -44,6 +46,16 @@ Validate a rootfs tree before writing to disk:
 bash build/rootfs-validate.sh build/rootfs
 bash build/test-installer-grub.sh   # loopback install + GRUB validation (CI)
 ```
+
+After install (or on a mounted root partition), run the stricter installed-rootfs check:
+
+```bash
+sudo mount /dev/sdX1 /mnt
+bash build/validate-installed-rootfs.sh /mnt
+sudo umount /mnt
+```
+
+This verifies all service binaries, systemd units, `/etc/fstab`, and GRUB layout for target-HW boot.
 
 For automated installs (e.g. CI), set `THE_MACHINE_INSTALLER_YES=1` to skip the confirmation prompt.
 

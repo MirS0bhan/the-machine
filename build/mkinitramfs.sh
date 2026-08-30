@@ -23,7 +23,7 @@ if [[ -z "${BUSYBOX}" || ! -x "${BUSYBOX}" ]]; then
   exit 1
 fi
 cp "${BUSYBOX}" "${STAGE}/bin/busybox"
-for app in sh ls cat echo mkdir mount umount sleep grep sed awk; do
+for app in sh ls cat echo mkdir mount umount sleep grep sed awk modprobe insmod depmod; do
   ln -sf busybox "${STAGE}/bin/${app}"
 done
 
@@ -41,10 +41,23 @@ SERVICES=("${ROOTFS_SERVICES[@]}")
 for svc in "${SERVICES[@]}"; do
   if [[ -x "${BIN_DIR}/${svc}" ]]; then
     install -m 0755 "${BIN_DIR}/${svc}" "${STAGE}/the-machine/${svc}"
+    bash "${ROOT}/build/bundle-shared-libs.sh" "${BIN_DIR}/${svc}" "${STAGE}"
   else
     echo "WARN: ${svc} binary not found at ${BIN_DIR}/${svc}" >&2
   fi
 done
+
+ISO_KERNEL="${KERNEL:-$(bash "${ROOT}/build/select-kernel.sh" 2>/dev/null || true)}"
+KVER="$(uname -r)"
+if [[ -n "${ISO_KERNEL}" ]]; then
+  KVER="$(basename "${ISO_KERNEL}" | sed 's/^vmlinuz-//')"
+fi
+bash "${ROOT}/build/bundle-kernel-modules.sh" "${STAGE}" "${KVER}" || true
+
+if compgen -G "${STAGE}/the-machine/*" >/dev/null && \
+   ldd "${STAGE}/the-machine/"* >/dev/null 2>&1; then
+  echo "==> Bundled shared libraries for dynamic Rust binaries"
+fi
 
 # Bundle GGUF model when available (G11).
 MODEL_SRC="${ROOT}/build/models/machine-tiny.gguf"
@@ -61,74 +74,10 @@ if [[ -f "${ROOT}/build/boot.auil" ]]; then
   cp "${ROOT}/build/boot.auil" "${STAGE}/etc/the-machine/boot.auil"
 fi
 
-# Init script: start services in boot order (L0 → L3 → L1 → L4 → L5).
-cat > "${STAGE}/init" <<'INIT'
-#!/bin/sh
-export PATH=/bin:/sbin:/the-machine
-export RUST_LOG=info
-export THE_MACHINE_SOCKET_DIR=/run/the-machine
-export XDG_RUNTIME_DIR=/run/the-machine
-export WAYLAND_DISPLAY=wayland-0
-export STATE_STORE_BACKEND=sled
-export STATE_STORE_PATH=/var/the-machine/state
-export THE_MACHINE_LAMBDA_DIR=/var/the-machine/lambdas
-export LOCAL_MODEL_PATH=/models/machine-tiny.gguf
-export THE_MACHINE_BOOT_AUIL=/etc/the-machine/boot.auil
-export THE_MACHINE_COMPOSITOR_BACKEND=auto
-mkdir -p /var/the-machine/state /var/the-machine/lambdas /models /run/the-machine/secrets /etc/the-machine
-
-mount -t proc proc /proc
-mount -t sysfs sys /sys
-mount -t devtmpfs dev /dev 2>/dev/null || true
-mkdir -p /run/the-machine /var/log
-
-echo "[init] The Machine boot sequence starting"
-
-start_svc() {
-  name="$1"
-  if [ -x "/the-machine/$name" ]; then
-    echo "[init] starting $name"
-    "/the-machine/$name" >>"/var/log/$name.log" 2>&1 &
-  fi
-}
-
-# L0
-start_svc system-daemon
-sleep 1
-
-# L3 (bus before broker consumers)
-start_svc mcp-bus
-sleep 1
-
-# L2
-start_svc policy-broker
-sleep 1
-
-# L1
-start_svc state-store
-start_svc event-bus
-start_svc lambda-server
-start_svc local-model-daemon
-start_svc marketplace
-sleep 1
-
-# L4
-start_svc agent-core
-sleep 1
-
-# L5 — display session: compositor first, then UI, then shell
-start_svc compositor
-sleep 2
-start_svc ui-runtime
-sleep 2
-start_svc fallback-shell
-
-echo "[init] boot complete — compositor + ui-runtime active"
-echo "[init] VGA: tty0  serial: ttyS0  chat UI loads after agent greet"
-
-# Keep PID 1 alive; services run in background.
-while true; do sleep 3600; done
-INIT
+# Boot logging + PID 1 init script.
+install -m 0644 "${ROOT}/build/boot-log-lib.sh" "${STAGE}/boot-log-lib.sh"
+install -m 0755 "${ROOT}/build/boot-init.sh" "${STAGE}/init"
+install -m 0755 "${ROOT}/build/collect-boot-logs.sh" "${STAGE}/collect-boot-logs.sh"
 chmod +x "${STAGE}/init"
 
 # Pack cpio archive (use busybox cpio when host cpio is absent).
