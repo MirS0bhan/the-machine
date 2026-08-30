@@ -543,6 +543,20 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## External Event Adapters
+
+The Rust event-bus binary spawns background adapters that normalize Linux ecosystem signals into `event.publish` calls on the local socket:
+
+| Adapter | Source | Events |
+|---------|--------|--------|
+| D-Bus (zbus) | System bus match rules | `desktop.notify`, `login.prepare_sleep` |
+| inotify | Configured filesystem paths | `fs.change.*` |
+| audio | PipeWire/Pulse state (when available) | `audio.*` |
+
+The D-Bus adapter connects to the system bus via **zbus** (no `dbus-monitor` dependency). It subscribes to `org.freedesktop.Notifications.Notify` and `org.freedesktop.login1.Manager.PrepareForSleep`, decoding signal bodies into JSON payloads. Set `THE_MACHINE_DISABLE_DBUS=1` to skip the adapter.
+
+---
+
 ## Performance
 
 ### Targets
