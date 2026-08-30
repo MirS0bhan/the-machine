@@ -15,6 +15,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
+| G17 wl_display scaffold | cursor/maintenance-g17-wl-session-8d4febd | — | pr-open | 2026-08-30 | wayland-server bind; wlroots seat/output next |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -22,6 +23,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-30 | gap | G17 wl_display scaffold | pr-open |
 | 2026-08-30 | gap | G7 | merged to main |
 | 2026-08-30 | gap | policy hardening | merged to main |
 
@@ -29,7 +31,7 @@ until the PR is merged to `main`.
 
 Rotate when completing a row. Prefer top item not in cooldown.
 
-1. **G17** — compositor: next sub-step (input surface or wlroots init scaffold), not full session
+1. **G17** — compositor: wlroots seat/output init (after wl_display scaffold merges)
 2. **G14** — system-daemon: one mutation path (e.g. display mode sysfs) behind grant token
 3. **G12** — mcp-bus: document lease fast-path honestly or bind optional lease socket
 4. **audit** — `make verify` + fix first failure

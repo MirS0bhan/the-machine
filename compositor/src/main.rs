@@ -3,6 +3,7 @@
 mod model;
 mod drm;
 mod pixel;
+mod wl_session;
 mod wayland_backend;
 
 use common::*;
@@ -25,7 +26,8 @@ async fn main() -> anyhow::Result<()> {
         "WAYLAND_DISPLAY",
         std::env::var("WAYLAND_DISPLAY").unwrap_or_else(|_| "wayland-0".into()),
     );
-    let _wayland = wayland_backend::try_start();
+    let wayland: Arc<Option<wayland_backend::WaylandSession>> =
+        Arc::new(wayland_backend::try_start());
     let pixels: SharedPixel = Arc::new(Mutex::new(PixelBackend::open()));
     let comp: Arc<Mutex<Compositor>> = Arc::new(Mutex::new(Compositor::new()));
 
@@ -49,8 +51,9 @@ async fn main() -> anyhow::Result<()> {
         let (stream, _) = listener.accept().await?;
         let comp = comp.clone();
         let pixels = pixels.clone();
+        let wayland = wayland.clone();
         tokio::spawn(async move {
-            handle_connection(stream, comp, pixels).await;
+            handle_connection(stream, comp, pixels, wayland).await;
         });
     }
 }
@@ -95,6 +98,7 @@ async fn handle_connection(
     stream: tokio::net::UnixStream,
     comp: Arc<Mutex<Compositor>>,
     pixels: SharedPixel,
+    wayland: Arc<Option<wayland_backend::WaylandSession>>,
 ) {
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
@@ -104,7 +108,7 @@ async fn handle_connection(
         match reader.read_line(&mut line).await {
             Ok(0) => break,
             Ok(_) => {
-                if let Ok(response) = process_message(&line, &comp, &pixels).await {
+                if let Ok(response) = process_message(&line, &comp, &pixels, &wayland).await {
                     if let Err(e) = writer.write_all(response.as_bytes()).await {
                         error!("Write error: {}", e);
                         break;
@@ -123,13 +127,14 @@ async fn process_message(
     line: &str,
     comp: &Arc<Mutex<Compositor>>,
     pixels: &SharedPixel,
+    wayland: &Arc<Option<wayland_backend::WaylandSession>>,
 ) -> anyhow::Result<String> {
     let msg: McpMessage = serde_json::from_str(line.trim())?;
     let id = msg.id;
     let response = match msg.kind {
         MessageKind::Request => {
             let method = msg.method.clone().unwrap_or_default();
-            handle_request(method, msg.params, comp, pixels).await
+            handle_request(method, msg.params, comp, pixels, wayland).await
         }
         _ => error_response(&id, "E_INVALID_REQUEST", "Only requests supported"),
     };
@@ -141,6 +146,7 @@ async fn handle_request(
     params: Option<serde_json::Value>,
     comp: &Arc<Mutex<Compositor>>,
     pixels: &SharedPixel,
+    wayland: &Arc<Option<wayland_backend::WaylandSession>>,
 ) -> McpMessage {
     let id = Uuid::new_v4();
     let params = params.unwrap_or(serde_json::Value::Null);
@@ -202,6 +208,11 @@ async fn handle_request(
         "compositor.status" => {
             let c = comp.lock().await;
             let backend = pixels.lock().await.backend_name();
+            let wayland_session = wayland
+                .as_ref()
+                .as_ref()
+                .map(wayland_backend::WaylandSession::status)
+                .unwrap_or(serde_json::Value::Null);
             success_response(
                 &id,
                 serde_json::json!({
@@ -211,6 +222,7 @@ async fn handle_request(
                     "pixels": true,
                     "confirmation_active": c.confirmation_active,
                     "backend": backend,
+                    "wayland_session": wayland_session,
                 }),
             )
         }

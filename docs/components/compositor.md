@@ -254,9 +254,14 @@ The UI Runtime can embed XWayland surfaces using `ExternalSurface` nodes:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `THE_MACHINE_COMPOSITOR_BACKEND` | `auto` | Pixel backend: `auto`, `drm`, `framebuffer`, `memory`, or `wayland` |
+| `THE_MACHINE_WL_DISPLAY_BIND` | unset | Set to `1` to bind a real `wl_display` socket in `auto` mode (G17 scaffold) |
+| `WAYLAND_DISPLAY` | `wayland-0` | Wayland socket name when `THE_MACHINE_COMPOSITOR_BACKEND=wayland` |
 | `THE_MACHINE_COMPOSITOR_SOCKET` | `/run/the-machine/compositor-input.sock` | Input socket from System Daemon |
 | `THE_MACHINE_COMPOSITOR_OUTPUT` | `auto` | Output to use (`auto` detects first available) |
 | `THE_MACHINE_COMPOSITOR_REFRESH` | `60` | Refresh rate in Hz |
+
+`compositor.status` includes a `wayland_session` object when the Wayland scaffold is active (`bound`, `display`, `engine`, `wlroots`).
 
 ### Command-Line Arguments
 
