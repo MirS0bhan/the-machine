@@ -12,6 +12,8 @@
 
 The Wayland Compositor in The Machine is a **standard-ish** compositor (based on wlroots) that can run conventional Wayland/X11 clients. Its role is to perform low-level compositing, damage tracking, frame scheduling, and input event delivery — all deterministic, all outside the agent's real-time path.
 
+**Current boot path:** The compositor exposes a logical surface model over MCP and paints via framebuffer or DRM/KMS dumb buffers. Setting `THE_MACHINE_COMPOSITOR_BACKEND=wlroots` records a wlroots session scaffold (runtime dir, display socket path, init plan) and reports readiness via `compositor.status`; it does not yet own `wl_display` (G17).
+
 ---
 
 ## Architecture
@@ -254,6 +256,7 @@ The UI Runtime can embed XWayland surfaces using `ExternalSurface` nodes:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `THE_MACHINE_COMPOSITOR_BACKEND` | `auto` | Pixel/session backend: `auto`, `framebuffer`, `drm`, `wayland`, or `wlroots` (scaffold only) |
 | `THE_MACHINE_COMPOSITOR_SOCKET` | `/run/the-machine/compositor-input.sock` | Input socket from System Daemon |
 | `THE_MACHINE_COMPOSITOR_OUTPUT` | `auto` | Output to use (`auto` detects first available) |
 | `THE_MACHINE_COMPOSITOR_REFRESH` | `60` | Refresh rate in Hz |
