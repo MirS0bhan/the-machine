@@ -183,6 +183,29 @@ def main() -> None:
             if not grep_method_in_source(method):
                 errors.append(f"MCP method {method!r} ({service}) not found in Rust sources")
 
+    for method, test_path in inv.get("integration_tests", {}).items():
+        rel = ROOT / test_path
+        if not rel.exists():
+            errors.append(f"integration_tests[{method!r}] missing file: {test_path}")
+            continue
+        if method not in test_path and method not in rel.read_text(errors="replace"):
+            errors.append(
+                f"integration_tests[{method!r}] file {test_path} does not reference method"
+            )
+        listed = False
+        for service_methods in inv.get("mcp_services", {}).values():
+            if method in service_methods:
+                listed = True
+                break
+        if not listed:
+            errors.append(f"integration_tests method {method!r} not in mcp_services")
+
+    docs_tree = "\n".join(
+        p.read_text(errors="replace") for p in (ROOT / "docs").rglob("*") if p.is_file()
+    )
+    if "<<<<<<<" in docs_tree or ">>>>>>>" in docs_tree:
+        errors.append("docs/ contains unresolved git merge conflict markers")
+
     # Component See Also links must resolve on disk (sibling ./ paths).
     components_dir = ROOT / "docs/components"
     link_re = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
