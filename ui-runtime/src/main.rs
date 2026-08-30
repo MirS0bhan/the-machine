@@ -878,10 +878,9 @@ mod tests {
     #[test]
     fn resolve_token_reads_theme_color_reference() {
         let mut theme = Theme::default();
-        theme.colors.insert(
-            "primary".to_string(),
-            serde_json::json!("#336699"),
-        );
+        theme
+            .colors
+            .insert("primary".to_string(), serde_json::json!("#336699"));
         let resolved = resolve_token("$colors.primary", &theme);
         assert_eq!(resolved, serde_json::json!("#336699"));
     }

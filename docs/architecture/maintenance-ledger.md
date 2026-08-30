@@ -8,8 +8,9 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| verify-fix event-bus main.rs empty (build broken) | cursor/maintenance-verify-fix-event-bus-build-67ca1c0 | — | pr-open | 2026-08-30 | restore `event-bus/src/main.rs` + resolve conflict markers |
+| verify-fix event-bus main.rs empty (build broken) | cursor/maintenance-verify-fix-event-bus-build-67ca1c0 | #198 | pr-open | 2026-08-30 | restore `event-bus/src/main.rs` + resolve conflict markers (rebased onto latest main, also fixed re-broken `component-inventory.yaml` conflict markers) |
 | verify-fix initramfs modules skip | cursor/maintenance-verify-fix-initramfs-modules-9b9ce7c | #188 | merged | 2026-08-30 | skip test when /lib/modules missing |
+| verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | #189 | merged | 2026-08-30 | merge MCP handler + resolve_token unit tests |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -17,8 +18,12 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | verify-fix | `main` build broken: `event-bus/src/main.rs` emptied + conflict markers in `component-inventory.yaml`/`verify-docs-code.py` by bad merge resolution | pr-open |
-| 2026-08-30 | verify-fix | test-initramfs-modules skip on missing /lib/modules | merged (#188) |
+| 2026-08-30 | verify-fix | `main` still broken after rebase: `event-bus/src/main.rs` empty + re-broken nested conflict markers in `component-inventory.yaml` (`integration_tests` block); rebased fix onto latest main via merge commit | pr-open (#198) |
+| 2026-08-30 | verify-fix | ui-runtime merge conflict markers | merged to main (#189) |
+| 2026-08-30 | audit | policy.register Python integration test | merged to main (#179) |
+| 2026-08-30 | audit | event.subscribe Python integration test | merged to main (#182) |
+| 2026-08-30 | verify-fix | test-initramfs-modules skip on missing /lib/modules | merged to main (#188) |
+| 2026-08-30 | audit | lambda.deprecate Python integration test | merged to main (#176) |
 | 2026-08-30 | audit | state-store clippy/dead-code | pr-open (#169) |
 | 2026-08-30 | gap | G13 operator installed-rootfs validation | pr-open (#168) |
 | 2026-08-30 | audit | local-model-daemon clippy/dead-code | pr-open (#167) |
@@ -63,3 +68,4 @@ Rotate when completing a row. Prefer top item not in cooldown.
 2. **audit** — missing Python integration test for an MCP method (see `component-inventory.yaml`; many `system-daemon`/`ui-runtime`/`compositor`/`mcp-bus` methods still lack one)
 3. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
 4. **docs** — `gap-analysis.md` "Open — Platform" table still lists G13 as open/"(in PR)"; all sub-items (debootstrap+GRUB, fstab, boot.auil, operator installed-rootfs validation) are merged to `main` (PRs #157, #159, #168) — move G13 to Closed in a tiny docs-only PR
+5. **audit** — `make verify` + fix first failure
