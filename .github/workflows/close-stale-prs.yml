@@ -11,10 +11,6 @@ on:
         options:
           - "false"
           - "true"
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/close-stale-prs.yml
 
 permissions:
   pull-requests: write
@@ -24,34 +20,44 @@ jobs:
   close:
     runs-on: ubuntu-latest
     steps:
-      - name: Close open PRs with deleted or automation branches
+      - name: Close all open pull requests
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
           set -euo pipefail
-          mapfile -t rows < <(gh pr list --state open --limit 500 \
-            --json number,title,headRefName \
-            -q '.[] | "\(.number)\t\(.headRefName)\t\(.title)"')
-
-          echo "Found ${#rows[@]} open PR(s)"
+          page=1
           closed=0
-          for row in "${rows[@]}"; do
-            num="${row%%$'\t'*}"
-            rest="${row#*$'\t'}"
-            branch="${rest%%$'\t'*}"
-            title="${rest#*$'\t'}"
-
-            if [[ "$DRY_RUN" == "true" ]]; then
-              echo "WOULD CLOSE #${num} (${branch}): ${title}"
-              continue
+          while :; do
+            resp=$(curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${REPO}/pulls?state=open&per_page=100&page=${page}")
+            count=$(echo "$resp" | jq 'length')
+            if [[ "$count" -eq 0 ]]; then
+              break
             fi
-
-            echo "Closing #${num}: ${title}"
-            gh pr close "$num" \
-              --comment "Bulk-closed: duplicate automation PR; work already merged to main." \
-              || echo "  warning: failed to close #${num}"
-            closed=$((closed + 1))
+            echo "$resp" | jq -r '.[] | "\(.number)\t\(.head.ref)\t\(.title)"' | while IFS=$'\t' read -r num branch title; do
+              if [[ "$DRY_RUN" == "true" ]]; then
+                echo "WOULD CLOSE #${num} (${branch}): ${title}"
+                continue
+              fi
+              echo "Closing #${num}: ${title}"
+              code=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH \
+                -H "Authorization: Bearer ${GH_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/${REPO}/pulls/${num}" \
+                -d '{"state":"closed"}')
+              if [[ "$code" == "200" ]]; then
+                closed=$((closed + 1))
+              else
+                echo "  warning: close #${num} returned HTTP ${code}"
+              fi
+            done
+            if [[ "$count" -lt 100 ]]; then
+              break
+            fi
+            page=$((page + 1))
           done
-
           echo "Closed ${closed} PR(s)"
