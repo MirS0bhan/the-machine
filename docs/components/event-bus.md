@@ -543,6 +543,20 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## External Adapters
+
+The Rust event-bus binary runs background adapters that publish to the local MCP socket via `event.publish`:
+
+| Adapter | Source | Patterns |
+|---------|--------|----------|
+| D-Bus | Native `zbus` system bus (`org.freedesktop.Notifications.Notify`, `org.freedesktop.login1.Manager.PrepareForSleep`) | `desktop.notify`, `login.prepare_sleep` |
+| inotify | Filesystem watches | `fs.change.<pattern>` |
+| audio | PipeWire state | `pipewire.state` |
+
+Set `THE_MACHINE_DISABLE_DBUS=1` to skip the D-Bus adapter (e.g. in CI or headless dev).
+
+---
+
 ## Performance
 
 ### Targets
