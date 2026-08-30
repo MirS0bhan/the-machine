@@ -23,7 +23,7 @@ if [[ -z "${BUSYBOX}" || ! -x "${BUSYBOX}" ]]; then
   exit 1
 fi
 cp "${BUSYBOX}" "${STAGE}/bin/busybox"
-for app in sh ls cat echo mkdir mount umount sleep grep sed awk; do
+for app in sh ls cat echo mkdir mount umount sleep grep sed awk modprobe insmod depmod; do
   ln -sf busybox "${STAGE}/bin/${app}"
 done
 
@@ -46,6 +46,13 @@ for svc in "${SERVICES[@]}"; do
     echo "WARN: ${svc} binary not found at ${BIN_DIR}/${svc}" >&2
   fi
 done
+
+ISO_KERNEL="${KERNEL:-$(bash "${ROOT}/build/select-kernel.sh" 2>/dev/null || true)}"
+KVER="$(uname -r)"
+if [[ -n "${ISO_KERNEL}" ]]; then
+  KVER="$(basename "${ISO_KERNEL}" | sed 's/^vmlinuz-//')"
+fi
+bash "${ROOT}/build/bundle-kernel-modules.sh" "${STAGE}" "${KVER}" || true
 
 if compgen -G "${STAGE}/the-machine/*" >/dev/null && \
    ldd "${STAGE}/the-machine/"* >/dev/null 2>&1; then

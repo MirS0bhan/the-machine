@@ -33,6 +33,39 @@ boot_check_dynamic_linker() {
   fi
 }
 
+boot_load_display_modules() {
+  if [ ! -d /lib/modules ]; then
+    return 0
+  fi
+  KVER="$(ls /lib/modules 2>/dev/null | head -1)"
+  [ -n "$KVER" ] || return 0
+  boot_log "kernel modules tree: $KVER"
+
+  dma="/lib/modules/$KVER/kernel/drivers/virtio/virtio_dma_buf.ko"
+  gpu="/lib/modules/$KVER/kernel/drivers/gpu/drm/virtio/virtio-gpu.ko"
+  cirrus="/lib/modules/$KVER/kernel/drivers/video/fbdev/cirrusfb.ko"
+
+  if [ -f "$dma" ]; then
+    insmod "$dma" 2>/tmp/insmod.err && boot_log "insmod ok: virtio_dma_buf.ko" \
+      || boot_log "insmod virtio_dma_buf.ko: $(head -1 /tmp/insmod.err 2>/dev/null)"
+  fi
+  if [ -f "$gpu" ]; then
+    insmod "$gpu" 2>/tmp/insmod.err && boot_log "insmod ok: virtio-gpu.ko" \
+      || boot_log "insmod virtio-gpu.ko: $(head -1 /tmp/insmod.err 2>/dev/null)"
+  fi
+  if [ -d /dev/dri ] || [ -e /dev/fb0 ]; then
+    boot_log "display device ready after virtio-gpu"
+    return 0
+  fi
+  if [ -f "$cirrus" ]; then
+    insmod "$cirrus" 2>/tmp/insmod.err && boot_log "insmod ok: cirrusfb.ko" \
+      || boot_log "insmod cirrusfb.ko: $(head -1 /tmp/insmod.err 2>/dev/null)"
+  fi
+  if [ ! -d /dev/dri ] && [ ! -e /dev/fb0 ]; then
+    boot_log "no display device after module load (memory backend likely)"
+  fi
+}
+
 boot_log_section "The Machine boot starting"
 boot_probe_system
 boot_check_dynamic_linker
@@ -81,7 +114,9 @@ sleep 1
 
 boot_probe_display
 
-# QEMU -vga std may register /dev/fb0 slightly after devtmpfs mount.
+boot_load_display_modules
+
+# QEMU virtio-vga / -vga std may register /dev/fb0 slightly after devtmpfs mount.
 fb_wait=0
 while [ ! -e /dev/fb0 ] && [ "$fb_wait" -lt 3 ]; do
   sleep 1
