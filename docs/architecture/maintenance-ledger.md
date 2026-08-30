@@ -8,7 +8,8 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| audit lambda-server clippy | cursor/maintenance-audit-lambda-server-clippy-e1cee1b | — | pr-open | 2026-08-30 | `-D warnings` clean; CAP_PURE limits syscalls |
+| audit agent-core MCP tests | cursor/maintenance-audit-agent-core-mcp-a009a9d | #158 | pr-open | 2026-08-30 | Clippy + handler unit tests for agent.* methods |
+| audit lambda-server clippy | cursor/maintenance-audit-lambda-server-clippy-e1cee1b | #155 | merged | 2026-08-30 | `-D warnings` clean; CAP_PURE limits syscalls |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -16,7 +17,8 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | audit | lambda-server clippy/dead-code | pr-open |
+| 2026-08-30 | audit | agent-core MCP handler tests + clippy | pr-open |
+| 2026-08-30 | audit | lambda-server clippy/dead-code | merged to main (#155) |
 | 2026-08-30 | gap | boot greet e2e (GRUB → chat UI) | merged to main |
 | 2026-08-30 | gap | G13 loopback installer GRUB | merged to main (#148) |
 | 2026-08-30 | audit | compositor clippy/dead code | merged to main (#150) |
@@ -44,5 +46,6 @@ until the PR is merged to `main`.
 Rotate when completing a row. Prefer top item not in cooldown.
 
 1. **G17** — compositor: wlroots seat/output (cooldown until 2026-09-06)
-2. **audit** — missing MCP integration test in component-inventory.yaml
-3. **audit** — `make verify` + fix first failure
+2. **G13** — validate installed rootfs on bare metal (debootstrap + GRUB)
+3. **audit** — dead code / clippy in one crate (-p ui-runtime)
+4. **audit** — MCP handler tests for ui-runtime or state-store
