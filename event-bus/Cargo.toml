@@ -17,6 +17,7 @@ chrono = { workspace = true }
 dashmap = { workspace = true }
 futures = { workspace = true }
 notify = "6.1"
+zbus = { version = "5.19.0", features = ["tokio"] }
 
 [[bin]]
 name = "event-bus"

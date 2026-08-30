@@ -543,6 +543,20 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## External Adapters
+
+At boot, `event-bus` spawns background adapters that translate Linux ecosystem signals into `event.publish` calls on the local socket:
+
+| Adapter | Source | Events emitted |
+|---------|--------|------------------|
+| D-Bus (`adapters/dbus.rs`) | System bus via **zbus** match rules | `desktop.notify`, `login.prepare_sleep` |
+| inotify (`adapters/inotify.rs`) | Configured paths + `/tmp/Downloads` | `fs.change.*` |
+| audio (`adapters/audio.rs`) | PipeWire/pulse state (when available) | `audio.*` |
+
+The D-Bus adapter subscribes natively with `zbus::MessageStream::for_match_rule` — no host `dbus-monitor` binary required. Set `THE_MACHINE_DISABLE_DBUS=1` to skip the adapter in test harnesses.
+
+---
+
 ## Performance
 
 ### Targets
