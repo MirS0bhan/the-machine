@@ -21,7 +21,7 @@ Integration tests in `tests/integration/` exercise the Python MCP reference serv
 | lambda-server | `lambda-server/test_server.py` | registry, sandbox, MCP |
 | policy-broker | `policy-broker/tests/` | rule interpreter |
 | state-store | `state-store/tests/` | backends, pub/sub |
-| local-model | `local-model/tests/` | privacy, embeddings |
+| local-model | `local-model/tests/` + `tests/integration/test_localmodel_*.py` | privacy, embeddings, policy-gated complete / classify_intent |
 | ui-engine | `ui-engine/test_engine.py` | AUIL, patches |
 | ui-engine-demo | `ui-engine-demo/test_demo.py` | end-to-end terminal demo |
 

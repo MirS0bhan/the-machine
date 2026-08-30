@@ -141,5 +141,6 @@ integration_tests:
   lambda.search: tests/integration/test_lambda_search.py
   policy.register: tests/integration/test_policy_register.py
   localmodel.complete: tests/integration/test_localmodel_complete.py
+  localmodel.classify_intent: tests/integration/test_localmodel_classify_intent.py
   event.subscribe: tests/integration/test_event_subscribe.py
   marketplace.list: tests/integration/test_marketplace_list.py
