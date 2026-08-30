@@ -19,6 +19,16 @@ pub struct Skill {
 pub fn builtin_skills() -> Vec<Skill> {
     vec![
         Skill {
+            name: "boot-greet".into(),
+            version: 1,
+            applies_to: vec![
+                "category:boot".into(),
+                "intent:boot.greet".into(),
+            ],
+            system_prompt: "On first boot, greet the user and populate the chat panel.".into(),
+            description: "Boot greeting".into(),
+        },
+        Skill {
             name: "intent-classification".into(),
             version: 4,
             applies_to: vec!["category:input".into(), "category:*".into()],

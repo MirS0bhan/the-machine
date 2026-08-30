@@ -116,13 +116,15 @@ sleep 1
 start_svc agent-core
 sleep 1
 
-# L5 — compositor session leader for graphical boot
+# L5 — display session: compositor first, then UI, then shell
 start_svc compositor
+sleep 2
 start_svc ui-runtime
+sleep 2
 start_svc fallback-shell
 
 echo "[init] boot complete — compositor + ui-runtime active"
-echo "[init] fallback console available via Ctrl+Alt+F1"
+echo "[init] VGA: tty0  serial: ttyS0  chat UI loads after agent greet"
 
 # Keep PID 1 alive; services run in background.
 while true; do sleep 3600; done

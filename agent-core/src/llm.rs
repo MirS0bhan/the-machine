@@ -13,6 +13,15 @@ pub struct Classification {
 }
 
 pub async fn classify_intent(text: &str, category: &str, skills: &[Skill]) -> Classification {
+    if category == "boot" {
+        return Classification {
+            intent: "boot.greet".into(),
+            confidence: 1.0,
+            complexity: "low".into(),
+            routing: "local".into(),
+            requires_cloud: false,
+        };
+    }
     let skill_ctx = build_skill_prompt(skills);
     if let Some(result) = mcp_call(
         "localmodel.classify_intent",
@@ -57,7 +66,9 @@ pub async fn classify_intent(text: &str, category: &str, skills: &[Skill]) -> Cl
     }
     // Fallback heuristic when local-model daemon unavailable.
     let t = text.to_lowercase();
-    let intent = if category == "scheduler" {
+    let intent = if category == "boot" {
+        "boot.greet"
+    } else if category == "scheduler" {
         "heartbeat"
     } else if t.contains("calc") {
         "calculator"
@@ -65,6 +76,8 @@ pub async fn classify_intent(text: &str, category: &str, skills: &[Skill]) -> Cl
         "media_control"
     } else if t.contains("notification") {
         "notification.triage"
+    } else if category == "input" || t.contains("chat") {
+        "chat.message"
     } else {
         "generic"
     };

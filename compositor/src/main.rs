@@ -1,5 +1,6 @@
 //! Compositor — surface model + real pixel output (framebuffer / wlroots).
 
+mod bitmap_font;
 mod drm;
 mod env;
 mod model;
@@ -31,8 +32,8 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(wayland_backend::try_start(pixels.clone()));
     let comp: Arc<Mutex<Compositor>> = Arc::new(Mutex::new(Compositor::new()));
 
-    // Background present loop.
-    {
+    // Background present loop (optional — disabled for static/test runs).
+    if !crate::env::static_present_only() {
         let comp = comp.clone();
         let pixels = pixels.clone();
         tokio::spawn(async move {
@@ -65,10 +66,7 @@ async fn main() -> anyhow::Result<()> {
 async fn present_loop(comp: Arc<Mutex<Compositor>>, pixels: SharedPixel) {
     loop {
         paint_frame(&comp, &pixels).await;
-        tokio::time::sleep(std::time::Duration::from_millis(
-            crate::env::DEFAULT_FRAME_MS,
-        ))
-        .await;
+        tokio::time::sleep(std::time::Duration::from_millis(crate::env::frame_ms())).await;
     }
 }
 
@@ -88,15 +86,30 @@ async fn paint_frame(comp: &Arc<Mutex<Compositor>>, pixels: &SharedPixel) {
         } else {
             hash_color(&s.id)
         };
+        let w = s.geometry.width.max(40);
+        let h = s.geometry.height.max(24);
         px.fill_rect(
             s.geometry.x,
             s.geometry.y,
-            s.geometry.width.max(40),
-            s.geometry.height.max(24),
-            r,
-            g,
-            b,
+            w,
+            h,
+            [
+                r.saturating_sub(20),
+                g.saturating_sub(20),
+                b.saturating_sub(10),
+            ],
         );
+        if !s.label.is_empty() {
+            bitmap_font::draw_text(
+                &mut px,
+                s.geometry.x + 8,
+                s.geometry.y + 8,
+                &s.label,
+                240,
+                240,
+                245,
+            );
+        }
     }
     px.present();
 }
@@ -344,7 +357,7 @@ async fn handle_focus(
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
     let mut c = comp.lock().await;
-    for (_, s) in c.surfaces.iter_mut() {
+    for s in c.surfaces.values_mut() {
         s.focused = false;
     }
     if let Some(sid) = sid {

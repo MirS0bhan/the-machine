@@ -19,7 +19,6 @@ pub struct PixelBackend {
     width: u32,
     height: u32,
     stride: u32,
-    bpp: u32,
     buffer: Vec<u8>,
     fb_mmap: Option<MmapFb>,
     drm: Option<DrmBackend>,
@@ -49,7 +48,6 @@ impl PixelBackend {
                     width,
                     height,
                     stride: width * 4,
-                    bpp: 32,
                     buffer: vec![0u8; len],
                     fb_mmap: None,
                     drm: Some(drm),
@@ -74,7 +72,6 @@ impl PixelBackend {
                     width: fb.width,
                     height: fb.height,
                     stride: fb.stride,
-                    bpp: fb.bpp,
                     buffer: vec![0u8; len],
                     fb_mmap: Some(fb.mmap),
                     drm: None,
@@ -83,14 +80,16 @@ impl PixelBackend {
             }
         }
 
-        warn!("pixel backend: using 1280x720 memory buffer");
+        let (width, height) = crate::env::memory_framebuffer_size();
+        warn!("pixel backend: using {}x{} memory buffer", width, height);
+        let stride = width * 4;
+        let len = (stride * height) as usize;
         PixelBackend {
             kind: BackendKind::Memory,
-            width: 1280,
-            height: 720,
-            stride: 1280 * 4,
-            bpp: 32,
-            buffer: vec![0u8; 1280 * 720 * 4],
+            width,
+            height,
+            stride,
+            buffer: vec![0u8; len],
             fb_mmap: None,
             drm: None,
             dump_path,
@@ -135,8 +134,8 @@ impl PixelBackend {
         }
     }
 
-    pub fn fill_rect(&mut self, x: i32, y: i32, w: u32, h: u32, r: u8, g: u8, b: u8) {
-        let pixel = [b, g, r, 0u8];
+    pub fn fill_rect(&mut self, x: i32, y: i32, w: u32, h: u32, rgb: [u8; 3]) {
+        let pixel = [rgb[2], rgb[1], rgb[0], 0u8];
         for dy in 0..h {
             for dx in 0..w {
                 self.put_pixel(x + dx as i32, y + dy as i32, &pixel);
@@ -292,12 +291,15 @@ mod tests {
     #[test]
     fn memory_buffer_paints_pixels() {
         std::env::set_var("THE_MACHINE_COMPOSITOR_BACKEND", "memory");
-        std::env::set_var("THE_MACHINE_FB_DUMP", "/tmp/compositor-test.ppm");
+        if std::env::var("THE_MACHINE_FB_DUMP").is_err() {
+            std::env::set_var("THE_MACHINE_FB_DUMP", "/tmp/compositor-test.ppm");
+        }
+        let dump_path = std::env::var("THE_MACHINE_FB_DUMP").unwrap();
         let mut px = PixelBackend::open();
         assert_eq!(px.backend_name(), "memory");
         px.clear(0, 0, 0);
-        px.fill_rect(10, 10, 50, 30, 255, 0, 0);
+        px.fill_rect(10, 10, 50, 30, [255, 0, 0]);
         px.present();
-        assert!(Path::new("/tmp/compositor-test.ppm").exists());
+        assert!(Path::new(&dump_path).exists());
     }
 }
