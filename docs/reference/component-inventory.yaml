@@ -132,6 +132,7 @@ mcp_services:
 integration_tests:
   lambda.register: tests/integration/test_agent_lambda.py
   lambda.invoke: tests/integration/test_agent_lambda.py
+  lambda.deprecate: tests/integration/test_lambda_deprecate.py
   lambda.search: tests/integration/test_lambda_search.py
   policy.check: tests/integration/test_policy_audit.py
   state.patch: tests/integration/test_ui_state.py
