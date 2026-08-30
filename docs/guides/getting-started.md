@@ -11,7 +11,7 @@ This guide walks through building, testing, and running **The Machine** on a Lin
 |------|---------|---------|
 | Rust | 1.98+ (see `rust-toolchain.toml`) | L0–L5 service daemons |
 | Python | 3.10+ | L1 MCP servers (lambda, policy, state, local-model, ui-engine) |
-| busybox-static | any | Initramfs `/bin/sh` |
+| busybox-static | any | Initramfs `/bin/sh` (or auto-fetched via `build/fetch-busybox.sh`) |
 | grub-pc-bin, xorriso | any | ISO image creation |
 | pytest, pytest-asyncio | any | Integration tests |
 | cargo-llvm-cov | optional | `make coverage` |
@@ -39,7 +39,7 @@ make build
 # Release binaries (for ISO)
 make build-release
 
-# Bootable initramfs + ISO (fetches GGUF model via build/fetch-model.sh)
+# Bootable initramfs + ISO (fetches GGUF model + busybox when missing)
 make iso
 ```
 

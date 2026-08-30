@@ -15,6 +15,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
+| verify-fix busybox/cpio | — | — | merged | 2026-08-30 | fetch-busybox.sh + busybox cpio fallback |
 | G17 wl_display scaffold | — | — | merged | 2026-08-30 | `wl_session.rs` + wayland-server on main |
 | G12 lease fast-path | — | — | merged | 2026-08-30 | `THE_MACHINE_LEASE_FAST_PATH=1` relay socket |
 | G13 rootfs kernel | — | — | merged | 2026-08-30 | debootstrap chroot kernel + `/vmlinuz` link |
@@ -26,6 +27,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-30 | verify-fix | initramfs busybox/cpio fetch | merged to main |
 | 2026-08-30 | gap | G13 kernel scaffold | merged to main |
 | 2026-08-30 | gap | G12 lease fast-path | merged to main |
 | 2026-08-30 | gap | bare-metal desktop A–C | merged to main |

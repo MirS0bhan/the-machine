@@ -10,7 +10,7 @@ PYTHON     ?= python3
 
 .PHONY: all build build-release initramfs initramfs-release iso iso-release qemu run run-console clean \
         test test-rust test-python test-all test-build-scripts verify verify-docs coverage lint docs help \
-        services-start services-stop ci-package fetch-model rootfs rootfs-release
+        services-start services-stop ci-package fetch-model fetch-busybox rootfs rootfs-release
 
 all: build initramfs iso docs
 
@@ -24,10 +24,13 @@ build-release:
 fetch-model:
 	bash build/fetch-model.sh
 
-initramfs: fetch-model
+fetch-busybox:
+	bash build/fetch-busybox.sh >/dev/null
+
+initramfs: fetch-model fetch-busybox
 	bash build/mkinitramfs.sh debug
 
-initramfs-release: fetch-model
+initramfs-release: fetch-model fetch-busybox
 	bash build/mkinitramfs.sh release
 
 # Build a bootable ISO (GRUB) that loads the kernel + initramfs.
@@ -67,6 +70,7 @@ test: test-all
 test-build-scripts:
 	bash build/test-assemble-release.sh
 	bash build/test-mkrootfs-layout.sh
+	bash build/test-fetch-busybox.sh
 
 test-rust:
 	$(CARGO) test --workspace
