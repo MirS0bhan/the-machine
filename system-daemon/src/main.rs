@@ -528,4 +528,118 @@ mod tests {
             assert_eq!(state.stats.read().await.kernel_ops_executed, 1);
         }
     }
+
+    #[tokio::test]
+    async fn power_get_profile_returns_profile_field() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request("power.get_profile".into(), None, &id, &state).await;
+        assert_eq!(resp.id, id);
+        assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
+        let profile = resp.result.and_then(|r| {
+            r.get("profile")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+        });
+        assert!(profile.is_some(), "expected profile string");
+        let p = profile.unwrap();
+        assert!(
+            p == "powersave" || p == "performance" || p == "balanced",
+            "unexpected profile: {p}"
+        );
+    }
+
+    #[tokio::test]
+    async fn display_get_modes_returns_modes_array() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request("display.get_modes".into(), None, &id, &state).await;
+        assert_eq!(resp.id, id);
+        assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
+        let modes = resp
+            .result
+            .and_then(|r| r.get("modes").and_then(|v| v.as_array()).cloned());
+        assert!(modes.is_some(), "expected modes array");
+    }
+
+    #[tokio::test]
+    async fn net_list_interfaces_includes_loopback() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request("net.list_interfaces".into(), None, &id, &state).await;
+        assert_eq!(resp.id, id);
+        assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
+        let ifaces = resp
+            .result
+            .and_then(|r| r.get("interfaces").and_then(|v| v.as_array()).cloned())
+            .unwrap_or_default();
+        assert!(
+            ifaces
+                .iter()
+                .any(|i| i.get("name").and_then(|v| v.as_str()) == Some("lo")),
+            "expected loopback in interfaces: {ifaces:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn audio_list_devices_returns_devices_array() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request("audio.list_devices".into(), None, &id, &state).await;
+        assert_eq!(resp.id, id);
+        assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
+        let devices = resp
+            .result
+            .and_then(|r| r.get("devices").and_then(|v| v.as_array()).cloned());
+        assert!(devices.is_some(), "expected devices array");
+    }
+
+    #[tokio::test]
+    async fn net_connect_wifi_requires_token() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request(
+            "net.connect_wifi".into(),
+            Some(serde_json::json!({ "ssid": "test-ssid" })),
+            &id,
+            &state,
+        )
+        .await;
+        assert_eq!(resp.id, id);
+        let err = resp.error.expect("expected denial");
+        assert_eq!(err.code, "E_POLICY_DENIED");
+    }
+
+    #[tokio::test]
+    async fn net_connect_wifi_rejects_missing_ssid() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let token = issue_test_token("net.connect_wifi");
+        let resp = handle_request(
+            "net.connect_wifi".into(),
+            Some(serde_json::json!({ "token": token })),
+            &id,
+            &state,
+        )
+        .await;
+        assert_eq!(resp.id, id);
+        let err = resp.error.expect("expected invalid request");
+        assert_eq!(err.code, "E_INVALID_REQUEST");
+        assert!(err.message.contains("ssid"));
+    }
+
+    #[tokio::test]
+    async fn system_daemon_stats_returns_counters() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request("system-daemon.stats".into(), None, &id, &state).await;
+        assert_eq!(resp.id, id);
+        assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
+        let result = resp.result.expect("stats result");
+        assert!(result.get("uptime").and_then(|v| v.as_f64()).is_some());
+        assert!(result
+            .get("kernel_ops_executed")
+            .and_then(|v| v.as_u64())
+            .is_some());
+    }
 }

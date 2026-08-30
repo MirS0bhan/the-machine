@@ -1,6 +1,5 @@
 //! MCP capability marketplace: signed bundles, install flow, CONFIRM gate.
 
-use common::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -244,6 +243,107 @@ fn err(id: Value, code: &str, message: &str) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    async fn test_state() -> Arc<Mutex<AppState>> {
+        let state = Arc::new(Mutex::new(AppState {
+            bundles: Mutex::new(HashMap::new()),
+            installed: Mutex::new(Vec::new()),
+        }));
+        seed_builtin_bundle(&state).await;
+        state
+    }
+
+    fn req(method: &str, params: Value) -> Value {
+        json!({ "id": "test-req", "method": method, "params": params })
+    }
+
+    #[tokio::test]
+    async fn list_returns_builtin_calc_pack() {
+        let state = test_state().await;
+        let resp = handle_request(req("marketplace.list", json!({})), state).await;
+        assert!(resp.get("error").is_none());
+        let bundles = resp
+            .get("result")
+            .and_then(|r| r.get("bundles"))
+            .and_then(|b| b.as_array())
+            .expect("bundles array");
+        assert!(bundles.iter().any(|b| b.get("id").and_then(|v| v.as_str()) == Some("calc-pack-v1")));
+    }
+
+    #[tokio::test]
+    async fn install_without_confirm_requires_confirmation() {
+        let state = test_state().await;
+        let resp = handle_request(
+            req("marketplace.install", json!({ "bundle_id": "calc-pack-v1" })),
+            state,
+        )
+        .await;
+        assert!(resp.get("error").is_none());
+        let result = resp.get("result").expect("result");
+        assert_eq!(
+            result.get("status").and_then(|v| v.as_str()),
+            Some("CONFIRM_REQUIRED")
+        );
+    }
+
+    #[tokio::test]
+    async fn install_unknown_bundle_returns_not_found() {
+        let state = test_state().await;
+        let resp = handle_request(
+            req(
+                "marketplace.install",
+                json!({ "bundle_id": "missing-pack", "confirm": true }),
+            ),
+            state,
+        )
+        .await;
+        assert_eq!(
+            resp.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|c| c.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
+
+    #[tokio::test]
+    async fn install_with_confirm_records_installed() {
+        let state = test_state().await;
+        let resp = handle_request(
+            req(
+                "marketplace.install",
+                json!({ "bundle_id": "calc-pack-v1", "confirm": true }),
+            ),
+            state.clone(),
+        )
+        .await;
+        assert!(resp.get("error").is_none());
+        assert_eq!(
+            resp.get("result")
+                .and_then(|r| r.get("installed"))
+                .and_then(|v| v.as_str()),
+            Some("calc-pack-v1")
+        );
+
+        let installed = handle_request(req("marketplace.installed", json!({})), state).await;
+        let list = installed
+            .get("result")
+            .and_then(|r| r.get("installed"))
+            .and_then(|v| v.as_array())
+            .expect("installed list");
+        assert!(list.iter().any(|id| id.as_str() == Some("calc-pack-v1")));
+    }
+
+    #[tokio::test]
+    async fn unknown_method_returns_not_found() {
+        let state = test_state().await;
+        let resp = handle_request(req("marketplace.nope", json!({})), state).await;
+        assert_eq!(
+            resp.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|c| c.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
 
     #[test]
     fn builtin_bundle_has_valid_signature_and_safe_source() {
