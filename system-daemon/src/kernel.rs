@@ -1,8 +1,6 @@
 //! Kernel/hardware abstraction: power, display, network, audio.
-//!
-//! These are placeholder stubs returning mock data until the real
-//! kernel interfaces are wired up.
 
+use crate::display;
 use common::{AudioDevice, DisplayMode, NetworkInterface};
 
 pub struct KernelHandler;
@@ -17,12 +15,7 @@ impl KernelHandler {
     }
 
     pub fn get_display_modes(&self) -> Vec<DisplayMode> {
-        vec![DisplayMode {
-            width: 1920,
-            height: 1080,
-            refresh: 60.0,
-            current: true,
-        }]
+        display::get_display_modes()
     }
 
     pub fn list_interfaces(&self) -> Vec<NetworkInterface> {
@@ -47,11 +40,11 @@ impl KernelHandler {
 
     pub async fn set_display_mode(
         &self,
-        _width: u32,
-        _height: u32,
-        _refresh: f32,
+        width: u32,
+        height: u32,
+        refresh: f32,
     ) -> Result<(), String> {
-        Ok(())
+        display::set_display_mode(width, height, refresh)
     }
 
     pub async fn set_interface_state(&self, _name: &str, _state: &str) -> Result<(), String> {

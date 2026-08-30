@@ -7,6 +7,7 @@ use tokio::net::UnixListener;
 use tokio::sync::{Mutex, RwLock};
 use tracing::{error, info};
 
+mod display;
 mod input;
 mod kernel;
 
@@ -353,6 +354,37 @@ mod tests {
         assert!(resp.error.is_none(), "{:?}", resp.error);
         assert_eq!(resp.id, id);
         assert_eq!(state.stats.read().await.kernel_ops_executed, 1);
+    }
+
+    #[tokio::test]
+    async fn display_set_mode_without_drm_returns_unavailable() {
+        std::env::set_var("THE_MACHINE_DRM_DEVICE", "/tmp/the-machine-no-drm-card0");
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let token = shared_verifier().issue_token(
+            GrantScope {
+                method: "display.set_mode".into(),
+                request_hash: "t".into(),
+                requester_identity: "test".into(),
+            },
+            60,
+        );
+        let resp = handle_request(
+            "display.set_mode".into(),
+            Some(serde_json::json!({
+                "width": 1920,
+                "height": 1080,
+                "refresh": 60.0,
+                "token": token
+            })),
+            &id,
+            &state,
+        )
+        .await;
+        std::env::remove_var("THE_MACHINE_DRM_DEVICE");
+        let err = resp.error.expect("expected unavailable without DRM");
+        assert_eq!(err.code, "E_UNAVAILABLE");
+        assert!(err.message.contains("DRM/KMS"));
     }
 
     #[tokio::test]
