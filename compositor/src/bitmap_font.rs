@@ -3,7 +3,6 @@
 use crate::pixel::PixelBackend;
 
 const W: u32 = 5;
-const H: u32 = 7;
 
 fn glyph(ch: char) -> [u8; 7] {
     match ch {
