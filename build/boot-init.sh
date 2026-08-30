@@ -71,6 +71,14 @@ sleep 1
 
 boot_probe_display
 
+boot_warn_if_no_display
+
+# Prefer legacy framebuffer when available (more reliable than DRM in QEMU).
+if [ -e /dev/fb0 ]; then
+  export THE_MACHINE_COMPOSITOR_BACKEND=framebuffer
+  boot_log "using THE_MACHINE_COMPOSITOR_BACKEND=framebuffer (/dev/fb0 present)"
+fi
+
 # L5 — display session: compositor first, then UI, then shell
 start_svc compositor
 sleep 2

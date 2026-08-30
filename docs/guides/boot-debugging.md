@@ -51,6 +51,28 @@ sh /collect-boot-logs.sh /tmp/report.txt
 
 ## Common blank-screen causes
 
+### 0. **Cloud-tuned kernel in the ISO** (your log shows this)
+
+Your serial log included:
+
+```
+Linux version 6.17.0-1022-azure ...
+```
+
+**Azure/AWS/GCP kernels are built for their hypervisor, not QEMU std-VGA.** The initramfs can start every service (as in your log) but the compositor has no `/dev/fb0` or `/dev/dri` → **memory backend** → blank screen. The line after `boot complete` is not a hang; PID 1 is sleeping while services run in the background.
+
+**Fix:** rebuild the ISO with a generic kernel:
+
+```bash
+sudo apt install linux-image-generic   # Debian/Ubuntu
+KERNEL=/boot/vmlinuz-$(uname -r | sed 's/-azure//;s/$/-generic/') make iso
+# or explicitly:
+ls /boot/vmlinuz-*-generic
+KERNEL=/boot/vmlinuz-6.8.0-XX-generic make iso
+```
+
+`make iso` now prefers `*-generic` over `*-azure` automatically when both are installed.
+
 ### 1. Compositor on **memory** backend
 
 If `/var/log/compositor-backend` contains `backend=memory`, pixels never reach the display. Check the display probe in `/var/log/boot.log`:

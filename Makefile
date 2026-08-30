@@ -85,6 +85,7 @@ test-build-scripts:
 	bash build/test-boot-greet-e2e.sh
 	bash build/test-boot-greet-services.sh
 	bash build/test-boot-logging.sh
+	bash build/test-select-kernel.sh
 
 test-rust:
 	$(CARGO) test --workspace

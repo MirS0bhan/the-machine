@@ -44,6 +44,19 @@ boot_probe_system() {
   boot_log "arch: $(uname -m 2>/dev/null || echo unknown)"
   boot_log "memory: $(grep MemTotal /proc/meminfo 2>/dev/null | tr -s ' ' || echo unknown)"
   boot_log "pid1: $$"
+  case "$(uname -r 2>/dev/null)" in
+    *-azure|*-aws|*-gcp)
+      boot_log "WARN: cloud-tuned kernel — QEMU -vga std often has no fb0/dri (blank screen)"
+      boot_log "WARN: rebuild ISO with generic kernel: KERNEL=/boot/vmlinuz-*-generic make iso"
+      ;;
+  esac
+}
+
+boot_warn_if_no_display() {
+  if [ -e /dev/fb0 ] || [ -d /dev/dri ]; then
+    return 0
+  fi
+  boot_log "WARN: no /dev/fb0 and no /dev/dri — compositor will use memory backend (blank VGA)"
 }
 
 boot_probe_display() {
