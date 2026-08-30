@@ -563,6 +563,20 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## Event Adapters
+
+The Rust daemon ships proactive ingress adapters that publish to `event.publish` on the local MCP socket:
+
+| Adapter | Source | Patterns | Disable |
+|---------|--------|----------|---------|
+| D-Bus | Native **zbus** on the system bus (no `dbus-monitor` dependency) | `desktop.notify`, `login.prepare_sleep` | `THE_MACHINE_DISABLE_DBUS=1` |
+| inotify | Filesystem watches (`THE_MACHINE_FS_WATCHES` or default download dirs) | `fs.change.*` | — |
+| audio | PipeWire state (when available) | `pipewire.state` | — |
+
+The D-Bus adapter subscribes to `org.freedesktop.Notifications.Notify` and `org.freedesktop.login1.Manager.PrepareForSleep`, decoding signal bodies into structured JSON payloads before publishing.
+
+---
+
 ## See Also
 
 - [State Store](./state-store.md) — for the underlying storage and subscriptions
