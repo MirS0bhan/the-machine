@@ -563,6 +563,20 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## External Adapters
+
+The Rust `event-bus` binary starts background adapters that translate host events into `event.publish` calls on the bus socket.
+
+| Adapter | Source | Events |
+|---------|--------|--------|
+| D-Bus | System bus via **zbus** (`Connection::system`) | `desktop.notify`, `login.prepare_sleep` |
+| inotify | Filesystem watches (`THE_MACHINE_FS_WATCHES` or default download dirs) | `fs.change.*` |
+| audio | PipeWire/Pulse (when available) | audio level events |
+
+Set `THE_MACHINE_DISABLE_DBUS=1` to skip D-Bus subscription (e.g. initramfs without a system bus). When the system bus is unavailable the adapter logs and retries; it does **not** shell out to `dbus-monitor`.
+
+---
+
 ## See Also
 
 - [State Store](./state-store.md) — for the underlying storage and subscriptions
