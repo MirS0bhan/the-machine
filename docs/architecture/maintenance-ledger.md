@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| verify-fix ui-runtime conflict markers | cursor/maintenance-verify-fix-ui-runtime-conflict-4c83d6c | — | pr-open | 2026-08-30 | merge both MCP handler + resolve_token test suites |
+| verify-fix initramfs modules skip | cursor/maintenance-verify-fix-initramfs-modules-9b9ce7c | — | pr-open | 2026-08-30 | skip test when /lib/modules missing |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -16,8 +16,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | verify-fix | ui-runtime merge conflict markers in tests mod | pr-open |
-| 2026-08-30 | verify-fix | maintenance-ledger conflict markers | merged to main (#170) |
+| 2026-08-30 | verify-fix | test-initramfs-modules skip on missing /lib/modules | pr-open |
 | 2026-08-30 | audit | state-store clippy/dead-code | pr-open (#169) |
 | 2026-08-30 | gap | G13 operator installed-rootfs validation | pr-open (#168) |
 | 2026-08-30 | audit | local-model-daemon clippy/dead-code | pr-open (#167) |
@@ -61,4 +60,4 @@ Rotate when completing a row. Prefer top item not in cooldown.
 1. **G17** — compositor: wlroots seat/output (cooldown until 2026-09-06)
 2. **audit** — missing Python integration test for an MCP method (see `component-inventory.yaml`)
 3. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
-4. **audit** — `make verify` + fix first failure
+4. **G13** — operator target-HW validation on installed rootfs (PR #168)
