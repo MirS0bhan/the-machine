@@ -6,7 +6,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "${WORK}"' EXIT
 
-KERNEL="$(ls -1 /boot/vmlinuz-* 2>/dev/null | sort -V | tail -1 || true)"
+KERNEL="$(bash "${ROOT}/build/select-kernel.sh" 2>/dev/null || true)"
+if [[ -z "${KERNEL}" ]]; then
+  KERNEL="$(ls -1 /boot/vmlinuz-* 2>/dev/null | sort -V | tail -1 || true)"
+fi
 INITRAMFS="${ROOT}/build/initramfs.cpio.gz"
 if [[ -z "${KERNEL}" || ! -f "${KERNEL}" ]]; then
   echo "SKIP: no host kernel for mkiso bootable test"

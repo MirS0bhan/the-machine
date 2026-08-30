@@ -24,6 +24,7 @@ fi
 
 bash "${ROOT}/build/select-kernel.sh" --warn-if-cloud "${KERNEL}"
 echo "==> Using kernel ${KERNEL}"
+echo "${KERNEL}" > "${BUILD_DIR}/iso-kernel.path"
 
 if [[ ! -f "${INITRAMFS}" ]]; then
   echo "ERROR: initramfs not found at ${INITRAMFS}. Run 'make initramfs-release' first." >&2

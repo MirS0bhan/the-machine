@@ -282,13 +282,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            busybox-static grub-pc-bin grub-common xorriso mtools linux-image-virtual
+            busybox-static grub-pc-bin grub-common xorriso mtools \
+            linux-image-generic qemu-system-x86
 
       - name: Build release initramfs + ISO
         run: |
           make initramfs-release
-          make iso-release KERNEL=/boot/vmlinuz-$(uname -r)
+          make iso-release
           bash build/verify-iso-bootable.sh build/the-machine.iso
+          bash build/verify-iso-kernel.sh build/iso-kernel.path
+          bash build/test-iso-boot-smoke.sh build/vmlinuz build/initramfs.cpio.gz
 
       - name: Upload initramfs
         uses: actions/upload-artifact@v4
