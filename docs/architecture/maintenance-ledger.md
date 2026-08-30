@@ -8,7 +8,8 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| verify-fix initramfs modules skip | cursor/maintenance-verify-fix-initramfs-modules-9b9ce7c | — | pr-open | 2026-08-30 | skip test when /lib/modules missing |
+| verify-fix event-bus main.rs empty (build broken) | cursor/maintenance-verify-fix-event-bus-build-67ca1c0 | — | pr-open | 2026-08-30 | restore `event-bus/src/main.rs` + resolve conflict markers |
+| verify-fix initramfs modules skip | cursor/maintenance-verify-fix-initramfs-modules-9b9ce7c | #188 | merged | 2026-08-30 | skip test when /lib/modules missing |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -16,7 +17,8 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | verify-fix | test-initramfs-modules skip on missing /lib/modules | pr-open |
+| 2026-08-30 | verify-fix | `main` build broken: `event-bus/src/main.rs` emptied + conflict markers in `component-inventory.yaml`/`verify-docs-code.py` by bad merge resolution | pr-open |
+| 2026-08-30 | verify-fix | test-initramfs-modules skip on missing /lib/modules | merged (#188) |
 | 2026-08-30 | audit | state-store clippy/dead-code | pr-open (#169) |
 | 2026-08-30 | gap | G13 operator installed-rootfs validation | pr-open (#168) |
 | 2026-08-30 | audit | local-model-daemon clippy/dead-code | pr-open (#167) |
@@ -58,6 +60,6 @@ until the PR is merged to `main`.
 Rotate when completing a row. Prefer top item not in cooldown.
 
 1. **G17** — compositor: wlroots seat/output (cooldown until 2026-09-06)
-2. **audit** — missing Python integration test for an MCP method (see `component-inventory.yaml`)
+2. **audit** — missing Python integration test for an MCP method (see `component-inventory.yaml`; many `system-daemon`/`ui-runtime`/`compositor`/`mcp-bus` methods still lack one)
 3. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
-4. **G13** — operator target-HW validation on installed rootfs (PR #168)
+4. **docs** — `gap-analysis.md` "Open — Platform" table still lists G13 as open/"(in PR)"; all sub-items (debootstrap+GRUB, fstab, boot.auil, operator installed-rootfs validation) are merged to `main` (PRs #157, #159, #168) — move G13 to Closed in a tiny docs-only PR

@@ -200,13 +200,10 @@ def main() -> None:
         if not listed:
             errors.append(f"integration_tests method {method!r} not in mcp_services")
 
-<<<<<<< HEAD
-=======
     docs_tree = "\n".join(p.read_text(errors="replace") for p in (ROOT / "docs").rglob("*") if p.is_file())
     if "<<<<<<<" in docs_tree or ">>>>>>>" in docs_tree:
         errors.append("docs/ contains unresolved git merge conflict markers")
 
->>>>>>> origin/main
     # Component See Also links must resolve on disk (sibling ./ paths).
     components_dir = ROOT / "docs/components"
     link_re = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
