@@ -563,6 +563,20 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## External Adapters
+
+Rust adapters publish normalized events via `event.publish` on the bus socket:
+
+| Adapter | Source | Events | Disable |
+|---------|--------|--------|---------|
+| D-Bus | System bus via `zbus` | `desktop.notify`, `login.prepare_sleep` | `THE_MACHINE_DISABLE_DBUS=1` |
+| inotify | `THE_MACHINE_FS_WATCHES` or default download paths | `fs.change.*` | — |
+| audio | PipeWire socket presence | `pipewire.state` | — |
+
+The D-Bus adapter subscribes to `org.freedesktop.Notifications.Notify` and `org.freedesktop.login1.Manager.PrepareForSleep` without requiring the host `dbus-monitor` binary.
+
+---
+
 ## See Also
 
 - [State Store](./state-store.md) — for the underlying storage and subscriptions
