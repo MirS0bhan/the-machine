@@ -410,4 +410,118 @@ mod tests {
         let status = result.get("status").and_then(|v| v.as_str());
         assert!(status == Some("disconnected") || status == Some("associated"));
     }
+
+    fn issue_test_token(method: &str) -> GrantToken {
+        shared_verifier().issue_token(
+            GrantScope {
+                method: method.into(),
+                request_hash: "t".into(),
+                requester_identity: "test".into(),
+            },
+            60,
+        )
+    }
+
+    #[tokio::test]
+    async fn net_set_interface_state_requires_token() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request(
+            "net.set_interface_state".into(),
+            Some(serde_json::json!({ "name": "eth0", "state": "up" })),
+            &id,
+            &state,
+        )
+        .await;
+        assert_eq!(resp.id, id);
+        let err = resp.error.expect("expected denial");
+        assert_eq!(err.code, "E_POLICY_DENIED");
+    }
+
+    #[tokio::test]
+    async fn net_set_interface_state_rejects_unknown_interface() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let token = issue_test_token("net.set_interface_state");
+        let resp = handle_request(
+            "net.set_interface_state".into(),
+            Some(serde_json::json!({
+                "name": "the-machine-no-such-nic0",
+                "state": "up",
+                "token": token
+            })),
+            &id,
+            &state,
+        )
+        .await;
+        assert_eq!(resp.id, id);
+        let err = resp.error.expect("expected unavailable for missing iface");
+        assert_eq!(err.code, "E_UNAVAILABLE");
+        assert!(err.message.contains("unknown interface"));
+    }
+
+    #[tokio::test]
+    async fn net_set_interface_state_rejects_loopback() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let token = issue_test_token("net.set_interface_state");
+        let resp = handle_request(
+            "net.set_interface_state".into(),
+            Some(serde_json::json!({
+                "name": "lo",
+                "state": "down",
+                "token": token
+            })),
+            &id,
+            &state,
+        )
+        .await;
+        assert_eq!(resp.id, id);
+        let err = resp.error.expect("expected loopback guard");
+        assert_eq!(err.code, "E_UNAVAILABLE");
+        assert!(err.message.contains("loopback"));
+    }
+
+    #[tokio::test]
+    async fn audio_set_default_requires_token() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request(
+            "audio.set_default".into(),
+            Some(serde_json::json!({ "name": "default" })),
+            &id,
+            &state,
+        )
+        .await;
+        assert_eq!(resp.id, id);
+        let err = resp.error.expect("expected denial");
+        assert_eq!(err.code, "E_POLICY_DENIED");
+    }
+
+    #[tokio::test]
+    async fn audio_set_default_with_token_succeeds_or_unavailable() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let token = issue_test_token("audio.set_default");
+        let resp = handle_request(
+            "audio.set_default".into(),
+            Some(serde_json::json!({
+                "name": "default",
+                "token": token
+            })),
+            &id,
+            &state,
+        )
+        .await;
+        assert_eq!(resp.id, id);
+        let err_code = resp.error.as_ref().map(|e| e.code.as_str());
+        assert!(
+            resp.error.is_none() || err_code == Some("E_UNAVAILABLE"),
+            "token should pass grant check; got {:?}",
+            resp.error
+        );
+        if resp.error.is_none() {
+            assert_eq!(state.stats.read().await.kernel_ops_executed, 1);
+        }
+    }
 }
