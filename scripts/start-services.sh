@@ -17,6 +17,9 @@ PID_DIR="${THE_MACHINE_PID_DIR:-/tmp/the-machine/pid}"
 mkdir -p "${SOCKET_DIR}" "${LOG_DIR}" "${PID_DIR}"
 export THE_MACHINE_SOCKET_DIR="${SOCKET_DIR}"
 export RUST_LOG="${RUST_LOG:-info}"
+if [[ -f "${ROOT}/build/boot.auil" ]]; then
+  export THE_MACHINE_BOOT_AUIL="${ROOT}/build/boot.auil"
+fi
 
 start_rust() {
   local name="$1"
@@ -97,9 +100,11 @@ start_rust marketplace
 # L4
 start_rust agent-core
 
-# L5
+# L5 — compositor before UI so surfaces exist when boot AUIL syncs
 start_rust compositor
+sleep 2
 start_rust ui-runtime
+sleep 1
 start_rust fallback-shell
 
 echo "==> All services started. PIDs in ${PID_DIR}"

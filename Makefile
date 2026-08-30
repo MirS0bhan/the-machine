@@ -75,6 +75,8 @@ test-build-scripts:
 	bash build/test-installer-grub.sh
 	bash build/test-mkiso-bootable.sh
 	bash build/hardware-smoke.sh
+	bash build/test-boot-greet-e2e.sh
+	bash build/test-boot-greet-services.sh
 
 test-rust:
 	$(CARGO) test --workspace
