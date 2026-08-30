@@ -531,6 +531,20 @@ Get bus statistics.
 
 ---
 
+## External Adapters
+
+The Rust event-bus daemon starts background adapters that translate Linux ecosystem signals into `event.publish` calls on the local socket:
+
+| Adapter | Source | Events | Disable |
+|---------|--------|--------|---------|
+| D-Bus | native **zbus** system bus | `desktop.notify`, `login.prepare_sleep` | `THE_MACHINE_DISABLE_DBUS=1` |
+| inotify | filesystem watches | `fs.change.*` | omit watch paths / empty config |
+| audio | PipeWire state | `pipewire.state` | n/a |
+
+The D-Bus adapter subscribes to `org.freedesktop.Notifications.Notify` and `org.freedesktop.login1.Manager.PrepareForSleep` via typed zbus proxies — no host `dbus-monitor` binary required. When the system bus is unavailable (e.g. initramfs without D-Bus), the adapter logs and retries with backoff.
+
+---
+
 ## Integration with State Store
 
 The Event Bus uses the State Store's `state.watch` mechanism for subscriptions. When a component subscribes to an event pattern:
