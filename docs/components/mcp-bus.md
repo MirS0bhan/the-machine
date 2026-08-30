@@ -330,9 +330,11 @@ List all entries in a namespace. Implemented as `bus.list_routes`.
 
 Record a capability lease after resolving `method` in the registry.
 
-**Current behaviour (G12):** no dedicated `leases/<id>.sock` is bound. The
-response names the existing handler socket so callers can skip a second
-`bus.resolve`. `fast_path` is `false` until a real relay socket exists.
+**Current behaviour (G12):** by default no dedicated `leases/<id>.sock` is bound.
+The response names the existing handler socket so callers can skip a second
+`bus.resolve`. Set `THE_MACHINE_LEASE_FAST_PATH=1` to bind a per-lease relay
+socket at `{socket_dir}/leases/<lease_id>.sock`; then `fast_path` is `true` and
+`socket_path` is set. Policy checks still run on relayed calls.
 
 **Parameters:**
 - `method` — the method to lease
@@ -342,7 +344,8 @@ response names the existing handler socket so callers can skip a second
 - `lease_id` — the lease ID
 - `handler` — registry handler id (e.g. `lambda-server`)
 - `handler_socket` — existing Unix socket for that handler
-- `fast_path` — `false` until a dedicated lease socket is implemented
+- `socket_path` — present when `fast_path` is `true` (dedicated lease relay)
+- `fast_path` — `true` when `THE_MACHINE_LEASE_FAST_PATH=1` and bind succeeded
 - `ttl_secs` — granted TTL
 
 **Example:**

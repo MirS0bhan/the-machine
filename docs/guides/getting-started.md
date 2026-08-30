@@ -78,6 +78,7 @@ Boot services started by `scripts/start-services.sh` (rust mode):
 | `THE_MACHINE_LAMBDA_DIR` | `/var/the-machine/lambdas` | Synthesized lambda source root |
 | `THE_MACHINE_TOKEN_SECRET` | ISO default material | HMAC key for grant tokens |
 | `THE_MACHINE_POLICY_FAIL_OPEN` | unset (fail closed) | Set `1` to allow mutations when the broker is down |
+| `THE_MACHINE_LEASE_FAST_PATH` | unset (metadata only) | Set `1` to bind per-lease relay sockets on `bus.lease` |
 
 ## Test
 

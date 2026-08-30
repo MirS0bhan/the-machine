@@ -51,10 +51,12 @@ The build uses only the Python standard library plus the `markdown` package
 ```bash
 cargo run --bin mcp-bus
 cargo run --bin system-daemon
-cargo run --bin policy-broker      # stub — use hybrid mode for full policy
-cargo run --bin state-store
+cargo run --bin policy-broker      # full rule engine + confirmation UI (boot path)
+cargo run --bin state-store        # sled or memory; STATE_STORE_PATH for persistence
 cargo run --bin event-bus
 cargo run --bin lambda-server
+cargo run --bin local-model-daemon # GGUF or stub heuristics
+cargo run --bin marketplace
 cargo run --bin agent-core
 cargo run --bin ui-runtime
 ```
@@ -128,19 +130,22 @@ system auditable: every action the agent takes is a logged MCP call.
 | L1 | Lambda Execution Server | **Implemented + tested** | HTTP + MCP API, `LocalExecutor`, capability enforcement, registry, supervisor |
 | L1 | State Store | **Implemented** | MCP server, backend, capability-gated reads/writes, pub/sub |
 | L1 | Event/Scheduler Bus | **Implemented** | Rust daemon (full); Python harness for integration tests |
-| L2 | Policy Broker | **Implemented** | Python rule engine (canonical); Rust boot stub |
-| L4 | Agent Core | **Implemented** | Session loop, hybrid router, privacy gate, systemd control, skills |
-| L4 | Local Model Interface | **Implemented** | Engine, privacy tagging, embedding backend, MCP server |
+| L2 | Policy Broker | **Implemented** | Rust rule engine (boot); Python reference for tests |
+| L4 | Agent Core | **Implemented** | LLM planner via local-model-daemon + cloud router |
+| L4 | Local Model Interface | **Implemented** | `local-model-daemon` (GGUF) + Python reference |
+| L4 | Marketplace | **Implemented** | Curated bundle install |
 | L5 | UI Engine | **Implemented** | AUIL/ASL parser, runtime, patch protocol, renderer, models |
 | L5 | UI Engine Demo | **Implemented** | Terminal `AbstractRenderer`, `demo.auil`, input loop, tests |
-| L3 | MCP Bus | **Implemented** | Rust daemon with method registry + socket forwarding |
-| L0 | System Daemon | **Implemented** | Rust daemon (mock kernel ops for dev) |
-| L5 | Wayland Compositor | **Partial** | Rust logical model; wlroots integration planned |
+| L3 | MCP Bus | **Implemented** | Dynamic intent registry, policy middleware, leases |
+| L0 | System Daemon | **Implemented** | evdev input + mock kernel ops |
+| L5 | Wayland Compositor | **Partial** | Framebuffer present loop; full wlroots (G16) planned |
 | L3.7 | Fallback Shell | **Implemented** | Rust console recovery mode |
 
 The architecture specs are carried forward in their chapters with live implementation
 references appended where source code exists. See
-[Python ↔ Rust Overlap Guide](../guides/python-rust-overlap.md) for dual-language components.
+[Runtime Model](../architecture/runtime-model.md) for the end-to-end agent→MCP→UI loop,
+[Expansion Proposal](../architecture/expansion-proposal.md) for the roadmap to a fully agentic OS,
+and [Python ↔ Rust Overlap Guide](../guides/python-rust-overlap.md) for dual-language components.
 
 **Test coverage (run `make test-all`):**
 
@@ -212,11 +217,13 @@ the-machine/
 ├── compositor/               # L5 Wayland compositor (Rust, partial)
 ├── fallback-shell/           # L5 recovery UI (Rust)
 ├── ui-runtime/               # L5 declarative renderer daemon (Rust)
-├── local-model/              # L4 Tier-A inference (Python)
+├── local-model-daemon/       # L4 Tier-A inference (Rust, GGUF)
+├── marketplace/              # L4 curated bundle install
+├── local-model/              # L4 Tier-A inference (Python reference)
 ├── ui-engine/                # L5 AUIL/ASL parser (Python)
 ├── ui-engine-demo/           # L5 terminal demo app
 ├── build/                    # mkinitramfs.sh, mkiso.sh, CI packaging
-├── scripts/                  # start-services.sh, verify-all.sh
+├── scripts/                  # start-services.sh, verify-all.sh, verify-docs-code.*
 └── Makefile                  # build, test, iso, ci-package
 ```
 
@@ -728,6 +735,11 @@ This is the interface the Agent Core actually talks to — the Lambda Server is,
 
 Scanned `lambda-server`. Module / public-symbol inventory:
 
+- **`bus_client.py`**
+  - `def register_mcp_intent()`
+  - `def deregister_mcp_intent()`
+  - `def deregister_event_handler()`
+  - `def register_event_handler()`
 - **`config.py`**
   - `class ServerConfig`
     - `from_env()`
@@ -836,7 +848,7 @@ Scanned `lambda-server`. Module / public-symbol inventory:
     - `list_warm_pool()`
     - `get_stats()`
 
-**Tests discovered:** 7 `test_*` functions.
+**Tests discovered:** 10 `test_*` functions.
 
 
 ---
@@ -1687,8 +1699,8 @@ Scanned `ui-engine-demo`. Module / public-symbol inventory:
 
 **Fills:** §3.4 of `agent-native-os-architecture.md` (MCP Bus) — the component `auil-asl-spec.md` §8 and `event-bus-spec.md` §2 both assume exists but never specify
 **Related:** `auil-asl-spec.md` §8 (three-way handler classification this doc implements the routing table for), `lambda-server-spec.md` §7 (`exposes_mcp` registration), `event-bus-spec.md` §2 (`handles_event` registration — a parallel registry this doc's mechanism generalizes), `policy-broker-spec.md` §11 (registration validation)
-**Version:** 0.1 (design draft)
-**Status:** Conceptual, pre-implementation
+**Version:** 0.1  
+**Status:** Partially implemented — see `mcp-bus/src/` (dynamic registry, `bus.resolve`, `_bus.register`)
 
 ---
 
@@ -1790,11 +1802,11 @@ Per `policy-broker-spec.md` §7, intent-registry registrations are logged **per-
 
 ---
 
-## 8. Open items before implementation
+## 8. Open items
 
-1. **Wire protocol between Bus and components** — likely reuses the same length-prefixed framing `lambda-server-spec.md` §10.1 proposes for its own IPC layer, but this needs to be the *same* choice, not an independently-made one, since components speak both.
+1. ~~**Wire protocol between Bus and components**~~ — **Decided:** newline-delimited JSON over Unix sockets (one UTF-8 object + `\n` per message). Every boot daemon uses this framing. Length-prefixed / MessagePack remains a future optimization, not the current contract.
 2. **Namespace prefix collision rules** — the "extract namespace from method prefix" resolution (§2) needs a formal grammar so `mcp-intent` keys can never accidentally shadow a `system-op`/`state-op` prefix.
-3. **Registry persistence across Bus restarts** — is the registry rebuilt from each component's own manifest on Bus restart (source-of-truth stays distributed), or does the Bus persist its own copy (faster cold start, but a second place truth can drift)?
+3. ~~**Registry persistence across Bus restarts**~~ — Bus persists dynamic routes to `perm.mcp_routes.*` and reloads them on start (`reload_routes_from_state`).
 4. **Multi-instance / sharding** — out of scope for a single-user machine today, but worth flagging that this design assumes exactly one Bus instance; nothing here has been designed for horizontal scaling.
 
 ---

@@ -55,6 +55,7 @@ env_vars:
   - RUST_LOG
   - THE_MACHINE_TOKEN_SECRET
   - THE_MACHINE_POLICY_FAIL_OPEN
+  - THE_MACHINE_LEASE_FAST_PATH
 
 mcp_services:
   system-daemon:

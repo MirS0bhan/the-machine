@@ -16,6 +16,7 @@ until the PR is merged to `main`.
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
 | G17 wl_display scaffold | — | — | merged | 2026-08-30 | `wl_session.rs` + wayland-server on main |
+| G12 lease fast-path | — | — | merged | 2026-08-30 | `THE_MACHINE_LEASE_FAST_PATH=1` relay socket |
 | G14 display + net (partial) | — | — | merged | 2026-08-30 | display.rs + net sysfs on main |
 | G13 installer (partial) | — | — | merged | 2026-08-30 | mkrootfs + install.sh hardened |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
@@ -25,6 +26,8 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-30 | gap | G12 lease fast-path | merged to main |
+| 2026-08-30 | gap | bare-metal desktop A–C | merged to main |
 | 2026-08-30 | gap | G17 wl_display scaffold | merged to main |
 | 2026-08-30 | gap | G7 | merged to main |
 | 2026-08-30 | gap | policy hardening | merged to main |
@@ -35,5 +38,5 @@ Rotate when completing a row. Prefer top item not in cooldown.
 
 1. **G17** — compositor: wlroots seat/output + `wl_compositor` global
 2. **G14** — wpa_supplicant wifi connect + PipeWire default device
-3. **G12** — mcp-bus lease fast-path socket or permanent metadata-only docs
-4. **G13** — validate installed rootfs on bare metal (debootstrap + GRUB)
+3. **G13** — validate installed rootfs on bare metal (debootstrap + GRUB)
+4. **audit** — `make verify` + fix first failure

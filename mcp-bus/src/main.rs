@@ -1,4 +1,5 @@
 use common::*;
+use serde_json::json;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
@@ -511,7 +512,38 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
                 None => return error_bytes(id, "E_NOT_FOUND", "method not registered"),
             };
             let ttl = params.get("ttl_secs").and_then(|v| v.as_u64());
-            let result = state.leases.create(method_name, &route.handler, ttl);
+            let mut result = state.leases.create(
+                method_name,
+                &route.handler,
+                route.manifest_ref.clone(),
+                ttl,
+            );
+            if lease_fast_path_enabled() {
+                if let Some(lease_id) = result.get("lease_id").and_then(|v| v.as_str()) {
+                    if let Some(rec) = state.leases.get(lease_id) {
+                        match spawn_lease_relay(
+                            rec.lease_id.clone(),
+                            rec.method.clone(),
+                            rec.handler.clone(),
+                            rec.manifest_ref.clone(),
+                            rec.expires_at,
+                            state.clone(),
+                        )
+                        .await
+                        {
+                            Ok(socket_path) => {
+                                if let Some(obj) = result.as_object_mut() {
+                                    obj.insert("fast_path".into(), json!(true));
+                                    obj.insert("socket_path".into(), json!(socket_path));
+                                }
+                            }
+                            Err(e) => {
+                                warn!("lease fast-path bind failed for {}: {}", lease_id, e);
+                            }
+                        }
+                    }
+                }
+            }
             ok_bytes(id, result)
         }
         "bus.lease.renew" => {
@@ -642,6 +674,137 @@ async fn forward_to(
         ok,
     );
     Some(line.into_bytes())
+}
+
+fn lease_fast_path_enabled() -> bool {
+    matches!(
+        std::env::var("THE_MACHINE_LEASE_FAST_PATH").as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE")
+    )
+}
+
+/// Bind `leases/<id>.sock` and relay the leased method to its handler (G12).
+async fn spawn_lease_relay(
+    lease_id: String,
+    method: String,
+    handler: String,
+    manifest_ref: Option<String>,
+    expires_at: std::time::Instant,
+    state: AppState,
+) -> anyhow::Result<String> {
+    let socket_path = common::lease_socket(&lease_id);
+    if let Some(parent) = std::path::Path::new(&socket_path).parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+    let _ = tokio::fs::remove_file(&socket_path).await;
+    let listener = UnixListener::bind(&socket_path)?;
+    let cleanup_path = socket_path.clone();
+
+    tokio::spawn(async move {
+        loop {
+            if std::time::Instant::now() >= expires_at {
+                debug!("lease {} expired, stopping relay", lease_id);
+                break;
+            }
+            let accept = tokio::time::timeout(
+                std::time::Duration::from_millis(500),
+                listener.accept(),
+            )
+            .await;
+            match accept {
+                Ok(Ok((stream, _))) => {
+                    let state = state.clone();
+                    let method = method.clone();
+                    let handler = handler.clone();
+                    let manifest_ref = manifest_ref.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) = handle_lease_relay_client(
+                            stream,
+                            &method,
+                            &handler,
+                            manifest_ref.as_deref(),
+                            &state,
+                        )
+                        .await
+                        {
+                            warn!("lease relay client error: {}", e);
+                        }
+                    });
+                }
+                Ok(Err(e)) => {
+                    error!("lease relay accept failed: {}", e);
+                    break;
+                }
+                Err(_) => continue,
+            }
+        }
+        let _ = tokio::fs::remove_file(&cleanup_path).await;
+    });
+
+    Ok(socket_path)
+}
+
+async fn handle_lease_relay_client(
+    stream: UnixStream,
+    leased_method: &str,
+    handler: &str,
+    manifest_ref: Option<&str>,
+    state: &AppState,
+) -> anyhow::Result<()> {
+    let (reader, mut writer) = stream.into_split();
+    let mut reader = BufReader::new(reader);
+    let mut line = String::new();
+    line.clear();
+    let n = reader.read_line(&mut line).await?;
+    if n == 0 {
+        return Ok(());
+    }
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+
+    let msg: serde_json::Value = serde_json::from_str(trimmed)?;
+    let method = msg
+        .get("method")
+        .and_then(|m| m.as_str())
+        .unwrap_or(leased_method);
+    if method != leased_method {
+        let id = msg.get("id").and_then(|i| i.as_u64()).unwrap_or(0);
+        writer
+            .write_all(&error_bytes(
+                id,
+                "E_INVALID",
+                "method does not match lease",
+            ))
+            .await?;
+        return Ok(());
+    }
+
+    let id = msg.get("id").and_then(|i| i.as_u64()).unwrap_or(0);
+    let params = msg.get("params").cloned();
+    if requires_policy_check(method) && !policy_allows(method, params.as_ref()).await {
+        writer
+            .write_all(&error_bytes(id, "E_POLICY_DENY", "policy denied"))
+            .await?;
+        return Ok(());
+    }
+
+    match forward_to(handler, trimmed.as_bytes(), method, manifest_ref, state).await {
+        Some(resp) => {
+            writer.write_all(&resp).await?;
+        }
+        None => {
+            writer
+                .write_all(&error_bytes(
+                    id,
+                    "E_HANDLER_UNAVAILABLE",
+                    &format!("Handler {} not reachable", handler),
+                ))
+                .await?;
+        }
+    }
+    Ok(())
 }
 
 fn json_line(value: serde_json::Value) -> Vec<u8> {
@@ -1020,6 +1183,16 @@ mod tests {
             Some("fallback-shell")
         );
         assert_eq!(prefix_handler("hello").as_deref(), Some("fallback-shell"));
+    }
+
+    #[test]
+    fn lease_fast_path_env_toggle() {
+        std::env::set_var("THE_MACHINE_LEASE_FAST_PATH", "1");
+        assert!(lease_fast_path_enabled());
+        std::env::set_var("THE_MACHINE_LEASE_FAST_PATH", "true");
+        assert!(lease_fast_path_enabled());
+        std::env::remove_var("THE_MACHINE_LEASE_FAST_PATH");
+        assert!(!lease_fast_path_enabled());
     }
 
     #[test]
