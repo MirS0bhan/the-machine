@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| verify-fix ui-runtime test conflicts | cursor/maintenance-verify-fix-ui-runtime-conflicts-4c83d6c | — | pr-open | 2026-08-30 | merge conflict markers in ui-runtime tests mod |
+| verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | — | pr-open | 2026-08-30 | merge MCP handler + resolve_token unit tests |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -16,16 +16,18 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | verify-fix | ui-runtime merge conflict markers in tests | pr-open |
-| 2026-08-30 | verify-fix | maintenance-ledger conflict markers | merged to main (#170) |
-| 2026-08-30 | audit | state-store clippy/dead-code | merged to main (#169) |
-| 2026-08-30 | gap | G13 operator installed-rootfs validation | merged to main (#168) |
-| 2026-08-30 | audit | local-model-daemon clippy/dead-code | merged to main (#167) |
-| 2026-08-30 | audit | mcp-bus MCP handler unit tests | merged to main (#166) |
-| 2026-08-30 | audit | lambda-server MCP handler unit tests | merged to main (#165) |
-| 2026-08-30 | audit | local-model-daemon MCP handler unit tests | merged to main (#164) |
-| 2026-08-30 | audit | event-bus MCP handler unit tests | merged to main (#163) |
-| 2026-08-30 | audit | ui-runtime MCP handler unit tests | merged to main (#162) |
+| 2026-08-30 | verify-fix | ui-runtime merge conflict markers | pr-open |
+| 2026-08-30 | audit | policy.register Python integration test | merged to main (#179) |
+| 2026-08-30 | audit | event.subscribe Python integration test | merged to main (#182) |
+| 2026-08-30 | verify-fix | test-initramfs-modules skip on missing /lib/modules | merged to main (#188) |
+| 2026-08-30 | audit | lambda.deprecate Python integration test | merged to main (#176) |
+| 2026-08-30 | gap | G13 operator installed-rootfs validation | pr-open (#168) |
+| 2026-08-30 | audit | local-model-daemon clippy/dead-code | pr-open (#167) |
+| 2026-08-30 | audit | mcp-bus MCP handler unit tests | pr-open (#166) |
+| 2026-08-30 | audit | lambda-server MCP handler unit tests | pr-open (#165) |
+| 2026-08-30 | audit | local-model-daemon MCP handler unit tests | pr-open (#164) |
+| 2026-08-30 | audit | event-bus MCP handler unit tests | pr-open (#163) |
+| 2026-08-30 | audit | ui-runtime MCP handler unit tests | pr-open (#162) |
 | 2026-08-30 | audit | state-store MCP handler unit tests | merged to main (#161) |
 | 2026-08-30 | audit | agent-core MCP handler unit tests | merged to main (#160) |
 | 2026-08-30 | gap | G13 installer fstab for target HW | merged to main (#159) |

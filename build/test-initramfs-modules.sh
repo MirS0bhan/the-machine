@@ -10,7 +10,7 @@ bash "${ROOT}/build/mkinitramfs.sh" release >/dev/null
 KVER="$(basename "$(bash "${ROOT}/build/select-kernel.sh" 2>/dev/null || echo "/boot/vmlinuz-$(uname -r)")" | sed 's/^vmlinuz-//')"
 
 if [[ ! -d "/lib/modules/${KVER}" ]]; then
-  echo "==> SKIP: /lib/modules/${KVER} missing — initramfs module bundle not testable"
+  echo "SKIP: /lib/modules/${KVER} missing — cannot verify virtio-gpu bundle (expected on minimal CI hosts)"
   exit 0
 fi
 
