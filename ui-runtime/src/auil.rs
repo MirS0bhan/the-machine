@@ -79,7 +79,7 @@ fn parse_line(line: &str) -> Result<AuilNode, String> {
     let mut id = None;
     let mut props = HashMap::new();
 
-    let mut rest = head;
+    let rest = head;
     if let Some(sp) = rest.find(char::is_whitespace) {
         let (t, p) = rest.split_at(sp);
         parse_tag_token(t, &mut tag, &mut id, &mut props)?;
