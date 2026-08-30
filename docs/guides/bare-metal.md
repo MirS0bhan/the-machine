@@ -42,6 +42,7 @@ Validate a rootfs tree before writing to disk:
 
 ```bash
 bash build/rootfs-validate.sh build/rootfs
+bash build/test-installer-grub.sh   # GRUB root=LABEL=the-machine template
 ```
 
 ---

@@ -2,6 +2,12 @@
 # Validate a The Machine rootfs tree (G13 — bare-metal install readiness).
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=rootfs-common.sh
+source "${ROOT}/build/rootfs-common.sh"
+# shellcheck source=grub-installer.sh
+source "${ROOT}/build/grub-installer.sh"
+
 ROOTFS="${1:-}"
 if [[ -z "${ROOTFS}" || ! -d "${ROOTFS}" ]]; then
   echo "Usage: $0 <rootfs-path>" >&2
@@ -40,6 +46,15 @@ ok "systemd units"
 
 if [[ -e "${ROOTFS}/vmlinuz" || -e "${ROOTFS}/boot/vmlinuz" ]]; then
   ok "kernel symlink or /boot/vmlinuz present"
+  TMP_GRUB="$(mktemp -d)"
+  trap 'rm -rf "${TMP_GRUB}"' RETURN
+  mkdir -p "${TMP_GRUB}/boot/grub"
+  local_has_initrd=0
+  [[ -f "${ROOTFS}/boot/initrd.img" ]] && local_has_initrd=1
+  write_grub_cfg "${TMP_GRUB}" "${local_has_initrd}"
+  validate_grub_cfg "${TMP_GRUB}/boot/grub/grub.cfg" \
+    || fail "installer GRUB template invalid for this rootfs"
+  ok "installer GRUB template (LABEL=the-machine)"
 elif [[ "${THE_MACHINE_ROOTFS_VALIDATE_SKIP_KERNEL:-0}" == "1" ]]; then
   echo "WARN: no kernel in rootfs (THE_MACHINE_ROOTFS_VALIDATE_SKIP_KERNEL=1)" >&2
 else

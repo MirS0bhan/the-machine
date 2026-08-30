@@ -2,6 +2,10 @@
 # Live installer for The Machine OS (G13 bare-metal).
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=../grub-installer.sh
+source "${ROOT}/build/grub-installer.sh"
+
 TARGET_DISK="${1:-}"
 ROOTFS_SRC="${2:-/workspace/build/rootfs}"
 
@@ -61,22 +65,9 @@ grub-install --target=i386-pc --boot-directory="${MNT}/boot" "${TARGET_DISK}" 2>
   grub-install --boot-directory="${MNT}/boot" "${TARGET_DISK}" 2>/dev/null || \
   echo "WARN: grub-install failed — install GRUB manually" >&2
 
-if [[ -f "${MNT}/boot/initrd.img" ]]; then
-  cat > "${MNT}/boot/grub/grub.cfg" <<'GRUB'
-set timeout=3
-menuentry "The Machine" {
-  linux /boot/vmlinuz root=LABEL=the-machine rw quiet
-  initrd /boot/initrd.img
-}
-GRUB
-else
-  cat > "${MNT}/boot/grub/grub.cfg" <<'GRUB'
-set timeout=3
-menuentry "The Machine" {
-  linux /boot/vmlinuz root=LABEL=the-machine rw quiet
-}
-GRUB
-fi
+has_initrd=0
+[[ -f "${MNT}/boot/initrd.img" ]] && has_initrd=1
+write_grub_cfg "${MNT}" "${has_initrd}"
 
 sync
 umount "${MNT}"

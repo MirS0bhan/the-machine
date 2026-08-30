@@ -72,6 +72,7 @@ test-build-scripts:
 	bash build/test-mkrootfs-layout.sh
 	bash build/test-fetch-busybox.sh
 	bash build/test-rootfs-validate.sh
+	bash build/test-installer-grub.sh
 	bash build/test-mkiso-bootable.sh
 	bash build/hardware-smoke.sh
 
