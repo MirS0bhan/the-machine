@@ -55,7 +55,6 @@ pub(crate) struct UiTree {
     nodes: HashMap<String, UiNode>,
     root_id: String,
     theme: Theme,
-    mixins: HashMap<String, serde_json::Value>,
     revision: u64,
     dirty: HashSet<String>,
 }
@@ -78,7 +77,6 @@ impl UiTree {
             nodes,
             root_id: "ui.root".to_string(),
             theme: Theme::default(),
-            mixins: HashMap::new(),
             revision: 1,
             dirty: HashSet::new(),
         }
@@ -484,7 +482,7 @@ async fn apply_patch(
                 t.dirty.insert(nid.to_string());
             }
             "!" | "replace" => {
-                let nid = op
+                let _op_id = op
                     .get("id")
                     .and_then(|v| v.as_str())
                     .ok_or("replace missing id")?;
@@ -564,7 +562,9 @@ fn remove_subtree(t: &mut UiTree, id: &str) {
 }
 
 /// Resolve an ASL token reference like "$colors.primary" against the theme.
-pub fn resolve_token(token: &str, theme: &Theme) -> serde_json::Value {
+/// Wired by ASL mixin application in a future ui-runtime gap (see expansion-proposal Phase 2).
+#[allow(dead_code)]
+pub(crate) fn resolve_token(token: &str, theme: &Theme) -> serde_json::Value {
     if let Some(rest) = token.strip_prefix('$') {
         let parts: Vec<&str> = rest.split('.').collect();
         let mut cur: serde_json::Value =
@@ -732,5 +732,28 @@ fn error_response(id: &Uuid, code: &str, message: &str) -> McpMessage {
             message: message.to_string(),
             details: None,
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_token_reads_theme_color_reference() {
+        let mut theme = Theme::default();
+        theme.colors.insert(
+            "primary".to_string(),
+            serde_json::json!("#336699"),
+        );
+        let resolved = resolve_token("$colors.primary", &theme);
+        assert_eq!(resolved, serde_json::json!("#336699"));
+    }
+
+    #[test]
+    fn resolve_token_returns_literal_for_unknown_path() {
+        let theme = Theme::default();
+        let resolved = resolve_token("$colors.missing", &theme);
+        assert_eq!(resolved, serde_json::json!("$colors.missing"));
     }
 }
