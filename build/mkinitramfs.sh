@@ -14,9 +14,9 @@ rm -rf "${STAGE}"
 mkdir -p "${STAGE}"/{bin,sbin,etc,the-machine,run/the-machine,proc,sys,dev,tmp,var/log}
 
 # Busybox provides /bin/sh and core utilities in the initramfs.
-BUSYBOX="$(command -v busybox || true)"
-if [[ -z "${BUSYBOX}" ]]; then
-  echo "ERROR: busybox not found. Install busybox-static." >&2
+BUSYBOX="$(bash "${ROOT}/build/fetch-busybox.sh" | tail -1)"
+if [[ -z "${BUSYBOX}" || ! -x "${BUSYBOX}" ]]; then
+  echo "ERROR: busybox not found. Install busybox-static or allow fetch." >&2
   exit 1
 fi
 cp "${BUSYBOX}" "${STAGE}/bin/busybox"
@@ -138,11 +138,16 @@ while true; do sleep 3600; done
 INIT
 chmod +x "${STAGE}/init"
 
-# Pack cpio archive.
+# Pack cpio archive (use busybox cpio when host cpio is absent).
 mkdir -p "${BUILD_DIR}"
+if command -v cpio >/dev/null 2>&1; then
+  CPIO=(cpio -o -H newc)
+else
+  CPIO=("${BUSYBOX}" cpio -o -H newc)
+fi
 (
   cd "${STAGE}"
-  find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUTPUT}"
+  find . | "${CPIO[@]}" 2>/dev/null | gzip -9 > "${OUTPUT}"
 )
 
 echo "==> Initramfs written to ${OUTPUT} ($(du -h "${OUTPUT}" | cut -f1))"
