@@ -37,7 +37,7 @@ sudo build/installer/install.sh /dev/sdX
 
 The installer:
 - Creates a GPT partition labeled `the-machine`
-- Copies the rootfs and installs GRUB
+- Copies the rootfs, writes `/etc/fstab` (`LABEL=the-machine`), and installs GRUB
 - Expects `/vmlinuz` or `/boot/vmlinuz` in the rootfs
 
 Validate a rootfs tree before writing to disk:
