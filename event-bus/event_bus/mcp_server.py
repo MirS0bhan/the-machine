@@ -19,10 +19,26 @@ def handle_mcp(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         req = EventPublishRequest(**params)
         record = _router.publish_request(req)
         return {"success": True, "event_id": record.id}
+    if method == "event.subscribe":
+        category = params.get("category")
+        if not category:
+            return {"success": False, "error": "category required"}
+
+        async def _noop(_payload: dict[str, Any]) -> None:
+            return None
+
+        sub_id = _router.subscribe(
+            category,
+            _noop,
+            pattern=params.get("pattern", "*"),
+            subscriber=params.get("subscriber", "anonymous"),
+        )
+        return {"success": True, "subscription_id": sub_id}
     if method == "event.stats":
         return {
             "published": len(_router.list_published()),
             "subscribers": {k: len(v) for k, v in _router.subscribers.items()},
+            "subscriptions": len(_router._subscriptions),
         }
     return {"success": False, "error": f"Unknown method: {method}"}
 
