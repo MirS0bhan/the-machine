@@ -34,8 +34,9 @@ for row in "${rows[@]}"; do
   fi
 
   echo "CLOSE #${num}: ${title}"
-  gh pr close "$num" --repo "$REPO" \
-    --comment "Closed by scripts/close-stale-prs.sh: head branch deleted; work landed on main." || true
+  if ! gh pr close "$num" --repo "$REPO" 2>/dev/null; then
+    echo "  failed (need personal gh auth with pull_request write)"
+  fi
   ((closed++)) || true
 done
 
