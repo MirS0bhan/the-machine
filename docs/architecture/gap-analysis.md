@@ -63,7 +63,7 @@ _None — all P0/P1 gaps from the expansion campaign are closed._
 
 | ID | Gap | Component | Priority |
 |----|-----|-----------|----------|
-| G13 | Rootfs installer: debootstrap + GRUB + boot.auil on main; needs target-HW validation | build | P3 |
+| G13 | Rootfs installer: debootstrap + GRUB + boot.auil + fstab (in PR); needs target-HW validation | build | P3 |
 | G17 | xdg-shell / wlroots for third-party Wayland clients (core globals + SHM commit on main) | compositor | P3 |
 
 ---

@@ -51,6 +51,13 @@ mkfs.ext4 -F -L the-machine "${PART}"
 MNT=$(mktemp -d)
 mount "${PART}" "${MNT}"
 rsync -a "${ROOTFS_SRC}/" "${MNT}/"
+
+# G13: fstab required for systemd mount units on target hardware (kernel cmdline alone is not enough).
+cat > "${MNT}/etc/fstab" <<'FSTAB'
+# The Machine installed root (GPT label from mkfs.ext4 -L the-machine)
+LABEL=the-machine  /  ext4  defaults  0  1
+FSTAB
+
 mkdir -p "${MNT}/boot/grub"
 
 # Prefer rootfs-bundled kernel; fall back to host kernel for skeleton installs.
