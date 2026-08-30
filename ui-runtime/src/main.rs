@@ -739,7 +739,6 @@ fn error_response(id: &Uuid, code: &str, message: &str) -> McpMessage {
 mod tests {
     use super::*;
 
-<<<<<<< HEAD
     fn test_tree() -> SharedTree {
         Arc::new(Mutex::new(UiTree::new()))
     }
@@ -874,7 +873,8 @@ mod tests {
             resp.error.as_ref().map(|e| e.code.as_str()),
             Some("E_NOT_FOUND")
         );
-=======
+    }
+
     #[test]
     fn resolve_token_reads_theme_color_reference() {
         let mut theme = Theme::default();
@@ -891,6 +891,5 @@ mod tests {
         let theme = Theme::default();
         let resolved = resolve_token("$colors.missing", &theme);
         assert_eq!(resolved, serde_json::json!("$colors.missing"));
->>>>>>> origin/main
     }
 }
