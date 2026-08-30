@@ -81,9 +81,7 @@ pub fn draw_text(px: &mut PixelBackend, x: i32, y: i32, text: &str, r: u8, g: u8
                         y + (row * scale) as i32,
                         scale,
                         scale,
-                        r,
-                        g,
-                        b,
+                        [r, g, b],
                     );
                 }
             }

@@ -32,14 +32,6 @@ impl PolicyEngine {
         engine
     }
 
-    /// Empty engine without default policies (for unit tests).
-    pub fn new_empty() -> Self {
-        Self {
-            policies: HashMap::new(),
-            rate_limits: HashMap::new(),
-        }
-    }
-
     pub fn register_doc(&mut self, doc: PolicyDoc, key: &str) {
         self.policies.insert(key.to_string(), doc);
     }
@@ -97,61 +89,6 @@ impl PolicyEngine {
             decision: "DENY".into(),
             correlation_id: None,
             message: None,
-        }
-    }
-
-    pub async fn check(
-        &mut self,
-        method: &str,
-        request: Option<serde_json::Value>,
-        provenance: Option<serde_json::Value>,
-    ) -> PolicyDecision {
-        // Support legacy MCP shape (method/request/provenance) and canonical CheckRequest fields.
-        let req = if let Some(obj) = request.as_ref().and_then(|v| v.as_object()) {
-            if obj.contains_key("capability") {
-                serde_json::from_value(request.clone().unwrap()).unwrap_or_else(|_| CheckRequest {
-                    capability: method.to_string(),
-                    path: None,
-                    principal: None,
-                    method: Some(method.to_string()),
-                    request,
-                    provenance: provenance.and_then(|v| v.as_str().map(|s| s.to_string())),
-                })
-            } else {
-                CheckRequest {
-                    capability: method.to_string(),
-                    path: obj
-                        .get("path")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string()),
-                    principal: obj
-                        .get("principal")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string()),
-                    method: Some(method.to_string()),
-                    request: request.clone(),
-                    provenance: provenance.and_then(|v| v.as_str().map(|s| s.to_string())),
-                }
-            }
-        } else {
-            CheckRequest {
-                capability: method.to_string(),
-                path: None,
-                principal: provenance
-                    .as_ref()
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string()),
-                method: Some(method.to_string()),
-                request,
-                provenance: provenance.and_then(|v| v.as_str().map(|s| s.to_string())),
-            }
-        };
-
-        let resp = self.check_request(&req);
-        PolicyDecision {
-            decision: resp.decision,
-            reason: resp.message.unwrap_or_default(),
-            correlation_id: resp.correlation_id,
         }
     }
 
@@ -274,7 +211,10 @@ mod tests {
     use super::*;
 
     fn engine() -> PolicyEngine {
-        PolicyEngine::new_empty()
+        PolicyEngine {
+            policies: HashMap::new(),
+            rate_limits: HashMap::new(),
+        }
     }
 
     #[test]

@@ -93,9 +93,11 @@ async fn paint_frame(comp: &Arc<Mutex<Compositor>>, pixels: &SharedPixel) {
             s.geometry.y,
             w,
             h,
-            r.saturating_sub(20),
-            g.saturating_sub(20),
-            b.saturating_sub(10),
+            [
+                r.saturating_sub(20),
+                g.saturating_sub(20),
+                b.saturating_sub(10),
+            ],
         );
         if !s.label.is_empty() {
             bitmap_font::draw_text(
@@ -355,7 +357,7 @@ async fn handle_focus(
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
     let mut c = comp.lock().await;
-    for (_, s) in c.surfaces.iter_mut() {
+    for s in c.surfaces.values_mut() {
         s.focused = false;
     }
     if let Some(sid) = sid {

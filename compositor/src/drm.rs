@@ -101,10 +101,10 @@ pub struct DrmBackend {
     _card: File,
     width: u32,
     height: u32,
-    stride: u32,
+    _stride: u32,
     buffer: Vec<u8>,
     dumb_handle: u32,
-    fb_id: u32,
+    _fb_id: u32,
     mmap: DrmMmap,
 }
 
@@ -193,10 +193,10 @@ impl DrmBackend {
             _card: card,
             width,
             height,
-            stride: create.pitch,
+            _stride: create.pitch,
             buffer: vec![0u8; len],
             dumb_handle: create.handle,
-            fb_id,
+            _fb_id: fb_id,
             mmap: DrmMmap {
                 ptr: ptr as *mut u8,
                 len,
@@ -272,7 +272,7 @@ fn set_crtc(fd: i32, fb_id: u32, width: u32, height: u32) -> bool {
     if unsafe { libc::ioctl(fd, DRM_IOCTL_MODE_GETRESOURCES as _, &mut res) } != 0 {
         return false;
     }
-    let mut mode = DrmModeModeInfo {
+    let mode = DrmModeModeInfo {
         clock: 0,
         hdisplay: width as u16,
         hsync_start: 0,
