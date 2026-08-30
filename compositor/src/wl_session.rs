@@ -10,14 +10,9 @@ use crate::pixel::SharedPixel;
 use crate::wl_globals::{self, OutputInfo, WlGlobals};
 
 /// Compositor state shared with the Wayland dispatch thread.
+#[derive(Default)]
 pub struct CompositorState {
     pub pixels: Option<SharedPixel>,
-}
-
-impl Default for CompositorState {
-    fn default() -> Self {
-        Self { pixels: None }
-    }
 }
 
 /// Active Wayland session: listening socket + display dispatch thread.

@@ -8,6 +8,8 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
+| G13 GRUB validation | cursor/maintenance-g13-grub-validate-d1f230f | #147 | pr-open | 2026-08-30 | Draft — rootfs-validate + installer GRUB CI |
+| compositor clippy | cursor/maintenance-audit-compositor-clippy-8367d28 | — | pr-open | 2026-08-30 | Dead code + clippy -D warnings in compositor crate |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -15,6 +17,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-30 | audit | compositor clippy/dead-code | pr-open |
 | 2026-08-30 | gap | G14 udev hotplug events | merged to main (#145) |
 | 2026-08-30 | audit | hardware-smoke CI | merged to main (#143) |
 | 2026-08-30 | audit | system-daemon MCP handler tests | merged to main (#146) |
@@ -34,7 +37,7 @@ until the PR is merged to `main`.
 
 Rotate when completing a row. Prefer top item not in cooldown.
 
-1. **G17** — compositor: wlroots seat/output + `wl_compositor` global (cooldown until 2026-09-06)
-2. **G13** — validate installed rootfs on bare metal (debootstrap + GRUB)
-3. **audit** — dead code / clippy in one crate (-p compositor)
+1. **G13** — merge #147 (GRUB template CI) or operator hardware smoke on physical target
+2. **G17** — compositor: wlroots seat/output + `wl_compositor` global (cooldown until 2026-09-06)
+3. **audit** — missing integration test for an MCP method in component-inventory.yaml
 4. **audit** — `make verify` + fix first failure

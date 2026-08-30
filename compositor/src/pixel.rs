@@ -19,7 +19,7 @@ pub struct PixelBackend {
     width: u32,
     height: u32,
     stride: u32,
-    bpp: u32,
+    _bpp: u32,
     buffer: Vec<u8>,
     fb_mmap: Option<MmapFb>,
     drm: Option<DrmBackend>,
@@ -49,7 +49,7 @@ impl PixelBackend {
                     width,
                     height,
                     stride: width * 4,
-                    bpp: 32,
+                    _bpp: 32,
                     buffer: vec![0u8; len],
                     fb_mmap: None,
                     drm: Some(drm),
@@ -74,7 +74,7 @@ impl PixelBackend {
                     width: fb.width,
                     height: fb.height,
                     stride: fb.stride,
-                    bpp: fb.bpp,
+                    _bpp: fb.bpp,
                     buffer: vec![0u8; len],
                     fb_mmap: Some(fb.mmap),
                     drm: None,
@@ -89,7 +89,7 @@ impl PixelBackend {
             width: 1280,
             height: 720,
             stride: 1280 * 4,
-            bpp: 32,
+            _bpp: 32,
             buffer: vec![0u8; 1280 * 720 * 4],
             fb_mmap: None,
             drm: None,
@@ -135,7 +135,8 @@ impl PixelBackend {
         }
     }
 
-    pub fn fill_rect(&mut self, x: i32, y: i32, w: u32, h: u32, r: u8, g: u8, b: u8) {
+    pub fn fill_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: (u8, u8, u8)) {
+        let (r, g, b) = color;
         let pixel = [b, g, r, 0u8];
         for dy in 0..h {
             for dx in 0..w {
@@ -296,7 +297,7 @@ mod tests {
         let mut px = PixelBackend::open();
         assert_eq!(px.backend_name(), "memory");
         px.clear(0, 0, 0);
-        px.fill_rect(10, 10, 50, 30, 255, 0, 0);
+        px.fill_rect(10, 10, 50, 30, (255, 0, 0));
         px.present();
         assert!(Path::new("/tmp/compositor-test.ppm").exists());
     }
