@@ -8,7 +8,9 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | — | pr-open | 2026-08-30 | merge MCP handler + resolve_token unit tests |
+| verify-fix event-bus main.rs empty (build broken) | cursor/maintenance-verify-fix-event-bus-build-67ca1c0 | #198 | pr-open | 2026-08-30 | restore `event-bus/src/main.rs` + resolve conflict markers; rebased onto latest main (also fixed re-broken `component-inventory.yaml` conflict markers and a botched merge in `agent-core/src/main.rs` `mod tests` that left `cargo build` failing with mismatched delimiters) |
+| verify-fix initramfs modules skip | cursor/maintenance-verify-fix-initramfs-modules-9b9ce7c | #188 | merged | 2026-08-30 | skip test when /lib/modules missing |
+| verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | #189 | merged | 2026-08-30 | merge MCP handler + resolve_token unit tests |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -16,11 +18,14 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | verify-fix | ui-runtime merge conflict markers | pr-open |
+| 2026-08-30 | verify-fix | PR #198 was stale/`CONFLICTING` after 44 more commits landed on main; rebased via merge commit and found `main` *still* wouldn't build: re-broken nested conflict markers in `component-inventory.yaml` (`integration_tests` block, fixed in the merge) plus a botched merge in `agent-core/src/main.rs` `mod tests` (duplicated/interleaved test bodies, mismatched `{`/`}`, `cargo build` failed) — fixed by rewriting the test module cleanly on the new `test_state(local_only_mode, cloud)` signature. `make build`/`test-all`/`verify-docs`/`lint`/`coverage` all pass; no coverage regression (main.rs went from non-compiling to 44.9% region cover) | pr-open (#198) |
+| 2026-08-30 | verify-fix | `main` still broken after rebase: `event-bus/src/main.rs` empty + re-broken nested conflict markers in `component-inventory.yaml` (`integration_tests` block); rebased fix onto latest main via merge commit | pr-open (#198) |
+| 2026-08-30 | verify-fix | ui-runtime merge conflict markers | merged to main (#189) |
 | 2026-08-30 | audit | policy.register Python integration test | merged to main (#179) |
 | 2026-08-30 | audit | event.subscribe Python integration test | merged to main (#182) |
 | 2026-08-30 | verify-fix | test-initramfs-modules skip on missing /lib/modules | merged to main (#188) |
 | 2026-08-30 | audit | lambda.deprecate Python integration test | merged to main (#176) |
+| 2026-08-30 | audit | state-store clippy/dead-code | pr-open (#169) |
 | 2026-08-30 | gap | G13 operator installed-rootfs validation | pr-open (#168) |
 | 2026-08-30 | audit | local-model-daemon clippy/dead-code | pr-open (#167) |
 | 2026-08-30 | audit | mcp-bus MCP handler unit tests | pr-open (#166) |
@@ -61,6 +66,7 @@ until the PR is merged to `main`.
 Rotate when completing a row. Prefer top item not in cooldown.
 
 1. **G17** — compositor: wlroots seat/output (cooldown until 2026-09-06)
-2. **audit** — missing Python integration test for an MCP method (see `component-inventory.yaml`)
+2. **audit** — missing Python integration test for an MCP method (see `component-inventory.yaml`; many `system-daemon`/`ui-runtime`/`compositor`/`mcp-bus` methods still lack one)
 3. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
-4. **audit** — `make verify` + fix first failure
+4. **docs** — `gap-analysis.md` "Open — Platform" table still lists G13 as open/"(in PR)"; all sub-items (debootstrap+GRUB, fstab, boot.auil, operator installed-rootfs validation) are merged to `main` (PRs #157, #159, #168) — move G13 to Closed in a tiny docs-only PR
+5. **audit** — `make verify` + fix first failure
