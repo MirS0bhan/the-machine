@@ -32,8 +32,8 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(wayland_backend::try_start(pixels.clone()));
     let comp: Arc<Mutex<Compositor>> = Arc::new(Mutex::new(Compositor::new()));
 
-    // Background present loop.
-    {
+    // Background present loop (optional — disabled for static/test runs).
+    if !crate::env::static_present_only() {
         let comp = comp.clone();
         let pixels = pixels.clone();
         tokio::spawn(async move {
@@ -66,10 +66,7 @@ async fn main() -> anyhow::Result<()> {
 async fn present_loop(comp: Arc<Mutex<Compositor>>, pixels: SharedPixel) {
     loop {
         paint_frame(&comp, &pixels).await;
-        tokio::time::sleep(std::time::Duration::from_millis(
-            crate::env::DEFAULT_FRAME_MS,
-        ))
-        .await;
+        tokio::time::sleep(std::time::Duration::from_millis(crate::env::frame_ms())).await;
     }
 }
 

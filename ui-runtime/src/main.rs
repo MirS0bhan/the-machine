@@ -214,7 +214,7 @@ async fn handle_request(
                 .and_then(|p| p.get("ops").cloned())
                 .and_then(|v| v.as_array().cloned())
                 .unwrap_or_default();
-            match apply_patch(tree, ops).await {
+            match apply_patch(tree, ops, true).await {
                 Ok(rev) => success_response(&id, serde_json::json!({ "revision": rev })),
                 Err(e) => error_response(&id, "E_PATCH_FAILED", &e),
             }
@@ -299,7 +299,20 @@ async fn handle_request(
                     .map(|n| serde_json::to_value(&n.props).unwrap_or(serde_json::Value::Null))
                     .unwrap_or(serde_json::Value::Null);
                 let b = node.map(|n| n.bindings.clone()).unwrap_or_default();
-                (b, props)
+                let chat_text = if event == "press" {
+                    t.get("ui.chat_input")
+                        .and_then(|n| {
+                            n.props
+                                .get("text")
+                                .or_else(|| n.props.get("value"))
+                                .and_then(|v| v.as_str())
+                                .filter(|s| !s.is_empty())
+                                .map(|s| s.to_string())
+                        })
+                } else {
+                    None
+                };
+                (b, props, chat_text)
             };
             let mut results = Vec::new();
             for b in &bindings.0 {
@@ -309,6 +322,9 @@ async fn handle_request(
                         for (k, v) in pobj {
                             obj.insert(k.clone(), v.clone());
                         }
+                    }
+                    if let Some(text) = &bindings.2 {
+                        obj.insert("text".into(), serde_json::json!(text));
                     }
                 }
                 let r = execute_binding(b, &event, &merged).await;
@@ -384,7 +400,7 @@ async fn handle_request(
             match auil::parse_auil(&source) {
                 Ok(root) => {
                     let ops = auil::auil_to_patch_ops(&root, "ui.root");
-                    match apply_patch(tree, ops).await {
+                    match apply_patch(tree, ops, true).await {
                         Ok(rev) => success_response(
                             &id,
                             serde_json::json!({ "revision": rev, "loaded": true }),
@@ -403,7 +419,11 @@ fn parse_node(value: &serde_json::Value) -> Result<UiNode, String> {
     serde_json::from_value(value.clone()).map_err(|e| format!("invalid node: {}", e))
 }
 
-async fn apply_patch(tree: &SharedTree, ops: Vec<serde_json::Value>) -> Result<u64, String> {
+async fn apply_patch(
+    tree: &SharedTree,
+    ops: Vec<serde_json::Value>,
+    sync_compositor: bool,
+) -> Result<u64, String> {
     let mut t = tree.lock().await;
     for op in &ops {
         let kind = op
@@ -510,10 +530,12 @@ async fn apply_patch(tree: &SharedTree, ops: Vec<serde_json::Value>) -> Result<u
     t.dirty.clear();
     drop(t);
 
-    if let Ok(node) = serde_json::from_value::<UiNode>(root_snapshot.clone()) {
-        let _ = reflect_to_state(&node).await;
+    if sync_compositor {
+        if let Ok(node) = serde_json::from_value::<UiNode>(root_snapshot.clone()) {
+            let _ = reflect_to_state(&node).await;
+        }
+        let _ = renderer::sync_tree_to_compositor(&root_snapshot).await;
     }
-    let _ = renderer::sync_tree_to_compositor(&root_snapshot).await;
     Ok(rev)
 }
 
@@ -578,7 +600,7 @@ async fn load_boot_auil(tree: &SharedTree) -> Result<(), String> {
     let source = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
     let root = auil::parse_auil(&source)?;
     let ops = auil::auil_to_patch_ops(&root, "ui.root");
-    apply_patch(tree, ops).await?;
+    apply_patch(tree, ops, false).await?;
     info!("loaded boot AUIL from {}", path);
     Ok(())
 }
@@ -647,6 +669,12 @@ async fn execute_binding(
                         "correlation_id": cid,
                         "approved": payload.get("approved").and_then(|v| v.as_bool()).unwrap_or(false),
                     });
+                }
+            } else if binding.target == "agent.chat.send" {
+                if let Some(text) = payload.get("text").and_then(|v| v.as_str()) {
+                    if let Some(obj) = params.as_object_mut() {
+                        obj.insert("text".into(), serde_json::json!(text));
+                    }
                 }
             }
             mcp_call(&binding.target, params).await

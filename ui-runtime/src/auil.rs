@@ -82,10 +82,10 @@ fn parse_line(line: &str) -> Result<AuilNode, String> {
     let mut rest = head;
     if let Some(sp) = rest.find(char::is_whitespace) {
         let (t, p) = rest.split_at(sp);
-        parse_tag_token(t, &mut tag, &mut id)?;
+        parse_tag_token(t, &mut tag, &mut id, &mut props)?;
         parse_props(p.trim(), &mut props);
     } else {
-        parse_tag_token(rest, &mut tag, &mut id)?;
+        parse_tag_token(rest, &mut tag, &mut id, &mut props)?;
     }
 
     if tag.is_empty() {
@@ -100,11 +100,24 @@ fn parse_line(line: &str) -> Result<AuilNode, String> {
     })
 }
 
-fn parse_tag_token(token: &str, tag: &mut String, id: &mut Option<String>) -> Result<(), String> {
+fn parse_tag_token(
+    token: &str,
+    tag: &mut String,
+    id: &mut Option<String>,
+    props: &mut HashMap<String, String>,
+) -> Result<(), String> {
     let mut base = token;
     if let Some(hash) = token.find('#') {
         base = &token[..hash];
-        *id = Some(token[hash + 1..].to_string());
+        let id_part = &token[hash + 1..];
+        if let Some(paren) = id_part.find('(') {
+            *id = Some(id_part[..paren].to_string());
+            if let Some(end) = id_part.rfind(')') {
+                parse_props(&id_part[paren..=end], props);
+            }
+        } else {
+            *id = Some(id_part.to_string());
+        }
     }
     if let Some(paren) = base.find('(') {
         *tag = base[..paren].to_string();
@@ -187,7 +200,18 @@ fn split_text_content(line: &str) -> (&str, Option<String>) {
 /// Convert an AUIL tree into `ui.patch` insert operations.
 pub fn auil_to_patch_ops(root: &AuilNode, parent_id: &str) -> Vec<Value> {
     let mut ops = Vec::new();
-    flatten_node(root, parent_id, &mut ops);
+    let root_id = root
+        .id
+        .as_deref()
+        .unwrap_or(parent_id);
+    if root_id == parent_id {
+        // Boot file root matches the live tree root — insert children only.
+        for child in &root.children {
+            flatten_node(child, parent_id, &mut ops);
+        }
+    } else {
+        flatten_node(root, parent_id, &mut ops);
+    }
     ops
 }
 
@@ -251,6 +275,43 @@ mod tests {
     use super::*;
 
     #[test]
+    fn boot_auil_does_not_insert_root_under_itself() {
+        let src = std::fs::read_to_string("build/boot.auil").unwrap_or_else(|_| {
+            r#"stack#ui.root dir=v
+  text#ui.greeting "Hi"
+"#
+            .into()
+        });
+        let tree = parse_auil(&src).unwrap();
+        let ops = auil_to_patch_ops(&tree, "ui.root");
+        assert!(!ops.is_empty());
+        for op in &ops {
+            let id = op
+                .get("node")
+                .and_then(|n| n.get("id"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            assert_ne!(id, "ui.root", "must not re-insert ui.root under itself");
+        }
+    }
+
+    #[test]
+    fn parses_boot_widget_ids_without_inline_props() {
+        let src = r#"stack#ui.root
+  text#ui.greeting(role=title) "Hi"
+  button#ui.chat_send label=Send on:press=mcp:agent.chat.send"#;
+        let tree = parse_auil(src).unwrap();
+        let ops = auil_to_patch_ops(&tree, "ui.root");
+        let ids: Vec<_> = ops
+            .iter()
+            .filter_map(|op| op.get("node").and_then(|n| n.get("id")).and_then(|v| v.as_str()))
+            .collect();
+        assert!(ids.contains(&"ui.greeting"));
+        assert!(ids.contains(&"ui.chat_send"));
+        assert!(!ids.iter().any(|id| id.contains('(')));
+    }
+
+    #[test]
     fn parses_simple_stack() {
         let src = r#"stack#ui.root dir=v
   text#title(role=title) "Hello"
@@ -259,7 +320,7 @@ mod tests {
         assert_eq!(tree.id.as_deref(), Some("ui.root"));
         assert_eq!(tree.children.len(), 2);
         let ops = auil_to_patch_ops(&tree, "ui.root");
-        assert!(ops.len() >= 3);
-        assert!(ops[0].get("node").unwrap().get("id").is_some());
+        assert_eq!(ops.len(), 2);
+        assert!(ops.iter().all(|op| op.get("node").and_then(|n| n.get("id")).is_some()));
     }
 }

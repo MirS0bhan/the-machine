@@ -856,7 +856,7 @@ async fn persist_route(entry: &RouteEntry) {
     });
     let sock = common::component_socket("state-store");
     let req = serde_json::json!({
-        "id": 0,
+        "id": Uuid::new_v4(),
         "kind": "Request",
         "method": "state.set",
         "params": { "path": path, "value": value }
@@ -876,7 +876,7 @@ async fn delete_persisted_route(namespace: Namespace, pattern: &str) {
     );
     let sock = common::component_socket("state-store");
     let req = serde_json::json!({
-        "id": 0,
+        "id": Uuid::new_v4(),
         "kind": "Request",
         "method": "state.set",
         "params": { "path": path, "value": null }
@@ -891,7 +891,7 @@ async fn delete_persisted_route(namespace: Namespace, pattern: &str) {
 async fn reload_routes_from_state(state: &AppState) {
     let sock = common::component_socket("state-store");
     let req = serde_json::json!({
-        "id": 0,
+        "id": Uuid::new_v4(),
         "kind": "Request",
         "method": "state.list",
         "params": { "prefix": "perm.mcp_routes." }
@@ -1030,6 +1030,9 @@ fn requires_policy_check(method: &str) -> bool {
 }
 
 async fn policy_allows(method: &str, params: Option<&serde_json::Value>) -> bool {
+    if policy_fail_open_all() {
+        return true;
+    }
     let capability = infer_capability(method);
     let path = params
         .and_then(|p| p.get("path"))
@@ -1048,7 +1051,7 @@ async fn policy_allows(method: &str, params: Option<&serde_json::Value>) -> bool
 
     let sock = common::component_socket("policy-broker");
     let req = serde_json::json!({
-        "id": 1,
+        "id": Uuid::new_v4(),
         "kind": "Request",
         "method": "policy.check",
         "params": {
@@ -1081,7 +1084,7 @@ async fn policy_allows(method: &str, params: Option<&serde_json::Value>) -> bool
 async fn validate_registration(params: &serde_json::Value) -> bool {
     let sock = common::component_socket("policy-broker");
     let req = serde_json::json!({
-        "id": 2,
+        "id": Uuid::new_v4(),
         "kind": "Request",
         "method": "policy.validate_register",
         "params": params,

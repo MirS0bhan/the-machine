@@ -83,14 +83,17 @@ impl PixelBackend {
             }
         }
 
-        warn!("pixel backend: using 1280x720 memory buffer");
+        let (width, height) = crate::env::memory_framebuffer_size();
+        warn!("pixel backend: using {}x{} memory buffer", width, height);
+        let stride = width * 4;
+        let len = (stride * height) as usize;
         PixelBackend {
             kind: BackendKind::Memory,
-            width: 1280,
-            height: 720,
-            stride: 1280 * 4,
+            width,
+            height,
+            stride,
             bpp: 32,
-            buffer: vec![0u8; 1280 * 720 * 4],
+            buffer: vec![0u8; len],
             fb_mmap: None,
             drm: None,
             dump_path,

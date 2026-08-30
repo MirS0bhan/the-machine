@@ -17,6 +17,7 @@ rg -q 'ui\.chat_input' build/boot.auil
 rg -q 'agent\.chat\.send' build/boot.auil
 
 echo "==> boot greet e2e: AUIL parser"
+cargo test -p ui-runtime auil::tests::boot_auil_does_not_insert_root_under_itself --quiet
 cargo test -p ui-runtime auil::tests::parses_simple_stack --quiet
 
 echo "==> boot greet e2e: agent planner"

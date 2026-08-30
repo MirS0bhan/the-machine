@@ -9,6 +9,13 @@ pub struct PlanStep {
     pub params: serde_json::Value,
 }
 
+pub fn uses_heuristic_plan(intent: &str) -> bool {
+    matches!(
+        intent,
+        "boot.greet" | "chat.message" | "heartbeat" | "calculator" | "notification.triage"
+    )
+}
+
 pub fn build_plan_heuristic(
     intent: &str,
     payload: &serde_json::Value,
