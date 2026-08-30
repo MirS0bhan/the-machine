@@ -15,7 +15,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| G17 wl_display scaffold | cursor/maintenance-g17-wl-session-8d4febd | — | pr-open | 2026-08-30 | wayland-server bind; wlroots seat/output next |
+| G17 wl_display scaffold | cursor/maintenance-g17-wl-session-8d4febd | #135 | pr-open | 2026-08-30 | wayland-server bind; wlroots seat/output next |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
