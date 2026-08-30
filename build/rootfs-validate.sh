@@ -46,11 +46,19 @@ grep -q 'agent.chat.send' "${BOOT_AUIL}" || fail "boot.auil missing agent.chat.s
 ok "boot.auil greet + chat layout"
 
 [[ -f "${ROOTFS}/usr/lib/systemd/system/the-machine.target" ]] || fail "missing the-machine.target"
-for svc in system-daemon mcp-bus compositor; do
-  [[ -f "${ROOTFS}/usr/lib/systemd/system/the-machine-${svc}.service" ]] \
-    || fail "missing unit the-machine-${svc}.service"
-done
-ok "systemd units"
+if [[ "${THE_MACHINE_VALIDATE_INSTALLED:-0}" == "1" ]]; then
+  for svc in "${SERVICES[@]}"; do
+    [[ -f "${ROOTFS}/usr/lib/systemd/system/the-machine-${svc}.service" ]] \
+      || fail "missing unit the-machine-${svc}.service"
+  done
+  ok "all ${#SERVICES[@]} systemd service units"
+else
+  for svc in system-daemon mcp-bus compositor; do
+    [[ -f "${ROOTFS}/usr/lib/systemd/system/the-machine-${svc}.service" ]] \
+      || fail "missing unit the-machine-${svc}.service"
+  done
+  ok "core systemd units"
+fi
 
 if [[ -e "${ROOTFS}/vmlinuz" || -e "${ROOTFS}/boot/vmlinuz" ]]; then
   ok "kernel symlink or /boot/vmlinuz present"
@@ -70,7 +78,13 @@ if [[ -d "${ROOTFS}/usr/bin/apt-get" || -x "${ROOTFS}/usr/bin/apt-get" ]]; then
   ok "debootstrap rootfs detected"
 fi
 
-if [[ -f "${ROOTFS}/boot/grub/grub.cfg" ]]; then
+if [[ "${THE_MACHINE_VALIDATE_INSTALLED:-0}" == "1" ]]; then
+  [[ -f "${ROOTFS}/etc/fstab" ]] || fail "missing /etc/fstab (installer must write fstab for target HW boot)"
+  grep -qE '^LABEL=the-machine[[:space:]]+/[[:space:]]+ext4' "${ROOTFS}/etc/fstab" \
+    || fail "fstab missing LABEL=the-machine root entry"
+  ok "fstab root entry"
+  bash "${SCRIPT_DIR}/verify-rootfs-grub.sh" "${ROOTFS}"
+elif [[ -f "${ROOTFS}/boot/grub/grub.cfg" ]]; then
   bash "${SCRIPT_DIR}/verify-rootfs-grub.sh" "${ROOTFS}"
 fi
 

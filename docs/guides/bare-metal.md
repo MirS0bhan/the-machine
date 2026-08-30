@@ -47,6 +47,16 @@ bash build/rootfs-validate.sh build/rootfs
 bash build/test-installer-grub.sh   # loopback install + GRUB validation (CI)
 ```
 
+After install (or on a mounted root partition), run the stricter installed-rootfs check:
+
+```bash
+sudo mount /dev/sdX1 /mnt
+bash build/validate-installed-rootfs.sh /mnt
+sudo umount /mnt
+```
+
+This verifies all service binaries, systemd units, `/etc/fstab`, and GRUB layout for target-HW boot.
+
 For automated installs (e.g. CI), set `THE_MACHINE_INSTALLER_YES=1` to skip the confirmation prompt.
 
 ---
