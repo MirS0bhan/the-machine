@@ -6,7 +6,6 @@ use std::path::PathBuf;
 
 pub struct SynthesisResult {
     pub entrypoint: String,
-    pub source_path: String,
 }
 
 pub fn write_synthesized_function(
@@ -42,7 +41,6 @@ fn write_synthesized_function_in(
             fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).ok();
             Ok(SynthesisResult {
                 entrypoint: path.display().to_string(),
-                source_path: path.display().to_string(),
             })
         }
         "shell" | "sh" => {
@@ -56,7 +54,6 @@ fn write_synthesized_function_in(
             fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).ok();
             Ok(SynthesisResult {
                 entrypoint: path.display().to_string(),
-                source_path: path.display().to_string(),
             })
         }
         _ => {
@@ -65,7 +62,6 @@ fn write_synthesized_function_in(
             fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).ok();
             Ok(SynthesisResult {
                 entrypoint: path.display().to_string(),
-                source_path: path.display().to_string(),
             })
         }
     }
