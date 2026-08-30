@@ -563,6 +563,20 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## External Adapters
+
+Background tasks translate Linux ecosystem signals into `event.publish` calls on the local event-bus socket:
+
+| Adapter | Source | Events |
+|---------|--------|--------|
+| D-Bus | Native **zbus** system-bus match rules | `desktop.notify`, `login.prepare_sleep` |
+| inotify | Configured paths (`THE_MACHINE_FS_WATCHES`) | `fs.change.*` |
+| PipeWire | pw-dump polling | `audio.*` |
+
+The D-Bus adapter subscribes to `org.freedesktop.Notifications.Notify` and `org.freedesktop.login1.Manager.PrepareForSleep` without shelling out to `dbus-monitor`. Set `THE_MACHINE_DISABLE_DBUS=1` to skip the adapter in test or minimal environments.
+
+---
+
 ## See Also
 
 - [State Store](./state-store.md) — for the underlying storage and subscriptions
