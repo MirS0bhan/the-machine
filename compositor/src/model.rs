@@ -81,7 +81,7 @@ impl Compositor {
     }
 
     fn hit(&self, id: &str, x: i32, y: i32) -> bool {
-        self.surfaces.get(id).map_or(false, |s| {
+        self.surfaces.get(id).is_some_and(|s| {
             let g = &s.geometry;
             x >= g.x && x < g.x + g.width as i32 && y >= g.y && y < g.y + g.height as i32
         })

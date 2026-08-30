@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| fallback-shell MCP handler tests | cursor/maintenance-audit-fallback-shell-mcp-e1cee1b | — | pr-open | 2026-08-30 | shell.status + shell.activate unit tests |
+| compositor clippy | cursor/maintenance-audit-compositor-clippy-e1cee1b | — | pr-open | 2026-08-30 | dead code + clippy cleanup |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -16,7 +16,8 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | audit | fallback-shell MCP handler tests | pr-open |
+| 2026-08-30 | audit | compositor clippy/dead code | pr-open |
+| 2026-08-30 | audit | fallback-shell MCP handler tests | merged to main (#153) |
 | 2026-08-30 | audit | marketplace MCP handler tests | merged to main (#154) |
 | 2026-08-30 | audit | system-daemon read-only MCP handler tests | merged to main (#149) |
 | 2026-08-30 | audit | policy-broker clippy/dead-code | merged to main (#152) |

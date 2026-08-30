@@ -93,9 +93,7 @@ async fn paint_frame(comp: &Arc<Mutex<Compositor>>, pixels: &SharedPixel) {
             s.geometry.y,
             s.geometry.width.max(40),
             s.geometry.height.max(24),
-            r,
-            g,
-            b,
+            [r, g, b],
         );
     }
     px.present();
@@ -344,7 +342,7 @@ async fn handle_focus(
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
     let mut c = comp.lock().await;
-    for (_, s) in c.surfaces.iter_mut() {
+    for s in c.surfaces.values_mut() {
         s.focused = false;
     }
     if let Some(sid) = sid {
