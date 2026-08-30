@@ -16,6 +16,11 @@ if [[ ! -d "${ROOTFS_SRC}" ]]; then
   exit 1
 fi
 
+if [[ ! -e "${ROOTFS_SRC}/vmlinuz" && ! -e "${ROOTFS_SRC}/boot/vmlinuz" ]]; then
+  echo "ERROR: rootfs has no kernel (missing vmlinuz). Re-run build/mkrootfs.sh with debootstrap." >&2
+  exit 1
+fi
+
 echo "==> The Machine installer"
 echo "    Target: ${TARGET_DISK}"
 echo "    Source: ${ROOTFS_SRC}"
@@ -30,7 +35,7 @@ parted -s "${TARGET_DISK}" mkpart primary ext4 1MiB 100%
 partprobe "${TARGET_DISK}" || true
 sleep 2
 PART="${TARGET_DISK}1"
-mkfs.ext4 -F "${PART}"
+mkfs.ext4 -F -L the-machine "${PART}"
 MNT=$(mktemp -d)
 mount "${PART}" "${MNT}"
 rsync -a "${ROOTFS_SRC}/" "${MNT}/"

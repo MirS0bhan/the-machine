@@ -4,21 +4,27 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${ROOT}/build"
-ROOTFS="${BUILD_DIR}/rootfs"
+ROOTFS="${THE_MACHINE_ROOTFS_DIR:-${BUILD_DIR}/rootfs}"
 PROFILE="${1:-minimal}"
+
+# shellcheck source=rootfs-common.sh
+source "${ROOT}/build/rootfs-common.sh"
 
 echo "==> Building rootfs (${PROFILE})"
 
+DEBOOTSTRAP_OK=0
 if ! command -v debootstrap >/dev/null 2>&1; then
   echo "WARN: debootstrap not found — creating skeleton rootfs only" >&2
   rm -rf "${ROOTFS}"
-  mkdir -p "${ROOTFS}"/{bin,sbin,etc,the-machine,var/lib/the-machine,usr/lib/systemd/system}
+  rootfs_skeleton_dirs "${ROOTFS}"
 else
   rm -rf "${ROOTFS}"
-  sudo debootstrap --variant=minbase bookworm "${ROOTFS}" http://deb.debian.org/debian || {
+  if sudo debootstrap --variant=minbase bookworm "${ROOTFS}" http://deb.debian.org/debian; then
+    DEBOOTSTRAP_OK=1
+  else
     echo "debootstrap failed; using skeleton" >&2
-    mkdir -p "${ROOTFS}"/{bin,sbin,etc,the-machine}
-  }
+    rootfs_skeleton_dirs "${ROOTFS}"
+  fi
 fi
 
 # Install Machine service binaries.
@@ -80,5 +86,11 @@ STATE_STORE_BACKEND=sled
 STATE_STORE_PATH=/var/lib/the-machine/state
 THE_MACHINE_LAMBDA_DIR=/var/lib/the-machine/lambdas
 CONF
+
+# G13: kernel for target HW boot (debootstrap chroot, or host copy for skeleton).
+if [[ "${DEBOOTSTRAP_OK}" -eq 1 && "${THE_MACHINE_ROOTFS_SKIP_KERNEL:-0}" != "1" ]]; then
+  rootfs_install_kernel_debian "${ROOTFS}" || echo "WARN: kernel apt install failed; trying host copy" >&2
+fi
+rootfs_link_vmlinuz "${ROOTFS}" || true
 
 echo "==> Rootfs written to ${ROOTFS}"

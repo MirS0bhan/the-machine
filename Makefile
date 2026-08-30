@@ -66,6 +66,7 @@ test: test-all
 
 test-build-scripts:
 	bash build/test-assemble-release.sh
+	bash build/test-mkrootfs-layout.sh
 
 test-rust:
 	$(CARGO) test --workspace

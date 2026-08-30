@@ -15,14 +15,18 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| G17 wl_display scaffold | — | — | merged | 2026-08-30 | `wl_session.rs` + wayland-server on main |
-| G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
-| Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
+| G13 rootfs kernel | cursor/maintenance-g13-kernel-scaffold-2392aba | — | pr-open | 2026-08-30 | debootstrap chroot kernel + /vmlinuz link |
+| G14 display.set_mode | cursor/maintenance-g14-display-mode-8d4febd | #136 | pr-open | 2026-08-30 | DRM MODE_SETCRTC path |
+| G12 lease fast-path | cursor/maintenance-g12-lease-fast-path-2392aba | #137 | pr-open | 2026-08-30 | optional relay socket |
+| G17 wl_display scaffold | — | #135 | merged | 2026-08-30 | `wl_session.rs` + wayland-server on main |
+| G7 zbus D-Bus | — | #131 | merged | 2026-08-30 | Landed on main `f446927` |
+| Policy fail-closed | — | #11 | merged | 2026-08-30 | Landed on main `ad7520d` |
 
 ## Recent runs (newest first)
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-30 | gap | G13 | pr-open — kernel scaffold in mkrootfs |
 | 2026-08-30 | gap | G17 wl_display scaffold | merged to main |
 | 2026-08-30 | gap | G7 | merged to main |
 | 2026-08-30 | gap | policy hardening | merged to main |
@@ -31,8 +35,8 @@ until the PR is merged to `main`.
 
 Rotate when completing a row. Prefer top item not in cooldown.
 
-1. **G17** — compositor: wlroots seat/output init (wl_display scaffold merged)
-2. **G14** — system-daemon: one mutation path (e.g. display mode sysfs) behind grant token
-3. **G12** — mcp-bus: document lease fast-path honestly or bind optional lease socket
-4. **audit** — `make verify` + fix first failure
-5. **coverage** — lowest-coverage touched crate from `cargo llvm-cov` summary
+1. **G14** — merge PR #136 or next sub-step (`net.set_interface_state` rtnetlink)
+2. **G12** — merge PR #137 lease fast-path relay
+3. **G17** — compositor seat/output scaffold (cooldown until 2026-09-06)
+4. **G13** — follow-up: initrd in rootfs boot, installer initramfs hook
+5. **audit** — `make verify` (needs busybox-static in env)
