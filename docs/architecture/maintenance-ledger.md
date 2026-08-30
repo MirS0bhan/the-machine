@@ -8,11 +8,10 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-<<<<<<< HEAD
-| audit state-store MCP handlers | cursor/maintenance-audit-state-store-mcp-dd029fb | — | pr-open | 2026-08-30 | state.get/set/patch/list/stats + unknown method |
-=======
-| audit agent-core MCP handler tests | cursor/maintenance-audit-agent-core-mcp-dd029fb | #160 | pr-open | 2026-08-30 | `agent.status`, `agent.cloud.status`, local_only_mode guards |
->>>>>>> origin/main
+| audit policy.register integration | cursor/maintenance-audit-policy-register-integration-05da786 | — | pr-open | 2026-08-30 | policy.register persist + check outcomes |
+| audit state.get/set/list integration | cursor/maintenance-audit-state-get-set-integration-05da786 | #178 | pr-open | 2026-08-30 | policy-gated get/set/list cross-component tests |
+| G13 target-HW validation | cursor/maintenance-g13-target-hw-validate-05da786 | #168 | pr-open | 2026-08-30 | operator installed-rootfs validation |
+| audit ledger conflict fix | cursor/maintenance-verify-fix-ledger-conflicts-05da786 | #170 | pr-open | 2026-08-30 | resolve maintenance-ledger conflict markers |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -20,16 +19,14 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-<<<<<<< HEAD
-| 2026-08-30 | audit | state-store MCP handler unit tests | pr-open |
+| 2026-08-30 | audit | policy.register integration test | pr-open |
+| 2026-08-30 | audit | state.get/set/list integration tests | pr-open (#178) |
+| 2026-08-30 | audit | state-store MCP handler unit tests | merged (#161) |
+| 2026-08-30 | audit | agent-core MCP handler unit tests | merged (#160) |
+| 2026-08-30 | audit | policy-broker MCP handler tests | merged (#156) |
+| 2026-08-30 | gap | G13 installer fstab for target HW | merged (#159) |
+| 2026-08-30 | gap | G13 boot.auil in installed rootfs | merged (#157) |
 | 2026-08-30 | audit | lambda-server clippy/dead-code | merged (#155) |
-=======
-| 2026-08-30 | audit | agent-core MCP handler unit tests | pr-open |
-| 2026-08-30 | audit | policy-broker MCP handler tests | merged to main (#156) |
-| 2026-08-30 | gap | G13 installer fstab for target HW | merged to main (#159) |
-| 2026-08-30 | gap | G13 boot.auil in installed rootfs | merged to main (#157) |
-| 2026-08-30 | audit | lambda-server clippy/dead-code | merged to main (#155) |
->>>>>>> origin/main
 | 2026-08-30 | gap | boot greet e2e (GRUB → chat UI) | merged to main |
 | 2026-08-30 | gap | G13 loopback installer GRUB | merged to main (#148) |
 | 2026-08-30 | audit | compositor clippy/dead code | merged to main (#150) |
@@ -57,11 +54,6 @@ until the PR is merged to `main`.
 Rotate when completing a row. Prefer top item not in cooldown.
 
 1. **G17** — compositor: wlroots seat/output (cooldown until 2026-09-06)
-<<<<<<< HEAD
-2. **audit** — event-bus or ui-runtime MCP handler unit tests
-3. **audit** — `make verify` + fix first failure
-=======
-2. **G13** — operator target-HW validation on installed rootfs (software checks complete)
-3. **audit** — missing MCP integration test in component-inventory.yaml
+2. **G13** — operator target-HW validation on installed rootfs (software checks complete; PR #168)
+3. **audit** — missing MCP integration test (e.g. `lambda.search`, `event.subscribe`, `localmodel.complete`)
 4. **audit** — `make verify` + fix first failure
->>>>>>> origin/main
