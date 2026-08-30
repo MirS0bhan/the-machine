@@ -1,6 +1,6 @@
 //! Kernel/hardware abstraction: power, display, network, audio.
 
-use crate::{audio, display, net, power, wifi};
+use crate::display;
 use common::{AudioDevice, DisplayMode, NetworkInterface};
 
 pub struct KernelHandler;

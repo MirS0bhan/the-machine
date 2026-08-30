@@ -60,10 +60,10 @@ _None — all P0/P1 gaps from the expansion campaign are closed._
 
 | ID | Gap | Component | Priority |
 |----|-----|-----------|----------|
-| G13 | Physical hardware smoke test on target GPU/Wi-Fi/disk (software + CI validation done) | build | P3 |
-| G17 | Optional wlroots `xdg-shell` for third-party Wayland apps (SHM paint path done) | compositor | P4 |
-
-_All bare-metal software phases (A–E) are complete. Remaining items are hardware validation and optional compositor polish._
+| G12 | `bus.lease` returns handler + `handler_socket` but does not bind a dedicated fast-path socket | mcp-bus | P3 |
+| G13 | Rootfs installer needs debootstrap + kernel on target HW | build | P3 |
+| G14 | system-daemon mutations still refuse on real HW (wifi/display/netlink); reads + grant tokens exist | system-daemon | P3 | (in PR) display.set_mode DRM path |
+| G17 | Full wlroots Wayland session (DRM dumb buffer works today) | compositor | P3 |
 
 ---
 

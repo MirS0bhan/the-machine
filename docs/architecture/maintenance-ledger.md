@@ -8,19 +8,24 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| audit compositor MCP tests | cursor/maintenance-audit-compositor-mcp-7c1e350 | — | pr-open | 2026-08-30 | unit tests for compositor.present/surface/confirmation |
+| G14 display.set_mode DRM | cursor/maintenance-g14-display-mode-8d4febd | — | pr-open | 2026-08-30 | sysfs mode read + DRM SETCRTC mutation |
+| G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
+| Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
 ## Recent runs (newest first)
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | audit | compositor MCP handler tests | pr-open |
-| 2026-08-30 | gap | G17 surface paint | merged to main |
-| 2026-08-30 | gap | G14 rtnetlink | merged to main |
-| 2026-08-30 | gap | G13 rootfs CI validate | merged to main |
+| 2026-08-30 | gap | G14 | pr-open — display.set_mode DRM path |
+| 2026-08-30 | gap | G7 | merged to main |
+| 2026-08-30 | gap | policy hardening | merged to main |
 
 ## Next suggested work
 
-1. **G17** — wlroots xdg-shell compositing (cooldown until 2026-09-06; SHM path done)
-2. **G13** — smoke-test installed rootfs on physical hardware (debootstrap + GRUB boot)
-3. **audit** — clippy cleanup in `lambda-server` sandbox.rs
+Rotate when completing a row. Prefer top item not in cooldown.
+
+1. **G17** — compositor: wlroots seat/output init (G17 wl_display PRs #133–#135 in flight)
+2. **G14** — system-daemon: netlink interface up/down or wifi connect (display.set_mode wired in PR)
+3. **G12** — mcp-bus: document lease fast-path honestly or bind optional lease socket
+4. **audit** — `make verify` + fix first failure
+5. **coverage** — lowest-coverage touched crate from `cargo llvm-cov` summary
