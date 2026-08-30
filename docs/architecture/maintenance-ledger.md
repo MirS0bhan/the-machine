@@ -8,13 +8,19 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| G13 rootfs CI validate | — | — | merged | 2026-08-30 | `rootfs-validate.sh` + test in Makefile |
-| G14 rtnetlink | — | — | merged | 2026-08-30 | `system-daemon/src/netlink.rs` |
-| G17 surface paint | — | — | merged | 2026-08-30 | `wl_shm` + commit → pixel blit |
-| bare-metal phases A–E | — | — | merged | 2026-08-30 | see `bare-metal-desktop.md` |
+| audit compositor MCP tests | cursor/maintenance-audit-compositor-mcp-7c1e350 | — | pr-open | 2026-08-30 | unit tests for compositor.present/surface/confirmation |
+
+## Recent runs (newest first)
+
+| Date (UTC) | Run type | Target | Outcome |
+|------------|----------|--------|---------|
+| 2026-08-30 | audit | compositor MCP handler tests | pr-open |
+| 2026-08-30 | gap | G17 surface paint | merged to main |
+| 2026-08-30 | gap | G14 rtnetlink | merged to main |
+| 2026-08-30 | gap | G13 rootfs CI validate | merged to main |
 
 ## Next suggested work
 
-1. **G13** — smoke-test installed rootfs on physical hardware (debootstrap + GRUB boot)
-2. **G17** — wlroots xdg-shell compositing (optional; SHM path done)
-3. **audit** — `make verify` on release bundle
+1. **G17** — wlroots xdg-shell compositing (cooldown until 2026-09-06; SHM path done)
+2. **G13** — smoke-test installed rootfs on physical hardware (debootstrap + GRUB boot)
+3. **audit** — clippy cleanup in `lambda-server` sandbox.rs
