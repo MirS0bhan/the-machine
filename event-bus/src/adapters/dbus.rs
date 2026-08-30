@@ -94,17 +94,20 @@ async fn handle_prepare_sleep(msg: Message) {
     publish_event("system", "login.prepare_sleep", payload).await;
 }
 
+type NotifyBody = (
+    String,
+    u32,
+    String,
+    String,
+    String,
+    Vec<String>,
+    std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+    i32,
+);
+
 fn notify_payload(msg: &Message) -> Result<Value, zbus::Error> {
-    let (app_name, _replaces_id, app_icon, summary, body, _actions, _hints, _expire): (
-        String,
-        u32,
-        String,
-        String,
-        String,
-        Vec<String>,
-        std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
-        i32,
-    ) = msg.body().deserialize()?;
+    let (app_name, _replaces_id, app_icon, summary, body, _actions, _hints, _expire): NotifyBody =
+        msg.body().deserialize()?;
 
     Ok(json!({
         "app_name": app_name,

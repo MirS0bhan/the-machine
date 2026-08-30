@@ -354,7 +354,7 @@ async fn scheduler_loop(state: State) {
                     se.trigger_time + 60_000
                 };
                 let repetition_count = se.repetition_count + 1;
-                let keep = se.max_repetitions.map_or(true, |m| repetition_count <= m);
+                let keep = se.max_repetitions.is_none_or(|m| repetition_count <= m);
                 if keep {
                     let new_se = ScheduledEvent {
                         trigger_time: next,
@@ -447,7 +447,7 @@ fn next_cron_time(spec: &str, after_ms: i64) -> i64 {
         {
             return cur.timestamp_millis();
         }
-        cur = cur + chrono::Duration::minutes(1);
+        cur += chrono::Duration::minutes(1);
     }
     after_ms + 60_000
 }
@@ -897,7 +897,7 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-async fn handle_connection(mut stream: UnixStream, state: State) {
+async fn handle_connection(stream: UnixStream, state: State) {
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
