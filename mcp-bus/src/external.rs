@@ -2,7 +2,6 @@
 
 use dashmap::DashMap;
 use serde_json::{json, Value};
-use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct ExternalServer {
@@ -72,8 +71,6 @@ impl ExternalRegistry {
         resp.json().await.ok()
     }
 }
-
-pub type SharedExternal = Arc<ExternalRegistry>;
 
 /// External MCP endpoints must be HTTPS (or HTTP on loopback) with an
 /// explicit method allow-list. Wildcards and link-local metadata hosts

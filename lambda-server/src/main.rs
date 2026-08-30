@@ -753,3 +753,180 @@ async fn register_event_handler(lambda_name: &str, event_key: &str) {
         let _ = stream.write_all(&buf).await;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn req(method: &str, params: Option<Value>) -> Value {
+        let mut v = json!({ "id": "test-req", "method": method });
+        if let Some(p) = params {
+            v["params"] = p;
+        }
+        v
+    }
+
+    fn test_state() -> Arc<AppState> {
+        Arc::new(AppState::new())
+    }
+
+    fn sample_manifest(name: &str, entrypoint: &str) -> Value {
+        json!({
+            "manifest": {
+                "name": name,
+                "description": "unit test helper",
+                "entrypoint": entrypoint,
+            }
+        })
+    }
+
+    fn lambda_test_dir() -> (std::path::PathBuf, String) {
+        let base = std::env::temp_dir().join(format!("tm-lambda-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&base).expect("create lambda test dir");
+        let entry = base.join("echo/main.py");
+        if let Some(parent) = entry.parent() {
+            std::fs::create_dir_all(parent).expect("create echo dir");
+        }
+        std::fs::write(&entry, "#!/usr/bin/env python3\nprint('ok')\n").expect("write script");
+        let entry_str = entry.to_string_lossy().into_owned();
+        std::env::set_var("THE_MACHINE_LAMBDA_DIR", base.to_string_lossy().as_ref());
+        (base, entry_str)
+    }
+
+    #[tokio::test]
+    async fn lambda_health_reports_empty_registry() {
+        let state = test_state();
+        let resp = handle_request(req("lambda.health", None), state).await;
+        assert!(resp.get("error").is_none());
+        let result = resp.get("result").expect("result");
+        assert_eq!(
+            result.get("status").and_then(|v| v.as_str()),
+            Some("healthy")
+        );
+        assert_eq!(result.get("functions").and_then(|v| v.as_u64()), Some(0));
+        assert_eq!(result.get("active_leases").and_then(|v| v.as_u64()), Some(0));
+    }
+
+    #[tokio::test]
+    async fn lambda_list_empty_registry() {
+        let state = test_state();
+        let resp = handle_request(req("lambda.list", None), state).await;
+        assert!(resp.get("error").is_none());
+        let items = resp
+            .get("result")
+            .and_then(|v| v.as_array())
+            .expect("array");
+        assert!(items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn lambda_register_status_search_and_deprecate() {
+        let (_dir, entry) = lambda_test_dir();
+        let state = test_state();
+        let reg = handle_request(
+            req("lambda.register", Some(sample_manifest("test.echo", &entry))),
+            state.clone(),
+        )
+        .await;
+        assert!(reg.get("error").is_none(), "register: {:?}", reg);
+        assert_eq!(
+            reg.get("result")
+                .and_then(|r| r.get("name"))
+                .and_then(|v| v.as_str()),
+            Some("test.echo")
+        );
+
+        let search = handle_request(
+            req(
+                "lambda.search",
+                Some(json!({ "query": { "description": "unit test" } })),
+            ),
+            state.clone(),
+        )
+        .await;
+        assert!(search.get("error").is_none());
+        let functions = search
+            .get("result")
+            .and_then(|r| r.get("functions"))
+            .and_then(|v| v.as_array())
+            .expect("functions");
+        assert_eq!(functions.len(), 1);
+        assert_eq!(
+            functions[0].get("name").and_then(|v| v.as_str()),
+            Some("test.echo")
+        );
+
+        let st = handle_request(
+            req("lambda.status", Some(json!({ "name": "test.echo" }))),
+            state.clone(),
+        )
+        .await;
+        assert!(st.get("error").is_none());
+        assert_eq!(
+            st.get("result")
+                .and_then(|r| r.get("status"))
+                .and_then(|v| v.as_str()),
+            Some("Ready")
+        );
+
+        let dep = handle_request(
+            req("lambda.deprecate", Some(json!({ "name": "test.echo" }))),
+            state.clone(),
+        )
+        .await;
+        assert!(dep.get("error").is_none());
+        assert_eq!(
+            dep.get("result")
+                .and_then(|r| r.get("deprecated"))
+                .and_then(|v| v.as_str()),
+            Some("test.echo")
+        );
+
+        let list = handle_request(req("lambda.list", None), state).await;
+        let items = list
+            .get("result")
+            .and_then(|v| v.as_array())
+            .expect("array");
+        assert!(items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn lambda_register_requires_manifest() {
+        let state = test_state();
+        let resp = handle_request(req("lambda.register", Some(json!({}))), state).await;
+        assert_eq!(
+            resp.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|c| c.as_str()),
+            Some("E_INVALID_MANIFEST")
+        );
+    }
+
+    #[tokio::test]
+    async fn lambda_status_unknown_function() {
+        let state = test_state();
+        let resp = handle_request(
+            req("lambda.status", Some(json!({ "name": "missing.fn" }))),
+            state,
+        )
+        .await;
+        assert_eq!(
+            resp.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|c| c.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_method_returns_not_found() {
+        let state = test_state();
+        let resp = handle_request(req("lambda.nope", None), state).await;
+        assert_eq!(
+            resp.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|c| c.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
+}
