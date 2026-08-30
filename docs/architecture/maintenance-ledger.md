@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | — | pr-open | 2026-08-30 | merge MCP handler + resolve_token unit tests |
+| verify-fix resolve merge conflict markers & restore event-bus/src/main.rs | cursor/maintenance-verify-fix-merge-conflicts-d2bc9cb | — | pr-open | 2026-08-30 | resolve conflict markers in docs/scripts/agent-core, restore event-bus/src/main.rs |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -16,6 +16,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-30 | verify-fix | resolve merge conflict markers & restore event-bus | pr-open |
 | 2026-08-30 | verify-fix | ui-runtime merge conflict markers | pr-open |
 | 2026-08-30 | audit | policy.register Python integration test | merged to main (#179) |
 | 2026-08-30 | audit | event.subscribe Python integration test | merged to main (#182) |
