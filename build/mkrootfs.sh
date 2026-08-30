@@ -121,6 +121,11 @@ WantedBy=the-machine.target
 UNIT
 done
 
+mkdir -p "${ROOTFS}/etc/the-machine"
+if [[ -f "${ROOT}/build/boot.auil" ]]; then
+  install -m 0644 "${ROOT}/build/boot.auil" "${ROOTFS}/etc/the-machine/boot.auil"
+fi
+
 cat > "${ROOTFS}/etc/the-machine/machine.conf" <<'CONF'
 # The Machine OS configuration (installed system)
 THE_MACHINE_SOCKET_DIR=/run/the-machine
@@ -129,6 +134,7 @@ STATE_STORE_BACKEND=sled
 STATE_STORE_PATH=/var/lib/the-machine/state
 THE_MACHINE_LAMBDA_DIR=/var/lib/the-machine/lambdas
 THE_MACHINE_COMPOSITOR_BACKEND=auto
+THE_MACHINE_BOOT_AUIL=/etc/the-machine/boot.auil
 LOCAL_MODEL_PATH=/var/lib/the-machine/models/machine-tiny.gguf
 CONF
 
