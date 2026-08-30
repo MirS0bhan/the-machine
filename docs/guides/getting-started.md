@@ -75,6 +75,7 @@ Boot services started by `scripts/start-services.sh` (rust mode):
 | `OPENAI_API_KEY` | — | Cloud LLM fallback for agent-core |
 | `WAYLAND_DISPLAY` | `wayland-0` (boot) | Compositor display |
 | `RUST_LOG` | `info` | Tracing filter |
+| `THE_MACHINE_DISABLE_DBUS` | — | Set to skip event-bus D-Bus signal adapter |
 
 ## Test
 

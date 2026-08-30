@@ -55,3 +55,5 @@ wlroots = "0.17"
 
 # For MCP protocol
 mcp-protocol = { path = "common" }
+# For event-bus D-Bus adapter (pure Rust, no dbus-monitor)
+zbus = { version = "3.15", default-features = false, features = ["tokio"] }

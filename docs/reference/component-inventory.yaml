@@ -52,6 +52,7 @@ env_vars:
   - THE_MACHINE_LAMBDA_DIR
   - OPENAI_API_KEY
   - RUST_LOG
+  - THE_MACHINE_DISABLE_DBUS
 
 mcp_services:
   system-daemon:
