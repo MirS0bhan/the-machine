@@ -67,5 +67,6 @@ Most daemon `main.rs` handlers are covered indirectly via Python integration tes
 3. MCP methods in inventory exist in Rust sources
 4. Environment variables documented in guides
 5. No stale phrases in `runtime-model.md`
+6. No unresolved git conflict markers in `docs/` or crate `src/**/*.rs`
 
 Wired into `make verify` and the CI `test` job.
