@@ -1205,4 +1205,315 @@ mod tests {
         assert!(policy_unavailable_allows("ui.status"));
         assert!(!policy_unavailable_allows("net.connect_wifi"));
     }
+
+    async fn test_state() -> AppState {
+        let state = AppState {
+            registry: Arc::new(Mutex::new(Registry::new())),
+            leases: Arc::new(LeaseManager::new(300)),
+            external: Arc::new(ExternalRegistry::new()),
+            telemetry: Arc::new(Telemetry::new(10_000)),
+        };
+        {
+            let mut reg = state.registry.lock().await;
+            reg.register("state.get", "state-store", true).unwrap();
+            reg.register("power.get_profile", "system-daemon", true)
+                .unwrap();
+        }
+        state
+    }
+
+    fn bus_msg(id: u64, params: serde_json::Value) -> serde_json::Value {
+        json!({ "id": id, "params": params })
+    }
+
+    fn parse_resp(bytes: &[u8]) -> serde_json::Value {
+        serde_json::from_slice(bytes.trim_ascii()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn bus_resolve_known_route_returns_handler() {
+        let state = test_state().await;
+        let resp = handle_bus_local(
+            "bus.resolve",
+            &bus_msg(1, json!({ "method": "state.get" })),
+            &state,
+        )
+        .await;
+        let v = parse_resp(&resp);
+        assert!(v.get("error").is_none());
+        assert_eq!(
+            v.get("result")
+                .and_then(|r| r.get("handler"))
+                .and_then(|h| h.as_str()),
+            Some("state-store")
+        );
+    }
+
+    #[tokio::test]
+    async fn bus_resolve_unknown_returns_agent_wake() {
+        let state = test_state().await;
+        let resp = handle_bus_local(
+            "bus.resolve",
+            &bus_msg(2, json!({ "method": "calc.add" })),
+            &state,
+        )
+        .await;
+        let v = parse_resp(&resp);
+        assert!(v.get("error").is_none());
+        assert_eq!(
+            v.get("result")
+                .and_then(|r| r.get("decision"))
+                .and_then(|d| d.as_str()),
+            Some("AgentWake")
+        );
+    }
+
+    #[tokio::test]
+    async fn bus_list_routes_includes_seeded_routes() {
+        let state = test_state().await;
+        let resp = handle_bus_local("bus.list_routes", &bus_msg(3, json!({})), &state).await;
+        let v = parse_resp(&resp);
+        assert!(v.get("error").is_none());
+        let routes = v
+            .get("result")
+            .and_then(|r| r.get("routes"))
+            .and_then(|r| r.as_array())
+            .expect("routes array");
+        assert!(routes.len() >= 2);
+        let patterns: Vec<&str> = routes
+            .iter()
+            .filter_map(|e| e.get("pattern").and_then(|p| p.as_str()))
+            .collect();
+        assert!(patterns.contains(&"state.get"));
+        assert!(patterns.contains(&"power.get_profile"));
+    }
+
+    #[tokio::test]
+    async fn bus_register_rejects_spoofed_boot_registrar() {
+        let state = test_state().await;
+        let resp = handle_bus_local(
+            "_bus.register",
+            &bus_msg(
+                4,
+                json!({
+                    "registered_by": "boot",
+                    "namespace": "mcp-intent",
+                    "pattern": "calc.add",
+                    "handler": "lambda-server"
+                }),
+            ),
+            &state,
+        )
+        .await;
+        let v = parse_resp(&resp);
+        assert_eq!(
+            v.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|c| c.as_str()),
+            Some("E_FORBIDDEN")
+        );
+    }
+
+    #[tokio::test]
+    async fn bus_register_rejects_missing_pattern() {
+        let state = test_state().await;
+        let resp = handle_bus_local(
+            "_bus.register",
+            &bus_msg(
+                5,
+                json!({
+                    "registered_by": "lambda-server",
+                    "namespace": "mcp-intent",
+                    "handler": "lambda-server"
+                }),
+            ),
+            &state,
+        )
+        .await;
+        let v = parse_resp(&resp);
+        assert_eq!(
+            v.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|c| c.as_str()),
+            Some("E_INVALID")
+        );
+    }
+
+    #[tokio::test]
+    async fn bus_register_and_deregister_roundtrip() {
+        std::env::set_var("THE_MACHINE_POLICY_FAIL_OPEN", "1");
+        let state = test_state().await;
+        let pattern = "test.maintenance.echo";
+
+        let reg_resp = handle_bus_local(
+            "_bus.register",
+            &bus_msg(
+                6,
+                json!({
+                    "registered_by": "lambda-server",
+                    "namespace": "mcp-intent",
+                    "pattern": pattern,
+                    "handler": "lambda-server"
+                }),
+            ),
+            &state,
+        )
+        .await;
+        let reg = parse_resp(&reg_resp);
+        assert!(reg.get("error").is_none());
+        assert_eq!(
+            reg.get("result")
+                .and_then(|r| r.get("registered"))
+                .and_then(|v| v.as_bool()),
+            Some(true)
+        );
+
+        let resolve = handle_bus_local(
+            "bus.resolve",
+            &bus_msg(7, json!({ "method": pattern })),
+            &state,
+        )
+        .await;
+        let resolved = parse_resp(&resolve);
+        assert_eq!(
+            resolved
+                .get("result")
+                .and_then(|r| r.get("handler"))
+                .and_then(|h| h.as_str()),
+            Some("lambda-server")
+        );
+
+        let dereg_resp = handle_bus_local(
+            "_bus.deregister",
+            &bus_msg(
+                8,
+                json!({
+                    "registered_by": "lambda-server",
+                    "namespace": "mcp-intent",
+                    "pattern": pattern
+                }),
+            ),
+            &state,
+        )
+        .await;
+        let dereg = parse_resp(&dereg_resp);
+        assert!(dereg.get("error").is_none());
+        assert_eq!(
+            dereg
+                .get("result")
+                .and_then(|r| r.get("deregistered"))
+                .and_then(|v| v.as_bool()),
+            Some(true)
+        );
+        std::env::remove_var("THE_MACHINE_POLICY_FAIL_OPEN");
+    }
+
+    #[tokio::test]
+    async fn bus_lease_creates_lease_for_registered_method() {
+        let state = test_state().await;
+        let resp = handle_bus_local(
+            "bus.lease",
+            &bus_msg(9, json!({ "method": "state.get", "ttl_secs": 60 })),
+            &state,
+        )
+        .await;
+        let v = parse_resp(&resp);
+        assert!(v.get("error").is_none());
+        let result = v.get("result").expect("result");
+        assert!(result.get("lease_id").and_then(|v| v.as_str()).is_some());
+        assert_eq!(
+            result.get("handler").and_then(|v| v.as_str()),
+            Some("state-store")
+        );
+    }
+
+    #[tokio::test]
+    async fn bus_lease_unknown_method_returns_not_found() {
+        let state = test_state().await;
+        let resp = handle_bus_local(
+            "bus.lease",
+            &bus_msg(10, json!({ "method": "missing.method" })),
+            &state,
+        )
+        .await;
+        let v = parse_resp(&resp);
+        assert_eq!(
+            v.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|c| c.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
+
+    #[tokio::test]
+    async fn bus_lease_renew_unknown_returns_not_found() {
+        let state = test_state().await;
+        let resp = handle_bus_local(
+            "bus.lease.renew",
+            &bus_msg(11, json!({ "lease_id": "no-such-lease" })),
+            &state,
+        )
+        .await;
+        let v = parse_resp(&resp);
+        assert_eq!(
+            v.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|c| c.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
+
+    #[tokio::test]
+    async fn bus_external_list_empty_by_default() {
+        let state = test_state().await;
+        let resp = handle_bus_local("bus.external.list", &bus_msg(12, json!({})), &state).await;
+        let v = parse_resp(&resp);
+        assert!(v.get("error").is_none());
+        let servers = v
+            .get("result")
+            .and_then(|r| r.get("servers"))
+            .and_then(|s| s.as_array())
+            .expect("servers array");
+        assert!(servers.is_empty());
+    }
+
+    #[tokio::test]
+    async fn bus_external_register_rejects_open_proxy_url() {
+        std::env::set_var("THE_MACHINE_POLICY_FAIL_OPEN", "1");
+        let state = test_state().await;
+        let resp = handle_bus_local(
+            "bus.external.register",
+            &bus_msg(
+                13,
+                json!({
+                    "id": "evil",
+                    "base_url": "http://169.254.169.254/",
+                    "allowed_methods": ["fetch"]
+                }),
+            ),
+            &state,
+        )
+        .await;
+        let v = parse_resp(&resp);
+        assert_eq!(
+            v.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|c| c.as_str()),
+            Some("E_INVALID")
+        );
+        std::env::remove_var("THE_MACHINE_POLICY_FAIL_OPEN");
+    }
+
+    #[tokio::test]
+    async fn unknown_bus_method_returns_not_found() {
+        let state = test_state().await;
+        let resp = handle_bus_local("bus.nope", &bus_msg(14, json!({})), &state).await;
+        let v = parse_resp(&resp);
+        assert_eq!(
+            v.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|c| c.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
 }
