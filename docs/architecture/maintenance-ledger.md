@@ -8,11 +8,11 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-<<<<<<< HEAD
-| audit state-store MCP handlers | cursor/maintenance-audit-state-store-mcp-dd029fb | — | pr-open | 2026-08-30 | state.get/set/patch/list/stats + unknown method |
-=======
-| audit agent-core MCP handler tests | cursor/maintenance-audit-agent-core-mcp-dd029fb | #160 | pr-open | 2026-08-30 | `agent.status`, `agent.cloud.status`, local_only_mode guards |
->>>>>>> origin/main
+| audit policy CONFIRM integration | cursor/maintenance-audit-policy-confirm-integration-05da786 | — | pr-open | 2026-08-30 | policy.check CONFIRM/HOLD → correlation_id + audit log |
+| audit lambda.deprecate integration | cursor/maintenance-audit-lambda-deprecate-integration-05da786 | #176 | pr-open | 2026-08-30 | register → deprecate cross-component flow |
+| audit lambda.search integration | cursor/maintenance-audit-lambda-search-integration-05da786 | #175 | pr-open | 2026-08-30 | register → search cross-component flow |
+| verify-fix ledger conflict guard | cursor/maintenance-verify-fix-ledger-conflicts-05da786 | #170 | pr-open | 2026-08-30 | resolve markers + verify-docs guard |
+| G13 operator rootfs validation | cursor/maintenance-g13-target-hw-validate-05da786 | #168 | pr-open | 2026-08-30 | installed-rootfs software checks |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -20,16 +20,20 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-<<<<<<< HEAD
-| 2026-08-30 | audit | state-store MCP handler unit tests | pr-open |
-| 2026-08-30 | audit | lambda-server clippy/dead-code | merged (#155) |
-=======
-| 2026-08-30 | audit | agent-core MCP handler unit tests | pr-open |
-| 2026-08-30 | audit | policy-broker MCP handler tests | merged to main (#156) |
+| 2026-08-30 | audit | policy CONFIRM/HOLD Python integration test | pr-open |
+| 2026-08-30 | audit | lambda.deprecate Python integration test | pr-open (#176) |
+| 2026-08-30 | audit | lambda.search Python integration test | pr-open (#175) |
+| 2026-08-30 | audit | mcp-bus clippy/dead-code | pr-open (#174) |
+| 2026-08-30 | audit | ui-runtime clippy/dead-code | pr-open (#173) |
+| 2026-08-30 | audit | event-bus clippy/dead-code | pr-open (#172) |
+| 2026-08-30 | audit | compositor clippy/dead-code | pr-open (#171) |
+| 2026-08-30 | verify-fix | maintenance-ledger conflict markers | pr-open (#170) |
+| 2026-08-30 | audit | state-store MCP handler unit tests | merged to main (#161) |
+| 2026-08-30 | audit | agent-core MCP handler unit tests | merged to main (#160) |
 | 2026-08-30 | gap | G13 installer fstab for target HW | merged to main (#159) |
 | 2026-08-30 | gap | G13 boot.auil in installed rootfs | merged to main (#157) |
+| 2026-08-30 | audit | policy-broker MCP handler tests | merged to main (#156) |
 | 2026-08-30 | audit | lambda-server clippy/dead-code | merged to main (#155) |
->>>>>>> origin/main
 | 2026-08-30 | gap | boot greet e2e (GRUB → chat UI) | merged to main |
 | 2026-08-30 | gap | G13 loopback installer GRUB | merged to main (#148) |
 | 2026-08-30 | audit | compositor clippy/dead code | merged to main (#150) |
@@ -57,11 +61,7 @@ until the PR is merged to `main`.
 Rotate when completing a row. Prefer top item not in cooldown.
 
 1. **G17** — compositor: wlroots seat/output (cooldown until 2026-09-06)
-<<<<<<< HEAD
-2. **audit** — event-bus or ui-runtime MCP handler unit tests
-3. **audit** — `make verify` + fix first failure
-=======
-2. **G13** — operator target-HW validation on installed rootfs (software checks complete)
-3. **audit** — missing MCP integration test in component-inventory.yaml
-4. **audit** — `make verify` + fix first failure
->>>>>>> origin/main
+2. **G13** — operator target-HW validation on installed rootfs (PR #168 in flight)
+3. **audit** — missing Python integration test for an MCP method (e.g. `event.schedule`, `bus.lease`)
+4. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
+5. **audit** — `make verify` + fix first failure
