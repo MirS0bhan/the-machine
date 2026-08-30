@@ -943,3 +943,152 @@ async fn handle_connection(mut stream: UnixStream, state: State) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    fn test_state() -> State {
+        Arc::new(Mutex::new(BusState::new()))
+    }
+
+    async fn call(state: &State, method: &str, params: Option<Value>) -> Value {
+        handle_request(
+            json!({ "id": 1, "method": method, "params": params }),
+            state.clone(),
+        )
+        .await
+    }
+
+    #[test]
+    fn pattern_matches_supports_wildcards() {
+        assert!(pattern_matches("*", "anything.here"));
+        assert!(pattern_matches("ui.*", "ui.click"));
+        assert!(pattern_matches("ui.*", "ui"));
+        assert!(pattern_matches("*.click", "ui.click"));
+        assert!(pattern_matches("boot.ready", "boot.ready"));
+        assert!(!pattern_matches("boot.ready", "boot.done"));
+    }
+
+    #[tokio::test]
+    async fn event_publish_requires_category() {
+        let state = test_state();
+        let resp = call(&state, "event.publish", Some(json!({}))).await;
+        assert_eq!(
+            resp.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|v| v.as_str()),
+            Some("E_INVALID_CATEGORY")
+        );
+    }
+
+    #[tokio::test]
+    async fn event_publish_routes_to_registered_handler() {
+        let state = test_state();
+        call(
+            &state,
+            "event.register_handler",
+            Some(json!({
+                "category": "ui",
+                "pattern": "click",
+                "handler": "lambda-server"
+            })),
+        )
+        .await;
+
+        let resp = call(
+            &state,
+            "event.publish",
+            Some(json!({
+                "category": "ui",
+                "pattern": "click",
+                "payload": { "id": "btn.submit" }
+            })),
+        )
+        .await;
+        assert!(resp.get("error").is_none(), "unexpected {:?}", resp.get("error"));
+        let result = resp.get("result").expect("result");
+        assert_eq!(
+            result.get("decision").and_then(|v| v.as_str()),
+            Some("Handler")
+        );
+        assert_eq!(
+            result.get("handler").and_then(|v| v.as_str()),
+            Some("lambda-server")
+        );
+    }
+
+    #[tokio::test]
+    async fn event_subscribe_returns_subscription_id() {
+        let state = test_state();
+        let resp = call(
+            &state,
+            "event.subscribe",
+            Some(json!({
+                "category": "ui",
+                "pattern": "click.*",
+                "subscriber": "ui-runtime"
+            })),
+        )
+        .await;
+        assert!(resp.get("error").is_none());
+        assert!(resp
+            .get("result")
+            .and_then(|r| r.get("subscription_id"))
+            .and_then(|v| v.as_str())
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn event_schedule_accepts_every_cron() {
+        let state = test_state();
+        let resp = call(
+            &state,
+            "event.schedule",
+            Some(json!({
+                "cron": "@every 5s",
+                "category": "timer",
+                "pattern": "tick",
+                "recurring": true
+            })),
+        )
+        .await;
+        assert!(resp.get("error").is_none(), "unexpected {:?}", resp.get("error"));
+        let result = resp.get("result").expect("result");
+        assert!(result.get("event_id").is_some());
+        assert_eq!(result.get("recurring").and_then(|v| v.as_bool()), Some(true));
+    }
+
+    #[tokio::test]
+    async fn event_stats_reports_counters() {
+        let state = test_state();
+        call(
+            &state,
+            "event.publish",
+            Some(json!({ "category": "test", "pattern": "ping" })),
+        )
+        .await;
+
+        let resp = call(&state, "event.stats", None).await;
+        assert!(resp.get("error").is_none());
+        let result = resp.get("result").expect("result");
+        assert_eq!(
+            result.get("events_emitted").and_then(|v| v.as_u64()),
+            Some(1)
+        );
+        assert!(result.get("uptime_ms").and_then(|v| v.as_i64()).unwrap_or(0) >= 0);
+    }
+
+    #[tokio::test]
+    async fn unknown_method_returns_not_found() {
+        let state = test_state();
+        let resp = call(&state, "event.nope", None).await;
+        assert_eq!(
+            resp.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|v| v.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
+}
