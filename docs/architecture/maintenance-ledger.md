@@ -16,10 +16,7 @@ until the PR is merged to `main`.
 | audit local-model-daemon clippy | cursor/maintenance-audit-local-model-daemon-clippy-05da786 | #167 | pr-open | 2026-08-30 | unused imports, dead_code |
 | G13 operator rootfs validation | cursor/maintenance-g13-target-hw-validate-05da786 | #168 | pr-open | 2026-08-30 | installed-rootfs software checks |
 | audit state-store clippy | cursor/maintenance-audit-state-store-clippy-05da786 | #169 | pr-open | 2026-08-30 | clippy/dead-code cleanup |
-| verify-fix ledger conflict guard | cursor/maintenance-verify-fix-ledger-conflicts-05da786 | #170 | pr-open | 2026-08-30 | resolve markers + verify-docs guard |
-| audit compositor clippy | cursor/maintenance-audit-compositor-clippy-05da786 | #171 | pr-open | 2026-08-30 | clippy/dead-code cleanup |
-| audit event-bus clippy | cursor/maintenance-audit-event-bus-clippy-05da786 | #172 | pr-open | 2026-08-30 | clippy/dead-code cleanup |
-| audit ui-runtime clippy | cursor/maintenance-audit-ui-runtime-clippy-05da786 | — | pr-open | 2026-08-30 | unused mut/vars, dead_code, private_interfaces |
+| verify-fix ledger conflict guard | cursor/maintenance-verify-fix-ledger-conflicts-05da786 | — | pr-open | 2026-08-30 | resolve markers + verify-docs guard |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -27,10 +24,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | audit | ui-runtime clippy/dead-code | pr-open |
-| 2026-08-30 | audit | event-bus clippy/dead-code | pr-open (#172) |
-| 2026-08-30 | audit | compositor clippy/dead-code | pr-open (#171) |
-| 2026-08-30 | verify-fix | maintenance-ledger conflict markers | pr-open (#170) |
+| 2026-08-30 | verify-fix | maintenance-ledger conflict markers | pr-open |
 | 2026-08-30 | audit | state-store clippy/dead-code | pr-open (#169) |
 | 2026-08-30 | gap | G13 operator installed-rootfs validation | pr-open (#168) |
 | 2026-08-30 | audit | local-model-daemon clippy/dead-code | pr-open (#167) |
@@ -51,12 +45,13 @@ until the PR is merged to `main`.
 | 2026-08-30 | audit | fallback-shell MCP handler tests | merged to main (#153) |
 | 2026-08-30 | audit | marketplace MCP handler tests | merged to main (#154) |
 | 2026-08-30 | audit | system-daemon read-only MCP handler tests | merged to main (#149) |
-| 2026-08-30 | audit | system-daemon MCP handler tests | merged to main (#146) |
+| 2026-08-30 | audit | policy-broker clippy/dead-code | merged to main (#152) |
 | 2026-08-30 | gap | G14 udev hotplug events | merged to main (#145) |
 | 2026-08-30 | audit | hardware-smoke CI | merged to main (#143) |
-| 2026-08-30 | gap | compositor MCP handler tests | merged to main (#142) |
+| 2026-08-30 | audit | system-daemon MCP handler tests | merged to main (#146) |
 | 2026-08-30 | gap | G14 wifi wpa_cli connect | merged to main |
 | 2026-08-30 | gap | G14 display.set_mode DRM | merged to main |
+| 2026-08-30 | gap | compositor MCP handler tests | merged to main (#142) |
 | 2026-08-30 | gap | G14 power.set_profile sysfs | merged to main |
 | 2026-08-30 | verify-fix | initramfs busybox/cpio fetch | merged to main |
 | 2026-08-30 | gap | G13 kernel scaffold | merged to main |
@@ -71,7 +66,6 @@ until the PR is merged to `main`.
 Rotate when completing a row. Prefer top item not in cooldown.
 
 1. **G17** — compositor: wlroots seat/output (cooldown until 2026-09-06)
-2. **audit** — mcp-bus clippy/dead-code cleanup
-3. **audit** — missing Python integration test for an MCP method (see `component-inventory.yaml`)
-4. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
-5. **audit** — `make verify` + fix first failure
+2. **audit** — missing Python integration test for an MCP method (see `component-inventory.yaml`)
+3. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
+4. **audit** — `make verify` + fix first failure
