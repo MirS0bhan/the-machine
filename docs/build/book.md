@@ -1063,6 +1063,8 @@ Scanned `event-bus`. Module / public-symbol inventory:
     - `register_handler()`
     - `publish()`
     - `publish_request()`
+    - `subscribe()`
+    - `unsubscribe()`
     - `list_published()`
     - `clear()`
 

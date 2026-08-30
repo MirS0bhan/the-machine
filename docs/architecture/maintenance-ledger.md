@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| audit marketplace.install integration test | cursor/maintenance-audit-marketplace-install-integration-df6ea6f | #208 | pr-open | 2026-08-30 | Python integration test for marketplace.install |
+| docs close G13 in gap-analysis | cursor/autonomous-machine-maintenance-4565 | #207 | pr-open | 2026-08-30 | Mark G13 fully closed (#157, #159, #168) |
 | verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | #189–#192 | merged | 2026-08-30 | Landed on main (also #193 tree repair) |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
@@ -17,10 +17,11 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-30 | docs | close G13 in gap-analysis.md (fully merged: #157, #159, #168) | pr-open (#207) |
+| 2026-08-30 | audit | marketplace.install Python integration test | merged to main (#208) |
 | 2026-08-30 | audit | localmodel.health Python integration test | merged to main (#209) |
 | 2026-08-30 | docs | The Machine Design System (visual language) | merged to main (#210) |
 | 2026-08-30 | audit | localmodel.classify_intent Python integration test | merged to main (#206) |
-| 2026-08-30 | audit | marketplace.install Python integration test | pr-open (#208) |
 | 2026-08-30 | verify-fix | agent-core / event-bus / docs merge corruption | merged to main (#193) |
 | 2026-08-30 | verify-fix | ui-runtime merge conflict markers | merged to main (#189–#192) |
 | 2026-08-30 | audit | policy.register Python integration test | merged to main (#179) |
@@ -66,7 +67,8 @@ until the PR is merged to `main`.
 
 Rotate when completing a row. Prefer top item not in cooldown.
 
+G13 is now fully closed (all sub-items merged: #148, #157, #159, #168) — do not pick it up again.
+
 1. **G17** — compositor: wlroots seat/output (cooldown until 2026-09-06)
 2. **audit** — `localmodel.embed` or `event.register_handler` Python integration test
 3. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
-4. **docs** — move G13 to Closed in gap-analysis (all sub-items already on main)
