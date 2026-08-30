@@ -8,15 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| audit ui-runtime MCP handlers | cursor/maintenance-audit-ui-runtime-mcp-05da786 | #162 | pr-open | 2026-08-30 | ui.patch/get/tree/event/status/auil + unknown method |
-| audit event-bus MCP handlers | cursor/maintenance-audit-event-bus-mcp-05da786 | #163 | pr-open | 2026-08-30 | event.publish/subscribe/schedule/register_handler |
-| audit local-model-daemon MCP handlers | cursor/maintenance-audit-local-model-daemon-mcp-05da786 | #164 | pr-open | 2026-08-30 | localmodel.health/complete/classify_intent/embed |
-| audit lambda-server MCP handlers | cursor/maintenance-audit-lambda-server-mcp-05da786 | #165 | pr-open | 2026-08-30 | lambda.register/invoke/search/deprecate |
-| audit mcp-bus MCP handlers | cursor/maintenance-audit-mcp-bus-mcp-05da786 | #166 | pr-open | 2026-08-30 | bus.resolve/list_routes/_bus.register/deregister/lease/external |
-| audit local-model-daemon clippy | cursor/maintenance-audit-local-model-daemon-clippy-05da786 | #167 | pr-open | 2026-08-30 | unused imports, dead_code |
-| G13 operator rootfs validation | cursor/maintenance-g13-target-hw-validate-05da786 | #168 | pr-open | 2026-08-30 | installed-rootfs software checks |
-| audit state-store clippy | cursor/maintenance-audit-state-store-clippy-05da786 | #169 | pr-open | 2026-08-30 | clippy/dead-code cleanup |
-| verify-fix ledger conflict guard | cursor/maintenance-verify-fix-ledger-conflicts-05da786 | — | pr-open | 2026-08-30 | resolve markers + verify-docs guard |
+| verify-fix ui-runtime conflict markers | cursor/maintenance-verify-fix-ui-runtime-conflict-4c83d6c | — | pr-open | 2026-08-30 | merge both MCP handler + resolve_token test suites |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -24,7 +16,8 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | verify-fix | maintenance-ledger conflict markers | pr-open |
+| 2026-08-30 | verify-fix | ui-runtime merge conflict markers in tests mod | pr-open |
+| 2026-08-30 | verify-fix | maintenance-ledger conflict markers | merged to main (#170) |
 | 2026-08-30 | audit | state-store clippy/dead-code | pr-open (#169) |
 | 2026-08-30 | gap | G13 operator installed-rootfs validation | pr-open (#168) |
 | 2026-08-30 | audit | local-model-daemon clippy/dead-code | pr-open (#167) |
