@@ -26,7 +26,10 @@ pub fn try_start() -> Option<WaylandSession> {
     if wl.is_some() {
         tracing::info!("WAYLAND_DISPLAY={} (wl_display bound)", display_name);
     } else if super::drm::backend_available() {
-        tracing::info!("WAYLAND_DISPLAY={} with DRM/KMS pixel backend", display_name);
+        tracing::info!(
+            "WAYLAND_DISPLAY={} with DRM/KMS pixel backend",
+            display_name
+        );
     } else {
         tracing::info!(
             "WAYLAND_DISPLAY={} (framebuffer/memory compositor)",

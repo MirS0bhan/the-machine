@@ -1,8 +1,6 @@
 //! Kernel/hardware abstraction: power, display, network, audio.
-//!
-//! These are placeholder stubs returning mock data until the real
-//! kernel interfaces are wired up.
 
+use crate::{display, net};
 use common::{AudioDevice, DisplayMode, NetworkInterface};
 
 pub struct KernelHandler;
@@ -13,24 +11,20 @@ impl KernelHandler {
     }
 
     pub fn get_power_profile(&self) -> String {
+        if let Ok(body) =
+            std::fs::read_to_string("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")
+        {
+            return body.trim().to_string();
+        }
         "balanced".to_string()
     }
 
     pub fn get_display_modes(&self) -> Vec<DisplayMode> {
-        vec![DisplayMode {
-            width: 1920,
-            height: 1080,
-            refresh: 60.0,
-            current: true,
-        }]
+        display::get_display_modes()
     }
 
     pub fn list_interfaces(&self) -> Vec<NetworkInterface> {
-        vec![NetworkInterface {
-            name: "lo".to_string(),
-            r#type: "loopback".to_string(),
-            state: "up".to_string(),
-        }]
+        net::list_interfaces()
     }
 
     pub fn list_audio_devices(&self) -> Vec<AudioDevice> {
@@ -42,24 +36,28 @@ impl KernelHandler {
     }
 
     pub async fn set_power_profile(&self, _profile: &str) -> Result<(), String> {
-        Ok(())
+        let path = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor";
+        if !std::path::Path::new(path).exists() {
+            return Ok(());
+        }
+        std::fs::write(path, format!("{_profile}\n"))
+            .map_err(|e| format!("failed to set governor: {e}"))
     }
 
     pub async fn set_display_mode(
         &self,
-        _width: u32,
-        _height: u32,
-        _refresh: f32,
+        width: u32,
+        height: u32,
+        refresh: f32,
     ) -> Result<(), String> {
-        Ok(())
+        display::set_display_mode(width, height, refresh)
     }
 
-    pub async fn set_interface_state(&self, _name: &str, _state: &str) -> Result<(), String> {
-        Ok(())
+    pub async fn set_interface_state(&self, name: &str, state: &str) -> Result<(), String> {
+        net::set_interface_state(name, state).await
     }
 
     pub fn get_wifi_status(&self) -> serde_json::Value {
-        // /proc/net/wireless exists when a wireless stack is loaded.
         if let Ok(body) = std::fs::read_to_string("/proc/net/wireless") {
             for line in body.lines().skip(2) {
                 let iface = line.split(':').next().unwrap_or("").trim();
@@ -82,14 +80,11 @@ impl KernelHandler {
     }
 
     pub async fn connect_wifi(&self, _ssid: &str, _credential_ref: &str) -> Result<String, String> {
-        // Mutation path is gated by grant tokens; the host wpa_supplicant
-        // adapter is not wired yet, so report an honest status instead of
-        // serializing `()` as JSON null.
-        Err("wifi connect is not wired on this host".into())
+        Err("wifi connect requires wpa_supplicant adapter (not wired yet)".into())
     }
 
     pub async fn set_default_audio(&self, _name: &str) -> Result<(), String> {
-        Ok(())
+        Err("audio.set_default requires PipeWire/ALSA session (not wired yet)".into())
     }
 }
 

@@ -1,10 +1,10 @@
 //! Compositor — surface model + real pixel output (framebuffer / wlroots).
 
-mod model;
 mod drm;
+mod model;
 mod pixel;
-mod wl_session;
 mod wayland_backend;
+mod wl_session;
 
 use common::*;
 use model::{Compositor, Geometry, Surface};
@@ -46,7 +46,10 @@ async fn main() -> anyhow::Result<()> {
     }
     let _ = std::fs::remove_file(&socket_path);
     let listener = UnixListener::bind(&socket_path)?;
-    info!("Compositor listening on {} (pixel backend active)", socket_path);
+    info!(
+        "Compositor listening on {} (pixel backend active)",
+        socket_path
+    );
 
     loop {
         let (stream, _) = listener.accept().await?;
@@ -154,7 +157,10 @@ async fn handle_request(
     match method.as_str() {
         "compositor.surface" => handle_surface(params, comp, pixels, &id).await,
         "compositor.confirmation.set_active" => {
-            let active = params.get("active").and_then(|v| v.as_bool()).unwrap_or(false);
+            let active = params
+                .get("active")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             let surface_id = params
                 .get("surface_id")
                 .and_then(|v| v.as_str())
@@ -175,7 +181,11 @@ async fn handle_request(
             )
         }
         "compositor.blur" => {
-            let sid = params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let sid = params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             let on = params.get("on").and_then(|v| v.as_bool()).unwrap_or(true);
             let mut c = comp.lock().await;
             if let Some(s) = c.surfaces.get_mut(&sid) {
@@ -204,7 +214,10 @@ async fn handle_request(
         "compositor.list" => {
             let c = comp.lock().await;
             let surfaces: Vec<&Surface> = c.order.iter().map(|id| &c.surfaces[id]).collect();
-            success_response(&id, serde_json::to_value(surfaces).unwrap_or(serde_json::Value::Null))
+            success_response(
+                &id,
+                serde_json::to_value(surfaces).unwrap_or(serde_json::Value::Null),
+            )
         }
         "compositor.status" => {
             let c = comp.lock().await;
@@ -237,7 +250,10 @@ async fn handle_surface(
     pixels: &SharedPixel,
     id: &Uuid,
 ) -> McpMessage {
-    let action = params.get("action").and_then(|v| v.as_str()).unwrap_or("create");
+    let action = params
+        .get("action")
+        .and_then(|v| v.as_str())
+        .unwrap_or("create");
     match action {
         "create" => {
             let sid = params
@@ -273,18 +289,32 @@ async fn handle_surface(
             c.recompute_order();
             drop(c);
             paint_frame(comp, pixels).await;
-            success_response(id, serde_json::json!({ "id": sid, "ok": true, "pixels": true }))
+            success_response(
+                id,
+                serde_json::json!({ "id": sid, "ok": true, "pixels": true }),
+            )
         }
         "destroy" => {
-            let sid = params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let sid = params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             let mut c = comp.lock().await;
             c.surfaces.remove(&sid);
             c.recompute_order();
             success_response(id, serde_json::json!({ "ok": true }))
         }
         "geometry" => {
-            let sid = params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let g = params.get("geometry").cloned().unwrap_or(serde_json::Value::Null);
+            let sid = params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let g = params
+                .get("geometry")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
             let mut c = comp.lock().await;
             if let Some(s) = c.surfaces.get_mut(&sid) {
                 if let Ok(geo) = serde_json::from_value::<Geometry>(g) {
@@ -306,7 +336,10 @@ async fn handle_focus(
     comp: &Arc<Mutex<Compositor>>,
     id: &Uuid,
 ) -> McpMessage {
-    let sid = params.get("id").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let sid = params
+        .get("id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     let mut c = comp.lock().await;
     for (_, s) in c.surfaces.iter_mut() {
         s.focused = false;
@@ -321,7 +354,10 @@ async fn handle_focus(
         }
     } else {
         c.focused = None;
-        success_response(id, serde_json::json!({ "focused": serde_json::Value::Null }))
+        success_response(
+            id,
+            serde_json::json!({ "focused": serde_json::Value::Null }),
+        )
     }
 }
 

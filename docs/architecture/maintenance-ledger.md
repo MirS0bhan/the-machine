@@ -16,6 +16,8 @@ until the PR is merged to `main`.
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
 | G17 wl_display scaffold | — | — | merged | 2026-08-30 | `wl_session.rs` + wayland-server on main |
+| G14 display + net (partial) | — | — | merged | 2026-08-30 | display.rs + net sysfs on main |
+| G13 installer (partial) | — | — | merged | 2026-08-30 | mkrootfs + install.sh hardened |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -31,8 +33,7 @@ until the PR is merged to `main`.
 
 Rotate when completing a row. Prefer top item not in cooldown.
 
-1. **G17** — compositor: wlroots seat/output init (wl_display scaffold merged)
-2. **G14** — system-daemon: one mutation path (e.g. display mode sysfs) behind grant token
-3. **G12** — mcp-bus: document lease fast-path honestly or bind optional lease socket
-4. **audit** — `make verify` + fix first failure
-5. **coverage** — lowest-coverage touched crate from `cargo llvm-cov` summary
+1. **G17** — compositor: wlroots seat/output + `wl_compositor` global
+2. **G14** — wpa_supplicant wifi connect + PipeWire default device
+3. **G12** — mcp-bus lease fast-path socket or permanent metadata-only docs
+4. **G13** — validate installed rootfs on bare metal (debootstrap + GRUB)

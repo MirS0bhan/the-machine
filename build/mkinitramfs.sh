@@ -77,6 +77,7 @@ cat > "${STAGE}/init" <<'INIT'
 export PATH=/bin:/sbin:/the-machine
 export RUST_LOG=info
 export THE_MACHINE_SOCKET_DIR=/run/the-machine
+export XDG_RUNTIME_DIR=/run/the-machine
 export WAYLAND_DISPLAY=wayland-0
 export STATE_STORE_BACKEND=sled
 export STATE_STORE_PATH=/var/the-machine/state
