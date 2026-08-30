@@ -8,11 +8,11 @@ mod secrets;
 mod skills;
 
 use client::mcp_call;
-use cloud::{CloudRouter, new_trace};
+use cloud::{new_trace, CloudRouter};
+use common::*;
 use llm::{classify_intent, plan_from_model};
 use planner::PlanStep;
 use skills::{load_skills, seed_default_skills_if_empty, skills_for_wake, Skill};
-use common::*;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
@@ -136,7 +136,11 @@ async fn handle_request(
             let s = state.lock().await;
             let model_status = mcp_call("localmodel.health", serde_json::json!({}))
                 .await
-                .and_then(|v| v.get("status").and_then(|x| x.as_str()).map(|x| x.to_string()))
+                .and_then(|v| {
+                    v.get("status")
+                        .and_then(|x| x.as_str())
+                        .map(|x| x.to_string())
+                })
                 .unwrap_or_else(|| "unavailable".into());
             let cloud_info = if let Some(router) = &s.cloud {
                 serde_json::json!({
@@ -184,7 +188,10 @@ async fn handle_request(
                 .and_then(|p| p.get("enabled").and_then(|v| v.as_bool()))
                 .unwrap_or(false);
             state.lock().await.local_only_mode = enabled;
-            success_response(&id, serde_json::json!({ "ok": true, "local_only_mode": enabled }))
+            success_response(
+                &id,
+                serde_json::json!({ "ok": true, "local_only_mode": enabled }),
+            )
         }
         "agent.skills.list" => {
             let s = state.lock().await;
@@ -223,7 +230,10 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let payload = wake_reason.get("payload").cloned().unwrap_or(serde_json::Value::Null);
+    let payload = wake_reason
+        .get("payload")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
 
     let history = mcp_call("state.get", serde_json::json!({ "path": "task.history" }))
         .await
@@ -237,12 +247,13 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
 
     let env_snapshot = match env_snapshot {
         Some(v) => v,
-        None => {
-            mcp_call("state.get", serde_json::json!({ "path": "system.environment" }))
-                .await
-                .and_then(|v| v.get("value").cloned())
-                .unwrap_or(serde_json::Value::Null)
-        }
+        None => mcp_call(
+            "state.get",
+            serde_json::json!({ "path": "system.environment" }),
+        )
+        .await
+        .and_then(|v| v.get("value").cloned())
+        .unwrap_or(serde_json::Value::Null),
     };
 
     let text = payload
@@ -262,7 +273,10 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
     let classification = classify_intent(&text, &category, &active_skills).await;
     let active_skills = skills_for_wake(&skills, &category, &classification.intent);
 
-    let privacy_tag = payload.get("privacy").and_then(|v| v.as_bool()).unwrap_or(false);
+    let privacy_tag = payload
+        .get("privacy")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let routing = if privacy_tag || local_only {
         "local".to_string()
     } else if classification.requires_cloud && cloud_router {
@@ -273,7 +287,11 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
 
     info!(
         "wake: category={} intent={} complexity={} routing={} confidence={}",
-        category, classification.intent, classification.complexity, routing, classification.confidence
+        category,
+        classification.intent,
+        classification.complexity,
+        routing,
+        classification.confidence
     );
 
     let target_method = infer_target_method(&classification.intent, &text, &payload);
@@ -282,7 +300,15 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
             if resolved.get("handler").is_some() {
                 info!("resolved {} → {:?}", method, resolved.get("handler"));
                 let _ = mcp_call(method, payload.clone()).await;
-                record_wake(&state, &classification.intent, &classification.complexity, &routing, 1, &history).await;
+                record_wake(
+                    &state,
+                    &classification.intent,
+                    &classification.complexity,
+                    &routing,
+                    1,
+                    &history,
+                )
+                .await;
                 finish_wake(&state, env_snapshot).await;
                 return;
             }

@@ -8,6 +8,9 @@ STAGE="${BUILD_DIR}/initramfs.stage"
 OUTPUT="${BUILD_DIR}/initramfs.cpio.gz"
 PROFILE="${1:-debug}"
 
+# shellcheck source=rootfs-common.sh
+source "${ROOT}/build/rootfs-common.sh"
+
 echo "==> Building initramfs (${PROFILE})"
 
 rm -rf "${STAGE}"
@@ -33,20 +36,7 @@ else
   BIN_DIR="${ROOT}/target/debug"
 fi
 
-SERVICES=(
-  system-daemon
-  mcp-bus
-  policy-broker
-  state-store
-  event-bus
-  lambda-server
-  local-model-daemon
-  agent-core
-  ui-runtime
-  compositor
-  fallback-shell
-  marketplace
-)
+SERVICES=("${ROOTFS_SERVICES[@]}")
 
 for svc in "${SERVICES[@]}"; do
   if [[ -x "${BIN_DIR}/${svc}" ]]; then

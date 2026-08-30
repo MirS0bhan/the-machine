@@ -117,8 +117,7 @@ unsafe impl Send for DrmMmap {}
 
 impl DrmBackend {
     pub fn open() -> Option<Self> {
-        let path =
-            std::env::var("THE_MACHINE_DRM_DEVICE").unwrap_or_else(|_| "/dev/dri/card0".into());
+        let path = common::paths::drm_device_path();
         if !Path::new(&path).exists() {
             return None;
         }
@@ -309,29 +308,6 @@ pub fn backend_available() -> bool {
     Path::new("/dev/dri/card0").exists()
 }
 
-fn preferred_drm_size() -> Option<(u32, u32)> {
-    let drm_root = Path::new("/sys/class/drm");
-    let entries = std::fs::read_dir(drm_root).ok()?;
-    for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if !name.contains('-') {
-            continue;
-        }
-        let connector = entry.path();
-        let status = std::fs::read_to_string(connector.join("status")).unwrap_or_default();
-        if status.trim() != "connected" {
-            continue;
-        }
-        let modes = std::fs::read_to_string(connector.join("modes")).ok()?;
-        for line in modes.lines() {
-            if let Some((w, h)) = line.trim().split_once('x') {
-                if let (Ok(w), Ok(h)) = (w.parse::<u32>(), h.parse::<u32>()) {
-                    if w > 0 && h > 0 {
-                        return Some((w, h));
-                    }
-                }
-            }
-        }
-    }
-    None
+pub fn preferred_drm_size() -> Option<(u32, u32)> {
+    common::preferred_connector_size()
 }

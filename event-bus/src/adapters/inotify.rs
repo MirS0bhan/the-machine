@@ -69,7 +69,11 @@ fn run_watcher(paths: Vec<PathBuf>) {
                     .enable_all()
                     .build();
                 if let Ok(rt) = rt {
-                    rt.block_on(publish_event("filesystem", &format!("fs.change.{}", pattern), payload));
+                    rt.block_on(publish_event(
+                        "filesystem",
+                        &format!("fs.change.{}", pattern),
+                        payload,
+                    ));
                 }
             }
             Err(e) => warn!("inotify error: {}", e),

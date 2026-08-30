@@ -42,7 +42,10 @@ impl NativeModel {
     }
 
     pub fn embed(&self, text: &str) -> Vec<f32> {
-        text.chars().take(16).map(|c| (c as u32 % 97) as f32 / 97.0).collect()
+        text.chars()
+            .take(16)
+            .map(|c| (c as u32 % 97) as f32 / 97.0)
+            .collect()
     }
 }
 

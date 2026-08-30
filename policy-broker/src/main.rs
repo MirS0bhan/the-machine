@@ -131,10 +131,7 @@ async fn handle_request(
                     provenance: None,
                 })
             } else {
-                let m = params
-                    .get("method")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let m = params.get("method").and_then(|v| v.as_str()).unwrap_or("");
                 let capability = infer_capability(m);
                 CheckRequest {
                     capability,
@@ -210,7 +207,11 @@ async fn handle_request(
                     },
                     300,
                 );
-                state.tokens.write().await.insert(token.token_id, token.clone());
+                state
+                    .tokens
+                    .write()
+                    .await
+                    .insert(token.token_id, token.clone());
                 success_response(
                     req_id,
                     serde_json::json!({
@@ -346,7 +347,11 @@ async fn handle_request(
             let list = state.confirmation.lock().await.list_pending();
             success_response(req_id, serde_json::json!({ "pending": list }))
         }
-        _ => error_response(req_id, "E_NOT_FOUND", &format!("Unknown method: {}", method)),
+        _ => error_response(
+            req_id,
+            "E_NOT_FOUND",
+            &format!("Unknown method: {}", method),
+        ),
     }
 }
 

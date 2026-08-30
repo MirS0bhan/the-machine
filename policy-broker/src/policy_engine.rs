@@ -109,20 +109,21 @@ impl PolicyEngine {
         // Support legacy MCP shape (method/request/provenance) and canonical CheckRequest fields.
         let req = if let Some(obj) = request.as_ref().and_then(|v| v.as_object()) {
             if obj.contains_key("capability") {
-                serde_json::from_value(request.clone().unwrap()).unwrap_or_else(|_| {
-                    CheckRequest {
-                        capability: method.to_string(),
-                        path: None,
-                        principal: None,
-                        method: Some(method.to_string()),
-                        request,
-                        provenance: provenance.and_then(|v| v.as_str().map(|s| s.to_string())),
-                    }
+                serde_json::from_value(request.clone().unwrap()).unwrap_or_else(|_| CheckRequest {
+                    capability: method.to_string(),
+                    path: None,
+                    principal: None,
+                    method: Some(method.to_string()),
+                    request,
+                    provenance: provenance.and_then(|v| v.as_str().map(|s| s.to_string())),
                 })
             } else {
                 CheckRequest {
                     capability: method.to_string(),
-                    path: obj.get("path").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    path: obj
+                        .get("path")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
                     principal: obj
                         .get("principal")
                         .and_then(|v| v.as_str())

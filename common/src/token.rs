@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use crate::secrets::{read_secret_file, secret_paths};
+
 /// Grant token for capability checks.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GrantToken {
@@ -39,14 +41,9 @@ pub fn load_token_secret() -> [u8; 64] {
             }
         }
     }
-    for path in [
-        "/run/the-machine/secrets/token",
-        "/etc/the-machine/secrets/token",
-    ] {
-        if let Ok(bytes) = std::fs::read(path) {
-            if !bytes.is_empty() {
-                return derive_secret(&bytes);
-            }
+    for path in secret_paths("token").unwrap_or_default() {
+        if let Some(body) = read_secret_file(&path, false) {
+            return derive_secret(body.as_bytes());
         }
     }
     derive_secret(DEFAULT_TOKEN_MATERIAL)

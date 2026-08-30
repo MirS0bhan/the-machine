@@ -6,18 +6,20 @@
 
 pub use crate::wl_session::{resolve_display_name, WlSession};
 
+use crate::pixel::SharedPixel;
+
 pub struct WaylandSession {
     pub display: String,
     pub wl: Option<WlSession>,
 }
 
-pub fn try_start() -> Option<WaylandSession> {
-    let backend = std::env::var("THE_MACHINE_COMPOSITOR_BACKEND").unwrap_or_else(|_| "auto".into());
+pub fn try_start(pixels: SharedPixel) -> Option<WaylandSession> {
+    let backend = crate::env::compositor_backend();
     if !matches!(backend.as_str(), "auto" | "drm" | "wayland") {
         return None;
     }
 
-    let wl = crate::wl_session::try_init();
+    let wl = crate::wl_session::try_init(pixels);
     let display_name = wl
         .as_ref()
         .map(|s| s.display_name.clone())

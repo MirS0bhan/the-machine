@@ -23,8 +23,8 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string()))
         .init();
     info!("Local Model daemon starting");
-    let model_path = std::env::var("LOCAL_MODEL_PATH")
-        .unwrap_or_else(|_| "/models/machine-tiny.gguf".into());
+    let model_path =
+        std::env::var("LOCAL_MODEL_PATH").unwrap_or_else(|_| "/models/machine-tiny.gguf".into());
     let native = gguf::NativeModel::open(&model_path);
     if native.is_some() {
         info!("GGUF model loaded from {}", model_path);
@@ -116,14 +116,23 @@ async fn handle_request(value: Value, state: Arc<Mutex<AppState>>) -> Value {
         ),
         "localmodel.complete" => {
             let prompt = params.get("prompt").and_then(|v| v.as_str()).unwrap_or("");
-            let max_tokens = params.get("max_tokens").and_then(|v| v.as_u64()).unwrap_or(512) as u32;
-            let temperature = params.get("temperature").and_then(|v| v.as_f64()).unwrap_or(0.7) as f32;
+            let max_tokens = params
+                .get("max_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(512) as u32;
+            let temperature = params
+                .get("temperature")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.7) as f32;
             let text = st.engine.complete(prompt, max_tokens, temperature).await;
             ok(id, json!({ "text": text, "privacy_tag": "none" }))
         }
         "localmodel.classify_intent" => {
             let text = params.get("text").and_then(|v| v.as_str()).unwrap_or("");
-            let category = params.get("category").and_then(|v| v.as_str()).unwrap_or("input");
+            let category = params
+                .get("category")
+                .and_then(|v| v.as_str())
+                .unwrap_or("input");
             let (intent, confidence, complexity, routing, requires_cloud) =
                 st.engine.classify_intent(text, category).await;
             ok(

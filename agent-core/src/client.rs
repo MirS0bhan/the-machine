@@ -5,8 +5,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
 pub async fn mcp_call(method: &str, params: serde_json::Value) -> Option<serde_json::Value> {
-    let socket_dir = std::env::var("THE_MACHINE_SOCKET_DIR")
-        .unwrap_or_else(|_| "/run/the-machine".to_string());
+    let socket_dir =
+        std::env::var("THE_MACHINE_SOCKET_DIR").unwrap_or_else(|_| "/run/the-machine".to_string());
     let path = format!("{}/mcp-bus.sock", socket_dir);
     let stream = tokio::net::UnixStream::connect(&path).await.ok()?;
     let (mut reader, mut writer) = stream.into_split();

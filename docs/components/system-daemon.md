@@ -161,8 +161,8 @@ The shared secret is compiled into both the System Daemon and Broker binaries at
 | `power.set_profile` | Write to scaling_governor files | Requires grant token; returns `E_UNAVAILABLE` when cpufreq sysfs is absent |
 | `display.get_modes` | Use DRM/KMS `drmModeGetResources` + `drmModeGetConnector` | Returns available modes |
 | `display.set_mode` | Use DRM/KMS `drmModeSetCrtc` | Requires grant token |
-| `net.list_interfaces` | Use `rtnetlink` (RTM_GETLINK) | Returns all interfaces |
-| `net.set_interface_state` | Use `rtnetlink` (RTM_SETLINK) | Requires grant token |
+| `net.list_interfaces` | `rtnetlink` RTM_GETLINK (sysfs fallback) | Returns all interfaces |
+| `net.set_interface_state` | `rtnetlink` RTM_SETLINK (`ip link` fallback) | Requires grant token |
 | `net.get_wifi_status` | Read `/proc/net/wireless` when present | `"disconnected"` or `"associated"` |
 | `net.connect_wifi` | Grant-gated; resolves PSK from `/run/the-machine/secrets/wifi/<ref>` + `wpa_cli` | Returns `E_UNAVAILABLE` when iface/wpa_cli/credential missing |
 | `audio.list_devices` | Use ALSA `snd_card_next` or PipeWire | Returns audio devices |

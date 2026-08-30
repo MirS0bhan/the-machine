@@ -18,16 +18,12 @@ impl KernelHandler {
         display::get_display_modes()
     }
 
-    pub fn list_interfaces(&self) -> Vec<NetworkInterface> {
-        net::list_interfaces()
+    pub async fn list_interfaces(&self) -> Vec<NetworkInterface> {
+        net::list_interfaces().await
     }
 
     pub fn list_audio_devices(&self) -> Vec<AudioDevice> {
-        vec![AudioDevice {
-            name: "default".to_string(),
-            r#type: "output".to_string(),
-            default: true,
-        }]
+        audio::list_audio_devices()
     }
 
     pub async fn set_power_profile(&self, profile: &str) -> Result<(), String> {
@@ -48,33 +44,15 @@ impl KernelHandler {
     }
 
     pub fn get_wifi_status(&self) -> serde_json::Value {
-        if let Ok(body) = std::fs::read_to_string("/proc/net/wireless") {
-            for line in body.lines().skip(2) {
-                let iface = line.split(':').next().unwrap_or("").trim();
-                if iface.is_empty() {
-                    continue;
-                }
-                return serde_json::json!({
-                    "status": "associated",
-                    "interface": iface,
-                    "ssid": serde_json::Value::Null,
-                    "source": "proc",
-                });
-            }
-        }
-        serde_json::json!({
-            "status": "disconnected",
-            "interface": serde_json::Value::Null,
-            "ssid": serde_json::Value::Null,
-        })
+        wifi::wifi_status()
     }
 
     pub async fn connect_wifi(&self, ssid: &str, credential_ref: &str) -> Result<String, String> {
         wifi::connect_wifi(ssid, credential_ref).await
     }
 
-    pub async fn set_default_audio(&self, _name: &str) -> Result<(), String> {
-        Err("audio.set_default requires PipeWire/ALSA session (not wired yet)".into())
+    pub async fn set_default_audio(&self, name: &str) -> Result<(), String> {
+        audio::set_default_device(name).await
     }
 }
 
@@ -89,9 +67,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn connect_wifi_does_not_silently_succeed() {
+    async fn connect_wifi_requires_credential_or_wpa_cli() {
         let err = KernelHandler::new()
-            .connect_wifi("example", "cred-ref")
+            .connect_wifi("example", "")
             .await
             .unwrap_err();
         assert!(

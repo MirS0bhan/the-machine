@@ -36,8 +36,7 @@ unsafe impl Send for MmapFb {}
 
 impl PixelBackend {
     pub fn open() -> Self {
-        let backend_pref =
-            std::env::var("THE_MACHINE_COMPOSITOR_BACKEND").unwrap_or_else(|_| "auto".into());
+        let backend_pref = crate::env::compositor_backend();
         let dump_path = std::env::var("THE_MACHINE_FB_DUMP").ok();
 
         if matches!(backend_pref.as_str(), "auto" | "drm") {
@@ -111,6 +110,27 @@ impl PixelBackend {
         for y in 0..self.height {
             for x in 0..self.width {
                 self.put_pixel(x as i32, y as i32, &pixel);
+            }
+        }
+    }
+
+    pub fn blit_bgra(
+        &mut self,
+        dst_x: i32,
+        dst_y: i32,
+        width: u32,
+        height: u32,
+        stride: u32,
+        data: &[u8],
+    ) {
+        for row in 0..height {
+            for col in 0..width {
+                let src_off = (row * stride + col * 4) as usize;
+                if src_off + 3 >= data.len() {
+                    break;
+                }
+                let pixel = [data[src_off], data[src_off + 1], data[src_off + 2], 0u8];
+                self.put_pixel(dst_x + col as i32, dst_y + row as i32, &pixel);
             }
         }
     }

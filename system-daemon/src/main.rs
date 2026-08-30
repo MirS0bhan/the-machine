@@ -7,10 +7,13 @@ use tokio::net::UnixListener;
 use tokio::sync::{Mutex, RwLock};
 use tracing::{error, info};
 
+mod audio;
+mod cli;
 mod display;
 mod input;
 mod kernel;
 mod net;
+mod netlink;
 mod power;
 mod wifi;
 
@@ -143,7 +146,7 @@ async fn handle_request(
             success_response(id, serde_json::json!({ "modes": modes }))
         }
         "net.list_interfaces" => {
-            let interfaces = state.kernel_handler.lock().await.list_interfaces();
+            let interfaces = state.kernel_handler.lock().await.list_interfaces().await;
             success_response(id, serde_json::json!({ "interfaces": interfaces }))
         }
         "audio.list_devices" => {

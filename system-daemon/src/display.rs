@@ -79,9 +79,7 @@ struct DrmModeCrtc {
 }
 
 fn drm_device_path() -> PathBuf {
-    std::env::var("THE_MACHINE_DRM_DEVICE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/dev/dri/card0"))
+    PathBuf::from(common::paths::drm_device_path())
 }
 
 pub fn get_display_modes() -> Vec<DisplayMode> {
@@ -148,7 +146,7 @@ fn read_modes_from_sysfs() -> Option<Vec<DisplayMode>> {
         let modes_path = connector_path.join("modes");
         let body = fs::read_to_string(&modes_path).ok()?;
         for line in body.lines() {
-            if let Some((w, h)) = parse_mode_line(line) {
+            if let Some((w, h)) = common::parse_mode_line(line) {
                 let mode = DisplayMode {
                     width: w,
                     height: h,
@@ -171,11 +169,6 @@ fn read_modes_from_sysfs() -> Option<Vec<DisplayMode>> {
         }
         Some(modes)
     }
-}
-
-fn parse_mode_line(line: &str) -> Option<(u32, u32)> {
-    let (w, h) = line.trim().split_once('x')?;
-    Some((w.parse().ok()?, h.parse().ok()?))
 }
 
 fn read_modes_from_drm() -> Option<Vec<DisplayMode>> {
@@ -422,9 +415,9 @@ mod tests {
 
     #[test]
     fn parse_mode_line_accepts_width_by_height() {
-        assert_eq!(parse_mode_line("1920x1080"), Some((1920, 1080)));
-        assert_eq!(parse_mode_line(" 1280x720 "), Some((1280, 720)));
-        assert!(parse_mode_line("invalid").is_none());
+        assert_eq!(common::parse_mode_line("1920x1080"), Some((1920, 1080)));
+        assert_eq!(common::parse_mode_line(" 1280x720 "), Some((1280, 720)));
+        assert!(common::parse_mode_line("invalid").is_none());
     }
 
     #[test]

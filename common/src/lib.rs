@@ -1,14 +1,18 @@
+pub mod drm_sysfs;
 pub mod error;
 pub mod mcp;
 pub mod paths;
 pub mod provenance;
+pub mod secrets;
 pub mod token;
 pub mod types;
 
+pub use drm_sysfs::*;
 pub use error::*;
 pub use mcp::*;
 pub use paths::*;
 pub use provenance::*;
+pub use secrets::*;
 pub use token::*;
 pub use types::*;
 

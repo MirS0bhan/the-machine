@@ -65,11 +65,7 @@ impl AuditLog {
             .collect();
         if let Some(q) = query {
             if let Some(decision) = q.get("decision").and_then(|v| v.as_str()) {
-                out.retain(|e| {
-                    e.get("decision")
-                        .and_then(|v| v.as_str())
-                        == Some(decision)
-                });
+                out.retain(|e| e.get("decision").and_then(|v| v.as_str()) == Some(decision));
             }
         }
         Value::Array(out)

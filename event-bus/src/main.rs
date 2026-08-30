@@ -238,8 +238,7 @@ async fn route_event(state: State, event: Event) -> RouteSummary {
             if pending {
                 st.stats.agent_wakes_coalesced += 1;
             } else {
-                st.agent_wake_pending
-                    .insert(event.category.clone(), true);
+                st.agent_wake_pending.insert(event.category.clone(), true);
                 agent_wake = true;
                 st.stats.agent_wakes += 1;
                 // Reset the coalescing window after a short grace period so the
@@ -355,9 +354,7 @@ async fn scheduler_loop(state: State) {
                     se.trigger_time + 60_000
                 };
                 let repetition_count = se.repetition_count + 1;
-                let keep = se
-                    .max_repetitions
-                    .map_or(true, |m| repetition_count <= m);
+                let keep = se.max_repetitions.map_or(true, |m| repetition_count <= m);
                 if keep {
                     let new_se = ScheduledEvent {
                         trigger_time: next,
@@ -435,11 +432,7 @@ fn next_cron_time(spec: &str, after_ms: i64) -> i64 {
         .single()
         .unwrap_or_else(Utc::now);
     let mut cur = base + chrono::Duration::seconds(1);
-    cur = cur
-        .with_second(0)
-        .unwrap()
-        .with_nanosecond(0)
-        .unwrap();
+    cur = cur.with_second(0).unwrap().with_nanosecond(0).unwrap();
     for _ in 0..500_000 {
         let m = cur.minute() as i64;
         let h = cur.hour() as i64;
@@ -562,11 +555,7 @@ async fn handle_request(value: Value, state: State) -> Value {
         "event.explain_routing" => explain(state, params, id).await,
         "event.list_handlers" | "bus.list_handlers" => list_handlers(state, id).await,
         "event.list_agent_wakes" => list_agent_wakes(state, id).await,
-        _ => err(
-            id,
-            "E_NOT_FOUND",
-            &format!("unknown method: {}", method),
-        ),
+        _ => err(id, "E_NOT_FOUND", &format!("unknown method: {}", method)),
     }
 }
 
@@ -708,9 +697,7 @@ async fn schedule(params: Option<Value>, state: State, id: Value) -> Value {
     let payload = p.get("payload").cloned().unwrap_or(Value::Null);
     let recurring = pbool(&params, "recurring");
     let requires_decision = pbool(&params, "requires_decision");
-    let max_repetitions = p
-        .get("max_repetitions")
-        .and_then(|v| v.as_u64());
+    let max_repetitions = p.get("max_repetitions").and_then(|v| v.as_u64());
     let cron_spec = if interval.is_none() && recurring {
         Some(cron.clone())
     } else {
@@ -811,10 +798,7 @@ async fn explain(state: State, params: Option<Value>, id: Value) -> Value {
     let sub_count = st
         .subscriptions
         .values()
-        .filter(|s| {
-            s.category == category
-                && pattern_matches(&s.pattern, &pattern)
-        })
+        .filter(|s| s.category == category && pattern_matches(&s.pattern, &pattern))
         .count();
     if sub_count > 0 {
         return ok(

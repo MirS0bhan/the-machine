@@ -1,0 +1,6 @@
+# The Machine — udev hotplug (Phase E)
+# Reload seatd when DRM/evdev nodes appear; ensure runtime dir exists.
+
+ACTION=="add", SUBSYSTEM=="drm", RUN+="/bin/mkdir -p /run/the-machine"
+ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", RUN+="/bin/mkdir -p /run/the-machine"
+ACTION=="add", SUBSYSTEM=="net", RUN+="/bin/systemctl try-restart the-machine-system-daemon.service"

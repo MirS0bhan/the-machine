@@ -29,7 +29,10 @@ pub async fn classify_intent(text: &str, category: &str, skills: &[Skill]) -> Cl
             .and_then(|v| v.as_str())
             .unwrap_or("generic")
             .to_string();
-        let confidence = result.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.8);
+        let confidence = result
+            .get("confidence")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.8);
         let complexity = result
             .get("complexity")
             .and_then(|v| v.as_str())
@@ -101,17 +104,16 @@ Use actions: lambda.register, lambda.invoke, ui.patch, state.patch, state.set, e
     )
     .await
     {
-        let text = result
-            .get("text")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let text = result.get("text").and_then(|v| v.as_str()).unwrap_or("");
         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
             if let Some(steps) = parsed.get("steps").and_then(|s| s.as_array()) {
                 let mut plan = Vec::new();
                 for step in steps {
                     if let (Some(action), params) = (
                         step.get("action").and_then(|v| v.as_str()),
-                        step.get("params").cloned().unwrap_or(serde_json::Value::Null),
+                        step.get("params")
+                            .cloned()
+                            .unwrap_or(serde_json::Value::Null),
                     ) {
                         plan.push(PlanStep {
                             action: action.to_string(),
