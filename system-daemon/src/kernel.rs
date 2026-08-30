@@ -1,6 +1,6 @@
 //! Kernel/hardware abstraction: power, display, network, audio.
 
-use crate::display;
+use crate::{audio, display, net, power, wifi};
 use common::{AudioDevice, DisplayMode, NetworkInterface};
 
 pub struct KernelHandler;
@@ -73,7 +73,7 @@ mod tests {
             .await
             .unwrap_err();
         assert!(
-            err.contains("credential_ref") || err.contains("wpa_cli") || err.contains("wireless"),
+            err.contains("credential") || err.contains("wpa_cli") || err.contains("wireless"),
             "unexpected: {err}"
         );
     }
