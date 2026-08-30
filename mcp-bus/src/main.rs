@@ -408,6 +408,7 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
                         "handler": e.handler,
                         "registered_by": e.registered_by,
                         "manifest_ref": e.manifest_ref,
+                        "trusted": e.trusted,
                     })
                 })
                 .collect();
@@ -507,6 +508,7 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
             }
         }
         "bus.lease" => {
+            state.leases.purge_expired();
             let method_name = params.get("method").and_then(|v| v.as_str()).unwrap_or("");
             let reg = state.registry.lock().await;
             let route = match reg.resolve_full(method_name) {
@@ -547,6 +549,7 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
             ok_bytes(id, result)
         }
         "bus.lease.renew" => {
+            state.leases.purge_expired();
             let lease_id = params
                 .get("lease_id")
                 .and_then(|v| v.as_str())
