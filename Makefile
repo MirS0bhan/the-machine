@@ -2,7 +2,7 @@
 
 CARGO      ?= cargo
 QEMU       ?= qemu-system-x86_64
-KERNEL     ?= $(shell ls -1 /boot/vmlinuz-* 2>/dev/null | sort -V | tail -1)
+KERNEL     ?= $(shell bash build/select-kernel.sh 2>/dev/null || ls -1 /boot/vmlinuz-* 2>/dev/null | sort -V | tail -1)
 INITRAMFS  ?= build/initramfs.cpio.gz
 ISO        ?= build/the-machine.iso
 MEM        ?= 1G

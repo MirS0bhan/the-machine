@@ -33,4 +33,10 @@ if grep -q 'initrd /boot/initrd.img' "${GRUB_CFG}"; then
   ok "initrd referenced and present"
 fi
 
+FSTAB="${ROOTFS}/etc/fstab"
+[[ -f "${FSTAB}" ]] || fail "missing ${FSTAB} (installer must write fstab for target HW boot)"
+grep -qE '^LABEL=the-machine[[:space:]]+/[[:space:]]+ext4' "${FSTAB}" \
+  || fail "fstab missing LABEL=the-machine root entry"
+ok "fstab root entry"
+
 echo "==> GRUB validation passed: ${ROOTFS}"

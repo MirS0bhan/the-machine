@@ -8,8 +8,12 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
+<<<<<<< HEAD
 | audit agent-core MCP handler tests | cursor/maintenance-audit-agent-core-mcp-dd029fb | — | pr-open | 2026-08-30 | `agent.status`, `agent.cloud.status`, local_only_mode guards |
 | audit lambda-server clippy | cursor/maintenance-audit-lambda-server-clippy-e1cee1b | #155 | merged | 2026-08-30 | `-D warnings` clean; CAP_PURE limits syscalls |
+=======
+| G13 installer fstab | cursor/maintenance-g13-installer-fstab-dd029fb | #159 | pr-open | 2026-08-30 | Writes `/etc/fstab` + validates in loopback GRUB test |
+>>>>>>> origin/main
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -17,8 +21,14 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+<<<<<<< HEAD
 | 2026-08-30 | audit | agent-core MCP handler unit tests | pr-open |
 | 2026-08-30 | audit | lambda-server clippy/dead-code | merged (#155) |
+=======
+| 2026-08-30 | gap | G13 installer fstab for target HW | pr-open |
+| 2026-08-30 | gap | G13 boot.auil in installed rootfs | merged to main (#157) |
+| 2026-08-30 | audit | lambda-server clippy/dead-code | merged to main (#155) |
+>>>>>>> origin/main
 | 2026-08-30 | gap | boot greet e2e (GRUB → chat UI) | merged to main |
 | 2026-08-30 | gap | G13 loopback installer GRUB | merged to main (#148) |
 | 2026-08-30 | audit | compositor clippy/dead code | merged to main (#150) |
@@ -46,5 +56,11 @@ until the PR is merged to `main`.
 Rotate when completing a row. Prefer top item not in cooldown.
 
 1. **G17** — compositor: wlroots seat/output (cooldown until 2026-09-06)
+<<<<<<< HEAD
 2. **audit** — ui-runtime MCP handler unit tests
 3. **audit** — `make verify` + fix first failure
+=======
+2. **G13** — operator target-HW validation on installed rootfs (software checks complete)
+3. **audit** — missing MCP integration test in component-inventory.yaml
+4. **audit** — `make verify` + fix first failure
+>>>>>>> origin/main
