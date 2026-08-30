@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | — | pr-open | 2026-08-30 | merge MCP handler + resolve_token unit tests |
+| verify-fix merge corruption on main | cursor/maintenance-verify-fix-merge-corruption-eb7fb38 | #205 | pr-open | 2026-08-30 | agent-core tests, event-bus main.rs, conflict markers |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -16,7 +16,8 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | verify-fix | ui-runtime merge conflict markers | pr-open |
+| 2026-08-30 | verify-fix | agent-core tests + event-bus main + conflict markers | pr-open |
+| 2026-08-30 | verify-fix | ui-runtime merge conflict markers | merged to main (#192) |
 | 2026-08-30 | audit | policy.register Python integration test | merged to main (#179) |
 | 2026-08-30 | audit | event.subscribe Python integration test | merged to main (#182) |
 | 2026-08-30 | verify-fix | test-initramfs-modules skip on missing /lib/modules | merged to main (#188) |
