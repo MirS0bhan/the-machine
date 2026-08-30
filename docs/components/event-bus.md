@@ -543,6 +543,23 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## External Adapters
+
+The event-bus ships background adapters that translate Linux ecosystem signals into `event.publish` calls on the local socket.
+
+### D-Bus (native zbus)
+
+The D-Bus adapter connects to the **system bus** via [zbus](https://github.com/dbus2/zbus) (no `dbus-monitor` subprocess). It subscribes to:
+
+| Signal | Interface | Event pattern |
+|--------|-----------|---------------|
+| `Notify` | `org.freedesktop.Notifications` | `notification` / `desktop.notify` |
+| `PrepareForSleep` | `org.freedesktop.login1.Manager` | `system` / `login.prepare_sleep` |
+
+Set `THE_MACHINE_DISABLE_DBUS=1` to skip adapter startup (useful in CI or headless dev).
+
+---
+
 ## Performance
 
 ### Targets
