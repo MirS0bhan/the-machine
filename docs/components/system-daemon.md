@@ -60,9 +60,10 @@ The System Daemon uses a strict priority-based event loop:
    - Uses non-blocking I/O
    - Processes events in the order they arrive
 
-2. **Hotplug notifications** — udev events queued, processed in background
-   - Lower priority than input forwarding
-   - Updates internal device state
+2. **Hotplug notifications** — kernel uevent netlink monitor publishes `hardware.hotplug.*` to Event Bus
+   - Subsystems: `input`, `drm`, `sound`, `net`
+   - Pattern: `hardware.hotplug.{subsystem}.{action}` (`category: external`)
+   - Disable with `THE_MACHINE_DISABLE_HOTPLUG=1`
 
 3. **MCP command processing** (lowest priority) — handled only when input queue is empty
    - Kernel-parameter operations
@@ -218,6 +219,7 @@ struct HotplugEvent {
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `THE_MACHINE_SOCKET_DIR` | `/run/the-machine` | Directory for Unix sockets |
+| `THE_MACHINE_DISABLE_HOTPLUG` | unset | Set to disable kernel uevent hotplug monitor |
 | `THE_MACHINE_LOG_LEVEL` | `info` | Logging verbosity (error, warn, info, debug) |
 | `THE_MACHINE_BROKER_TIMEOUT` | `30s` | Timeout for Broker handshake |
 

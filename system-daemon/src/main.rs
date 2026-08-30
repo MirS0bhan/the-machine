@@ -10,6 +10,7 @@ use tracing::{error, info};
 mod audio;
 mod cli;
 mod display;
+mod hotplug;
 mod input;
 mod kernel;
 mod net;
@@ -56,6 +57,9 @@ async fn main() -> anyhow::Result<()> {
             error!("Input forwarder error: {}", e);
         }
     });
+
+    // udev hotplug → event-bus (G14)
+    tokio::spawn(hotplug::run());
 
     // Start stats updater
     let stats_state = state.clone();
