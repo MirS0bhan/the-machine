@@ -278,12 +278,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            busybox-static grub-pc-bin grub-common xorriso linux-image-virtual
+            busybox-static grub-pc-bin grub-common xorriso mtools linux-image-virtual
 
       - name: Build release initramfs + ISO
         run: |
           make initramfs-release
           make iso-release KERNEL=/boot/vmlinuz-$(uname -r)
+          bash build/verify-iso-bootable.sh build/the-machine.iso
 
       - name: Upload initramfs
         uses: actions/upload-artifact@v4
