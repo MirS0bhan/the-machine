@@ -543,6 +543,22 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## External event adapters
+
+The Rust daemon runs background adapters (see `event-bus/src/adapters/`) that
+connect external signals to `event.publish` on the local socket:
+
+| Adapter | Technology | Patterns |
+|---------|------------|----------|
+| D-Bus | native **zbus** (system bus) | `desktop.notify`, `login.prepare_sleep` |
+| Filesystem | inotify | `fs.change.*` |
+| Audio | PipeWire socket probe | `pipewire.state` |
+
+`THE_MACHINE_DISABLE_DBUS=1` disables the D-Bus adapter when no system bus is
+available. The adapter no longer depends on the host `dbus-monitor` binary.
+
+---
+
 ## Performance
 
 ### Targets

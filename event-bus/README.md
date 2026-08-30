@@ -24,3 +24,18 @@ from event_bus.router import EventRouter
 router = EventRouter()
 router.publish("task-complete", {"task_id": "t-001"})
 ```
+
+## Event adapters (Rust)
+
+The production daemon spawns background adapters that publish into the local
+`event-bus` socket:
+
+| Adapter | Source | Events |
+|---------|--------|--------|
+| D-Bus (zbus) | system bus | `desktop.notify`, `login.prepare_sleep` |
+| inotify | filesystem watches | `fs.change.*` |
+| audio | PipeWire socket presence | `pipewire.state` |
+
+Set `THE_MACHINE_DISABLE_DBUS=1` to skip the D-Bus adapter (e.g. initramfs
+environments without a system bus). The adapter uses native **zbus** signal
+streams and does not shell out to `dbus-monitor`.
