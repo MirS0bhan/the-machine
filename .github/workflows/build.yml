@@ -116,7 +116,11 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Install cargo-llvm-cov
-        run: cargo install cargo-llvm-cov
+        run: |
+          if ! command -v cargo-llvm-cov >/dev/null 2>&1; then
+            cargo install cargo-llvm-cov --locked
+          fi
+          cargo llvm-cov --version
 
       - name: Generate coverage
         run: |
