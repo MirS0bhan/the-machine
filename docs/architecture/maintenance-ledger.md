@@ -8,6 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
+| audit system-daemon MCP | cursor/maintenance-audit-system-daemon-mcp-75e3657 | #144 | pr-open | 2026-08-30 | audio.set_default + net.set_interface_state handler tests |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -15,6 +16,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-30 | audit | system-daemon MCP handlers | PR #144 open |
 | 2026-08-30 | gap | G14 wifi wpa_cli connect | merged to main |
 | 2026-08-30 | gap | G14 display.set_mode DRM | merged to main |
 | 2026-08-30 | gap | compositor MCP handler tests | merged to main (#142) |
@@ -31,7 +33,7 @@ until the PR is merged to `main`.
 
 Rotate when completing a row. Prefer top item not in cooldown.
 
-1. **G17** — compositor: wlroots seat/output + `wl_compositor` global (cooldown until 2026-09-06)
-2. **G14** — PipeWire default device + netlink admin
+1. **G17** — compositor: xdg-shell global stub (core globals merged; cooldown until 2026-09-06)
+2. **G14** — system-daemon: udev hotplug → MCP event publish for one subsystem
 3. **G13** — validate installed rootfs on bare metal (debootstrap + GRUB)
 4. **audit** — `make verify` + fix first failure
