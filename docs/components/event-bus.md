@@ -531,6 +531,20 @@ Get bus statistics.
 
 ---
 
+## Event Adapters
+
+Background adapters translate Linux ecosystem signals into `event.publish` calls on the bus socket.
+
+| Adapter | Source | Events |
+|---------|--------|--------|
+| D-Bus (`adapters/dbus.rs`) | `zbus` system bus | `desktop.notify`, `login.prepare_sleep` |
+| inotify (`adapters/inotify.rs`) | filesystem watches | `fs.change.*` |
+| audio (`adapters/audio.rs`) | PipeWire state | `pipewire.state` |
+
+The D-Bus adapter uses native **zbus** signal subscriptions (no `dbus-monitor` dependency). It listens to `org.freedesktop.Notifications.Notify` and `org.freedesktop.login1.Manager.PrepareForSleep`. Set `THE_MACHINE_DISABLE_DBUS=1` to skip the adapter (e.g. initramfs without a session bus).
+
+---
+
 ## Integration with State Store
 
 The Event Bus uses the State Store's `state.watch` mechanism for subscriptions. When a component subscribes to an event pattern:
