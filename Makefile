@@ -55,15 +55,17 @@ qemu: initramfs
 # `run` uses a graphical display when $DISPLAY is set (framebuffer compositor);
 # otherwise it falls back to serial. `run-console` is always nographic.
 # `run-debug` adds serial logging on the launching terminal (recommended for blank-screen diagnosis).
+# virtio-vga + bundled virtio_gpu module is more reliable than -vga std (bochs.ko often absent).
+QEMU_VGA ?= -vga none -device virtio-vga
 run: iso
 	@if [ -n "$$DISPLAY" ]; then \
-		$(QEMU) $(QEMU_ACCEL) -m $(MEM) -cdrom "$(ISO)" -boot d -vga std; \
+		$(QEMU) $(QEMU_ACCEL) -m $(MEM) -cdrom "$(ISO)" -boot d $(QEMU_VGA); \
 	else \
 		$(QEMU) $(QEMU_ACCEL) -m $(MEM) -cdrom "$(ISO)" -nographic; \
 	fi
 
 run-debug: iso
-	$(QEMU) $(QEMU_ACCEL) -m $(MEM) -cdrom "$(ISO)" -boot d -vga std $(QEMU_SERIAL)
+	$(QEMU) $(QEMU_ACCEL) -m $(MEM) -cdrom "$(ISO)" -boot d $(QEMU_VGA) $(QEMU_SERIAL)
 
 run-console: iso
 	$(QEMU) $(QEMU_ACCEL) -m $(MEM) -cdrom "$(ISO)" -nographic
@@ -86,6 +88,9 @@ test-build-scripts:
 	bash build/test-boot-greet-services.sh
 	bash build/test-boot-logging.sh
 	bash build/test-select-kernel.sh
+	bash build/test-initramfs-libs.sh
+	bash build/test-initramfs-modules.sh
+	bash build/test-qemu-boot-full.sh initramfs
 	bash build/test-iso-boot-smoke.sh
 
 test-rust:
@@ -101,6 +106,10 @@ test-python:
 	cd lambda-server && $(PYTHON) test_server.py
 
 test-all: test-rust test-python test-build-scripts
+
+# Full E2E proof with QEMU boot + artifact capture (see build/test-boot-e2e-proof.sh).
+test-e2e-proof:
+	bash build/test-boot-e2e-proof.sh
 
 verify:
 	bash scripts/verify-all.sh
