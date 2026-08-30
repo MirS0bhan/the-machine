@@ -11,10 +11,8 @@
 //! (see `ipc_ns_fd`): functions in the same group see each other's AF_UNIX
 //! sockets; everyone else is isolated.
 
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::path::Path;
-
-pub const NONE: i32 = -1;
 
 #[derive(Debug, Default, Clone)]
 pub struct CapSet {
@@ -267,6 +265,12 @@ fn timer_syscalls() -> Vec<i64> {
 
 /// Build the final allowlist from a CapSet.
 pub fn allowed_syscalls(caps: &CapSet) -> Vec<i64> {
+    if caps.is_pure() {
+        let mut s = base_syscalls();
+        s.sort_unstable();
+        s.dedup();
+        return s;
+    }
     let mut s = base_syscalls();
     if caps.fs_read {
         s.extend(fs_read_syscalls());
@@ -335,13 +339,14 @@ fn jt(code: u16, k: u32, jt: u8, jf: u8) -> SockFilter {
 /// Install a seccomp filter that **only** allows the given syscalls.
 /// Everything else kills the process.
 fn install_seccomp(syscalls: &[i64]) {
-    let mut filter: Vec<SockFilter> = Vec::new();
-    // Validate architecture first.
-    filter.push(stmt(BPF_LD | BPF_W | BPF_ABS, 4)); // seccomp_data.arch at offset 4
-    filter.push(jt(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0));
-    filter.push(stmt(BPF_RET, SECCOMP_RET_KILL_PROCESS));
-    // Load syscall number.
-    filter.push(stmt(BPF_LD | BPF_W | BPF_ABS, 0)); // seccomp_data.nr at offset 0
+    let mut filter: Vec<SockFilter> = vec![
+        // Validate architecture first.
+        stmt(BPF_LD | BPF_W | BPF_ABS, 4), // seccomp_data.arch at offset 4
+        jt(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0),
+        stmt(BPF_RET, SECCOMP_RET_KILL_PROCESS),
+        // Load syscall number.
+        stmt(BPF_LD | BPF_W | BPF_ABS, 0), // seccomp_data.nr at offset 0
+    ];
     for &nr in syscalls {
         filter.push(jt(BPF_JMP | BPF_JEQ | BPF_K, nr as u32, 0, 1));
         filter.push(stmt(BPF_RET, SECCOMP_RET_ALLOW));
@@ -532,15 +537,6 @@ fn read_thread(fd: i32) -> String {
 
 /// Run `entry` inside the sandbox synchronously and return its captured output.
 pub fn run_sandboxed(input: &SandboxInput) -> SandboxOutput {
-    let mut out_r = -1;
-    let mut out_w = -1;
-    let mut err_r = -1;
-    let mut err_w = -1;
-    let mut in_r = -1;
-    let mut in_w = -1;
-    let mut st_r = -1;
-    let mut st_w = -1;
-
     let mut pipes = [[0i32; 2], [0i32; 2], [0i32; 2]];
     unsafe {
         if libc::pipe(pipes[0].as_mut_ptr()) != 0
@@ -555,19 +551,13 @@ pub fn run_sandboxed(input: &SandboxInput) -> SandboxOutput {
             };
         }
     }
-    out_r = pipes[0][0];
-    out_w = pipes[0][1];
-    err_r = pipes[1][0];
-    err_w = pipes[1][1];
-    in_r = pipes[2][0];
-    in_w = pipes[2][1];
+    let [[out_r, out_w], [err_r, err_w], [in_r, in_w]] = pipes;
 
     let mut st_pipe = [0i32; 2];
     unsafe {
         libc::pipe(st_pipe.as_mut_ptr());
     }
-    st_r = st_pipe[0];
-    st_w = st_pipe[1];
+    let [st_r, st_w] = st_pipe;
 
     let syscalls = allowed_syscalls(&input.caps);
     let entry_c = match CString::new(input.entry.as_str()) {
@@ -581,9 +571,8 @@ pub fn run_sandboxed(input: &SandboxInput) -> SandboxOutput {
             }
         }
     };
-    let mut argv: Vec<CString> = std::iter::once(input.entry.clone())
-        .chain(input.args.iter().cloned())
-        .filter_map(|s| CString::new(s).ok())
+    let argv: Vec<CString> = std::iter::once(entry_c)
+        .chain(input.args.iter().filter_map(|s| CString::new(s.as_str()).ok()))
         .collect();
     let mut argv_ptrs: Vec<*const libc::c_char> = argv.iter().map(|c| c.as_ptr()).collect();
     argv_ptrs.push(std::ptr::null());
@@ -709,10 +698,8 @@ pub fn run_sandboxed(input: &SandboxInput) -> SandboxOutput {
         );
         libc::close(st_r);
     }
-    let killed = unsafe {
-        libc::WIFSIGNALED(status)
-            && (libc::WTERMSIG(status) == libc::SIGSYS || libc::WTERMSIG(status) == libc::SIGKILL)
-    };
+    let killed = libc::WIFSIGNALED(status)
+        && (libc::WTERMSIG(status) == libc::SIGSYS || libc::WTERMSIG(status) == libc::SIGKILL);
 
     SandboxOutput {
         stdout,
@@ -731,20 +718,13 @@ pub struct Persistent {
 
 /// Spawn a persistent sandboxed process, keeping its stdin/stdout pipes open.
 pub fn run_persistent(input: &SandboxInput) -> Option<Persistent> {
-    let mut out_r = -1;
-    let mut out_w = -1;
-    let mut in_r = -1;
-    let mut in_w = -1;
     let mut p = [[0i32; 2]; 2];
     unsafe {
         if libc::pipe(p[0].as_mut_ptr()) != 0 || libc::pipe(p[1].as_mut_ptr()) != 0 {
             return None;
         }
     }
-    out_r = p[0][0];
-    out_w = p[0][1];
-    in_r = p[1][0];
-    in_w = p[1][1];
+    let [[out_r, out_w], [in_r, in_w]] = p;
 
     let syscalls = allowed_syscalls(&input.caps);
     let entry_clone = input.entry.clone();

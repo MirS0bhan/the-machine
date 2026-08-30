@@ -163,7 +163,7 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-async fn handle_connection(mut stream: tokio::net::UnixStream, state: Arc<AppState>) {
+async fn handle_connection(stream: tokio::net::UnixStream, state: Arc<AppState>) {
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
@@ -378,7 +378,7 @@ async fn invoke(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value
 
     // Leased (warm) invocation.
     if let Some(lid) = lease_id {
-        let mut leases = state.leases.lock().await;
+        let leases = state.leases.lock().await;
         if let Some(persistent) = leases.get(&lid) {
             let data = serde_json::to_vec(&payload).unwrap_or_default();
             let res = persistent_request(persistent, &data, 10_000);
@@ -437,6 +437,9 @@ async fn invoke(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value
     let mut resp = json!({ "result": result });
     if out.killed {
         resp["killed_by_seccomp"] = json!(true);
+    }
+    if !out.stderr.is_empty() {
+        resp["stderr"] = json!(out.stderr);
     }
     ok(id, resp)
 }
