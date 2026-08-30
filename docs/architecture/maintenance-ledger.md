@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| verify-fix resolve conflict markers | cursor/maintenance-verify-fix-merge-conflicts-da8f2b1 | — | pr-open | 2026-08-30 | resolve merge conflict markers across scripts/docs/crates |
+| verify-fix resolve conflict markers | cursor/maintenance-verify-fix-merge-conflicts-da8f2b1 | #199 | pr-open | 2026-08-30 | resolve merge conflict markers across scripts/docs/crates |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -16,7 +16,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | verify-fix | verify-docs conflict markers & restore event-bus | pr-open |
+| 2026-08-30 | verify-fix | verify-docs conflict markers & restore event-bus | pr-open (#199) |
 | 2026-08-30 | verify-fix | ui-runtime merge conflict markers | merged to main (#191) |
 | 2026-08-30 | audit | policy.register Python integration test | merged to main (#179) |
 | 2026-08-30 | audit | event.subscribe Python integration test | merged to main (#182) |
