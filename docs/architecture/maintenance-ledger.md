@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| verify-fix ui-runtime main git conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | — | pr-open | 2026-08-30 | resolve merge conflict markers in ui-runtime/src/main.rs tests |
+| verify-fix ui-runtime main git conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | #194 | pr-open | 2026-08-30 | resolve merge conflict markers in ui-runtime/src/main.rs tests |
 | verify-fix initramfs modules skip | — | — | merged | 2026-08-30 | Landed on main (#188) |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
@@ -17,7 +17,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | verify-fix | ui-runtime merge conflict markers | pr-open |
+| 2026-08-30 | verify-fix | ui-runtime merge conflict markers | pr-open (#194) |
 | 2026-08-30 | verify-fix | test-initramfs-modules skip on missing /lib/modules | merged to main (#188) |
 | 2026-08-30 | audit | state-store clippy/dead-code | pr-open (#169) |
 | 2026-08-30 | gap | G13 operator installed-rootfs validation | pr-open (#168) |
