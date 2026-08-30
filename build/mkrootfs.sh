@@ -4,8 +4,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${ROOT}/build"
-ROOTFS="${BUILD_DIR}/rootfs"
+ROOTFS="${THE_MACHINE_ROOTFS_DIR:-${BUILD_DIR}/rootfs}"
 PROFILE="${1:-minimal}"
+
+# shellcheck source=rootfs-common.sh
+source "${ROOT}/build/rootfs-common.sh"
 
 echo "==> Building rootfs (${PROFILE})"
 
@@ -34,13 +37,18 @@ if command -v debootstrap >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1; th
   else
     echo "WARN: debootstrap failed; using skeleton rootfs" >&2
   fi
+elif ! command -v debootstrap >/dev/null 2>&1; then
+  echo "WARN: debootstrap not found — creating skeleton rootfs only" >&2
+  rm -rf "${ROOTFS}"
+  rootfs_skeleton_dirs "${ROOTFS}"
 else
   echo "WARN: debootstrap/sudo not available — skeleton rootfs only" >&2
 fi
 
 if [[ "${DEBOOTSTRAP_OK}" -eq 0 ]]; then
   rm -rf "${ROOTFS}"
-  mkdir -p "${ROOTFS}"/{bin,sbin,etc,the-machine,boot,usr/lib/systemd/system,var/lib/the-machine,run/the-machine}
+  rootfs_skeleton_dirs "${ROOTFS}"
+  mkdir -p "${ROOTFS}/run/the-machine"
 fi
 
 # Install Machine service binaries.
@@ -127,6 +135,13 @@ THE_MACHINE_LAMBDA_DIR=/var/lib/the-machine/lambdas
 THE_MACHINE_COMPOSITOR_BACKEND=auto
 LOCAL_MODEL_PATH=/var/lib/the-machine/models/machine-tiny.gguf
 CONF
+
+# G13: ensure kernel is linked for installer/grub (debootstrap chroot or host copy).
+if [[ "${DEBOOTSTRAP_OK}" -eq 1 && "${THE_MACHINE_ROOTFS_SKIP_KERNEL:-0}" != "1" ]]; then
+  sudo rootfs_install_kernel_debian "${ROOTFS}" 2>/dev/null || \
+    echo "WARN: kernel apt install failed; trying host copy" >&2
+fi
+rootfs_link_vmlinuz "${ROOTFS}" || true
 
 if [[ "${DEBOOTSTRAP_OK}" -eq 1 ]]; then
   sudo ln -sf /the-machine/mcp-bus "${ROOTFS}/etc/systemd/system/multi-user.target.wants/the-machine.target" 2>/dev/null || true

@@ -59,7 +59,7 @@ _None — all P0/P1 gaps from the expansion campaign are closed._
 
 | ID | Gap | Component | Priority |
 |----|-----|-----------|----------|
-| G13 | Rootfs installer: skeleton works; full debootstrap path needs target-HW validation | build | P3 |
+| G13 | Rootfs installer: debootstrap + kernel link done; needs target-HW validation | build | P3 |
 | G14 | wifi connect + PipeWire audio + netlink admin still unwired; display + net list/up/down done | system-daemon | P3 |
 | G17 | Full wlroots Wayland session (wl_display scaffold on main; seat/output/globals next) | compositor | P3 |
 

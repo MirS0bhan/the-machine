@@ -16,6 +16,11 @@ if [[ ! -d "${ROOTFS_SRC}" ]]; then
   exit 1
 fi
 
+if [[ ! -e "${ROOTFS_SRC}/vmlinuz" && ! -e "${ROOTFS_SRC}/boot/vmlinuz" ]]; then
+  echo "ERROR: rootfs has no kernel (missing vmlinuz). Re-run build/mkrootfs.sh with debootstrap." >&2
+  exit 1
+fi
+
 echo "==> The Machine installer"
 echo "    Target: ${TARGET_DISK}"
 echo "    Source: ${ROOTFS_SRC}"
