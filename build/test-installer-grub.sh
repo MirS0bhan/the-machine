@@ -48,9 +48,8 @@ MNT="${TMP}/mnt"
 sudo mkdir -p "${MNT}"
 sudo mount "${PART}" "${MNT}"
 
-bash "${ROOT}/build/verify-rootfs-grub.sh" "${MNT}"
 export THE_MACHINE_ROOTFS_VALIDATE_SKIP_KERNEL=1
-bash "${ROOT}/build/rootfs-validate.sh" "${MNT}"
+bash "${ROOT}/build/validate-installed-rootfs.sh" "${MNT}"
 
 sudo umount "${MNT}"
 echo "OK: loopback installer GRUB validation (G13)"
