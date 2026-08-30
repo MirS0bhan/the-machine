@@ -1,8 +1,6 @@
 //! Kernel/hardware abstraction: power, display, network, audio.
-//!
-//! These are placeholder stubs returning mock data until the real
-//! kernel interfaces are wired up.
 
+use crate::power;
 use common::{AudioDevice, DisplayMode, NetworkInterface};
 
 pub struct KernelHandler;
@@ -13,7 +11,7 @@ impl KernelHandler {
     }
 
     pub fn get_power_profile(&self) -> String {
-        "balanced".to_string()
+        power::read_power_profile().unwrap_or_else(|| "balanced".to_string())
     }
 
     pub fn get_display_modes(&self) -> Vec<DisplayMode> {
@@ -41,8 +39,8 @@ impl KernelHandler {
         }]
     }
 
-    pub async fn set_power_profile(&self, _profile: &str) -> Result<(), String> {
-        Ok(())
+    pub async fn set_power_profile(&self, profile: &str) -> Result<(), String> {
+        power::write_power_profile(profile)
     }
 
     pub async fn set_display_mode(
@@ -110,5 +108,23 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.contains("not wired"));
+    }
+
+    #[test]
+    fn power_profile_read_returns_known_value() {
+        let profile = KernelHandler::new().get_power_profile();
+        assert!(matches!(
+            profile.as_str(),
+            "balanced" | "performance" | "powersave"
+        ));
+    }
+
+    #[tokio::test]
+    async fn set_power_profile_rejects_invalid_name() {
+        let err = KernelHandler::new()
+            .set_power_profile("turbo")
+            .await
+            .unwrap_err();
+        assert!(err.contains("unsupported profile"));
     }
 }

@@ -15,6 +15,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
+| G14 power.set_profile sysfs | cursor/maintenance-g14-power-sysfs-2392aba | — | pr-open | 2026-08-30 | cpufreq scaling_governor read/write behind grant token |
 | G17 wl_display scaffold | — | — | merged | 2026-08-30 | `wl_session.rs` + wayland-server on main |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
@@ -23,6 +24,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-30 | gap | G14 power.set_profile sysfs | pr-open |
 | 2026-08-30 | gap | G17 wl_display scaffold | merged to main |
 | 2026-08-30 | gap | G7 | merged to main |
 | 2026-08-30 | gap | policy hardening | merged to main |
@@ -31,8 +33,8 @@ until the PR is merged to `main`.
 
 Rotate when completing a row. Prefer top item not in cooldown.
 
-1. **G17** — compositor: wlroots seat/output init (wl_display scaffold merged)
-2. **G14** — system-daemon: one mutation path (e.g. display mode sysfs) behind grant token
+1. **G14** — system-daemon: display.set_mode DRM path or net.set_interface_state rtnetlink (power.set_profile sysfs in flight)
+2. **G17** — compositor: wlroots seat/output init (cooldown until 2026-09-06 unless regression)
 3. **G12** — mcp-bus: document lease fast-path honestly or bind optional lease socket
 4. **audit** — `make verify` + fix first failure
 5. **coverage** — lowest-coverage touched crate from `cargo llvm-cov` summary
