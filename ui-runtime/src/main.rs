@@ -734,3 +734,144 @@ fn error_response(id: &Uuid, code: &str, message: &str) -> McpMessage {
         }),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_tree() -> SharedTree {
+        Arc::new(Mutex::new(UiTree::new()))
+    }
+
+    #[tokio::test]
+    async fn ui_status_reports_running_tree() {
+        let tree = test_tree();
+        let resp = handle_request("ui.status".into(), None, &tree).await;
+        assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
+        let result = resp.result.expect("result");
+        assert_eq!(
+            result.get("status").and_then(|v| v.as_str()),
+            Some("running")
+        );
+        assert_eq!(
+            result.get("auil_parser").and_then(|v| v.as_str()),
+            Some("rust")
+        );
+        assert!(result.get("revision").and_then(|v| v.as_u64()).unwrap_or(0) >= 1);
+        assert!(result.get("nodes").and_then(|v| v.as_u64()).unwrap_or(0) >= 1);
+    }
+
+    #[tokio::test]
+    async fn ui_get_without_id_returns_root_node() {
+        let tree = test_tree();
+        let resp = handle_request("ui.get".into(), None, &tree).await;
+        assert!(resp.error.is_none());
+        let result = resp.result.expect("result");
+        assert_eq!(result.get("id").and_then(|v| v.as_str()), Some("ui.root"));
+    }
+
+    #[tokio::test]
+    async fn ui_get_unknown_node_is_not_found() {
+        let tree = test_tree();
+        let resp = handle_request(
+            "ui.get".into(),
+            Some(serde_json::json!({ "id": "ui.missing" })),
+            &tree,
+        )
+        .await;
+        assert_eq!(
+            resp.error.as_ref().map(|e| e.code.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
+
+    #[tokio::test]
+    async fn ui_patch_update_bumps_revision() {
+        let tree = test_tree();
+        let resp = handle_request(
+            "ui.patch".into(),
+            Some(serde_json::json!({
+                "ops": [{
+                    "op": "update",
+                    "id": "ui.root",
+                    "props": { "label": "boot" }
+                }]
+            })),
+            &tree,
+        )
+        .await;
+        assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
+        let revision = resp
+            .result
+            .as_ref()
+            .and_then(|v| v.get("revision"))
+            .and_then(|v| v.as_u64())
+            .expect("revision");
+        assert!(revision >= 2);
+
+        let get_resp = handle_request(
+            "ui.get".into(),
+            Some(serde_json::json!({ "id": "ui.root" })),
+            &tree,
+        )
+        .await;
+        assert_eq!(
+            get_resp
+                .result
+                .as_ref()
+                .and_then(|v| v.get("props"))
+                .and_then(|p| p.get("label"))
+                .and_then(|v| v.as_str()),
+            Some("boot")
+        );
+    }
+
+    #[tokio::test]
+    async fn ui_tree_returns_root_snapshot() {
+        let tree = test_tree();
+        let resp = handle_request("ui.tree".into(), None, &tree).await;
+        assert!(resp.error.is_none());
+        assert_eq!(
+            resp.result
+                .as_ref()
+                .and_then(|v| v.get("id"))
+                .and_then(|v| v.as_str()),
+            Some("ui.root")
+        );
+    }
+
+    #[tokio::test]
+    async fn ui_auil_parse_returns_ops_for_simple_layout() {
+        let tree = test_tree();
+        let source = r#"stack#ui.root dir=v
+  text#ui.title(role=title) "Hello"
+"#;
+        let resp = handle_request(
+            "ui.auil.parse".into(),
+            Some(serde_json::json!({ "source": source })),
+            &tree,
+        )
+        .await;
+        assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
+        let result = resp.result.expect("result");
+        assert_eq!(
+            result.get("root_id").and_then(|v| v.as_str()),
+            Some("ui.root")
+        );
+        let ops = result
+            .get("ops")
+            .and_then(|v| v.as_array())
+            .expect("ops array");
+        assert!(!ops.is_empty());
+    }
+
+    #[tokio::test]
+    async fn unknown_method_returns_not_found() {
+        let tree = test_tree();
+        let resp = handle_request("ui.nope".into(), None, &tree).await;
+        assert_eq!(
+            resp.error.as_ref().map(|e| e.code.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
+}
