@@ -8,6 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
+| compositor clippy | cursor/maintenance-audit-compositor-clippy-e1cee1b | — | pr-open | 2026-08-30 | dead code + clippy cleanup |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -15,6 +16,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-30 | audit | compositor clippy/dead code | pr-open |
 | 2026-08-30 | gap | G14 udev hotplug events | merged to main (#145) |
 | 2026-08-30 | audit | hardware-smoke CI | merged to main (#143) |
 | 2026-08-30 | audit | system-daemon MCP handler tests | merged to main (#146) |
