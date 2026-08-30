@@ -8,6 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
+| G13 installer GRUB validation | cursor/maintenance-g13-installer-grub | — | pr-open | 2026-08-30 | loopback test + verify-rootfs-grub |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -15,6 +16,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-30 | gap | G13 loopback installer GRUB | pr-open |
 | 2026-08-30 | gap | G14 udev hotplug events | merged to main (#145) |
 | 2026-08-30 | audit | hardware-smoke CI | merged to main (#143) |
 | 2026-08-30 | audit | system-daemon MCP handler tests | merged to main (#146) |
@@ -35,6 +37,6 @@ until the PR is merged to `main`.
 Rotate when completing a row. Prefer top item not in cooldown.
 
 1. **G17** — compositor: wlroots seat/output + `wl_compositor` global (cooldown until 2026-09-06)
-2. **G13** — validate installed rootfs on bare metal (debootstrap + GRUB)
+2. **G13** — physical target-HW validation on real GPU/Wi-Fi hardware
 3. **audit** — dead code / clippy in one crate (-p compositor)
 4. **audit** — `make verify` + fix first failure
