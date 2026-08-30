@@ -49,7 +49,7 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 - [x] **G14 (partial)** `audio.set_default` via `pactl set-default-sink` (`system-daemon/src/audio.rs`)
 - [x] **G14 (partial)** `net.set_interface_state` via rtnetlink RTM_SETLINK (`system-daemon/src/netlink.rs`)
 - [x] **G14 (partial)** udev hotplug → `event.publish` via kernel uevent netlink (`system-daemon/src/hotplug.rs`)
-| **G13 (partial)** Rootfs installer: debootstrap packages, kernel in `/boot`, GRUB `LABEL=the-machine` (`build/mkrootfs.sh`, `build/installer/install.sh`); loopback GRUB validation (`build/test-installer-grub.sh`)
+| **G13 (partial)** Rootfs installer: debootstrap packages, kernel in `/boot`, GRUB `LABEL=the-machine` (`build/mkrootfs.sh`, `build/installer/install.sh`); loopback GRUB validation (`build/test-installer-grub.sh`); `boot.auil` at `/etc/the-machine/boot.auil` (in PR)
 
 ---
 
@@ -63,7 +63,7 @@ _None — all P0/P1 gaps from the expansion campaign are closed._
 
 | ID | Gap | Component | Priority |
 |----|-----|-----------|----------|
-| G13 | Rootfs installer: debootstrap + GRUB loopback validation done; needs target-HW validation | build | P3 |
+| G13 | Rootfs installer: debootstrap + GRUB + boot.auil on main; needs target-HW validation | build | P3 |
 | G17 | xdg-shell / wlroots for third-party Wayland clients (core globals + SHM commit on main) | compositor | P3 |
 
 ---

@@ -33,7 +33,17 @@ grep -q 'THE_MACHINE_SOCKET_DIR=/run/the-machine' "${ROOTFS}/etc/the-machine/mac
   || fail "machine.conf missing THE_MACHINE_SOCKET_DIR"
 grep -q 'XDG_RUNTIME_DIR=/run/the-machine' "${ROOTFS}/etc/the-machine/machine.conf" \
   || fail "machine.conf missing XDG_RUNTIME_DIR"
+grep -q 'THE_MACHINE_BOOT_AUIL=/etc/the-machine/boot.auil' "${ROOTFS}/etc/the-machine/machine.conf" \
+  || fail "machine.conf missing THE_MACHINE_BOOT_AUIL"
 ok "machine.conf runtime env"
+
+BOOT_AUIL="${ROOTFS}/etc/the-machine/boot.auil"
+[[ -f "${BOOT_AUIL}" ]] || fail "missing /etc/the-machine/boot.auil (boot greet layout)"
+for widget in ui.greeting ui.chat_log ui.chat_input ui.chat_send; do
+  grep -q "${widget}" "${BOOT_AUIL}" || fail "boot.auil missing widget ${widget}"
+done
+grep -q 'agent.chat.send' "${BOOT_AUIL}" || fail "boot.auil missing agent.chat.send binding"
+ok "boot.auil greet + chat layout"
 
 [[ -f "${ROOTFS}/usr/lib/systemd/system/the-machine.target" ]] || fail "missing the-machine.target"
 for svc in system-daemon mcp-bus compositor; do
