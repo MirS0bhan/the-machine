@@ -1,8 +1,8 @@
 //! Fast-path MCP leases for hot loops (bypass repeated bus resolution).
 //!
-//! G12: leases are metadata today. We advertise the already-running
-//! handler socket so callers can skip registry lookup, but we do **not**
-//! invent a `leases/<id>.sock` path that nothing listens on.
+//! G12: by default leases are metadata — we advertise the handler socket so
+//! callers can skip registry lookup. When `THE_MACHINE_LEASE_FAST_PATH=1`, the
+//! bus binds `{socket_dir}/leases/<id>.sock` and relays the leased method.
 
 use dashmap::DashMap;
 use serde_json::{json, Value};
@@ -15,6 +15,7 @@ pub struct LeaseRecord {
     pub method: String,
     pub handler: String,
     pub handler_socket: String,
+    pub manifest_ref: Option<String>,
     pub expires_at: Instant,
 }
 
@@ -31,7 +32,13 @@ impl LeaseManager {
         }
     }
 
-    pub fn create(&self, method: &str, handler: &str, ttl_secs: Option<u64>) -> Value {
+    pub fn create(
+        &self,
+        method: &str,
+        handler: &str,
+        manifest_ref: Option<String>,
+        ttl_secs: Option<u64>,
+    ) -> Value {
         let lease_id = Uuid::new_v4().to_string();
         let ttl = Duration::from_secs(ttl_secs.unwrap_or(self.default_ttl.as_secs()));
         let handler_socket = common::component_socket(handler);
@@ -42,6 +49,7 @@ impl LeaseManager {
                 method: method.to_string(),
                 handler: handler.to_string(),
                 handler_socket: handler_socket.clone(),
+                manifest_ref: manifest_ref.clone(),
                 expires_at: Instant::now() + ttl,
             },
         );
@@ -75,6 +83,7 @@ impl LeaseManager {
                     method: r.method.clone(),
                     handler: r.handler.clone(),
                     handler_socket: r.handler_socket.clone(),
+                    manifest_ref: r.manifest_ref.clone(),
                     expires_at: r.expires_at,
                 })
             }
@@ -95,7 +104,7 @@ mod tests {
     #[test]
     fn lease_does_not_advertise_unbound_socket() {
         let mgr = LeaseManager::new(60);
-        let v = mgr.create("calc.add", "lambda-server", Some(45));
+        let v = mgr.create("calc.add", "lambda-server", None, Some(45));
         assert_eq!(v["fast_path"], false);
         assert!(v.get("socket_path").is_none());
         assert_eq!(v["handler"], "lambda-server");
