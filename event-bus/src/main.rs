@@ -897,6 +897,183 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use std::sync::Arc;
+
+    fn test_state() -> State {
+        Arc::new(Mutex::new(BusState::new()))
+    }
+
+    fn req(method: &str, params: Value) -> Value {
+        json!({ "id": "test-req", "method": method, "params": params })
+    }
+
+    #[test]
+    fn pattern_matches_literal_and_wildcards() {
+        assert!(pattern_matches("*", "anything.here"));
+        assert!(pattern_matches("ui.*", "ui"));
+        assert!(pattern_matches("ui.*", "ui.button.press"));
+        assert!(!pattern_matches("ui.*", "other.button"));
+        assert!(pattern_matches("*.press", "press"));
+        assert!(pattern_matches("*.press", "ui.button.press"));
+        assert!(pattern_matches("a.*.c", "a.b.c"));
+        assert!(!pattern_matches("a.*.c", "a.b.d"));
+    }
+
+    #[tokio::test]
+    async fn event_subscribe_returns_subscription_id() {
+        let state = test_state();
+        let resp = handle_request(
+            req(
+                "event.subscribe",
+                json!({
+                    "category": "ui",
+                    "pattern": "button.*",
+                    "subscriber": "ui-runtime"
+                }),
+            ),
+            state,
+        )
+        .await;
+        assert!(resp.get("error").is_none());
+        assert!(resp
+            .get("result")
+            .and_then(|r| r.get("subscription_id"))
+            .and_then(|v| v.as_str())
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn event_register_handler_and_publish_routes_to_handler() {
+        let state = test_state();
+        let reg = handle_request(
+            req(
+                "event.register_handler",
+                json!({
+                    "category": "hardware",
+                    "pattern": "usb.insert",
+                    "handler": "lambda-server"
+                }),
+            ),
+            state.clone(),
+        )
+        .await;
+        assert!(reg.get("error").is_none());
+        assert_eq!(
+            reg.get("result")
+                .and_then(|r| r.get("registered"))
+                .and_then(|v| v.as_bool()),
+            Some(true)
+        );
+
+        let pub_resp = handle_request(
+            req(
+                "event.publish",
+                json!({
+                    "category": "hardware",
+                    "pattern": "usb.insert",
+                    "payload": { "device": "keyboard" }
+                }),
+            ),
+            state.clone(),
+        )
+        .await;
+        assert!(pub_resp.get("error").is_none());
+        assert_eq!(
+            pub_resp
+                .get("result")
+                .and_then(|r| r.get("decision"))
+                .and_then(|v| v.as_str()),
+            Some("Handler")
+        );
+        assert_eq!(
+            pub_resp
+                .get("result")
+                .and_then(|r| r.get("handler"))
+                .and_then(|v| v.as_str()),
+            Some("lambda-server")
+        );
+    }
+
+    #[tokio::test]
+    async fn event_publish_without_handler_drops_when_no_decision() {
+        let state = test_state();
+        let resp = handle_request(
+            req(
+                "event.publish",
+                json!({
+                    "category": "telemetry",
+                    "pattern": "metric.cpu",
+                    "payload": { "pct": 42 }
+                }),
+            ),
+            state,
+        )
+        .await;
+        assert!(resp.get("error").is_none());
+        assert_eq!(
+            resp.get("result")
+                .and_then(|r| r.get("decision"))
+                .and_then(|v| v.as_str()),
+            Some("Drop")
+        );
+    }
+
+    #[tokio::test]
+    async fn event_schedule_accepts_every_duration() {
+        let state = test_state();
+        let resp = handle_request(
+            req(
+                "event.schedule",
+                json!({
+                    "cron": "@every 5m",
+                    "category": "scheduler",
+                    "pattern": "timer.fire",
+                    "recurring": true
+                }),
+            ),
+            state,
+        )
+        .await;
+        assert!(resp.get("error").is_none());
+        let result = resp.get("result").expect("result");
+        assert!(result.get("event_id").and_then(|v| v.as_str()).is_some());
+        assert!(result.get("trigger_time").and_then(|v| v.as_i64()).is_some());
+        assert_eq!(
+            result.get("recurring").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+    }
+
+    #[tokio::test]
+    async fn event_stats_reports_zero_uptime_counters() {
+        let state = test_state();
+        let resp = handle_request(req("event.stats", json!({})), state).await;
+        assert!(resp.get("error").is_none());
+        let result = resp.get("result").expect("result");
+        assert_eq!(
+            result.get("events_emitted").and_then(|v| v.as_u64()),
+            Some(0)
+        );
+        assert!(result.get("uptime_ms").and_then(|v| v.as_i64()).is_some());
+    }
+
+    #[tokio::test]
+    async fn unknown_method_returns_not_found() {
+        let state = test_state();
+        let resp = handle_request(req("event.nope", json!({})), state).await;
+        assert_eq!(
+            resp.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|v| v.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
+}
+
 async fn handle_connection(mut stream: UnixStream, state: State) {
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
