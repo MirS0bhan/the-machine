@@ -164,7 +164,7 @@ The shared secret is compiled into both the System Daemon and Broker binaries at
 | `net.list_interfaces` | Use `rtnetlink` (RTM_GETLINK) | Returns all interfaces |
 | `net.set_interface_state` | Use `rtnetlink` (RTM_SETLINK) | Requires grant token |
 | `net.get_wifi_status` | Read `/proc/net/wireless` when present | `"disconnected"` or `"associated"` |
-| `net.connect_wifi` | Grant-gated; host `wpa_supplicant` adapter not wired | Returns `E_UNAVAILABLE` rather than a fake success |
+| `net.connect_wifi` | Grant-gated; resolves PSK from `/run/the-machine/secrets/wifi/<ref>` + `wpa_cli` | Returns `E_UNAVAILABLE` when iface/wpa_cli/credential missing |
 | `audio.list_devices` | Use ALSA `snd_card_next` or PipeWire | Returns audio devices |
 | `audio.set_default` | Update PipeWire or ALSA default symlink | Requires grant token |
 

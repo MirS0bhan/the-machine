@@ -12,6 +12,7 @@ mod input;
 mod kernel;
 mod net;
 mod power;
+mod wifi;
 
 #[derive(Clone)]
 struct AppState {

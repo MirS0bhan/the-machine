@@ -46,6 +46,7 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 - [x] **G12** `bus.lease` optional fast-path relay socket when `THE_MACHINE_LEASE_FAST_PATH=1` (`mcp-bus/src/lease.rs`)
 - [x] **G14 (partial)** `power.set_profile` via cpufreq sysfs (`system-daemon/src/power.rs`)
 - [x] **G14 (partial)** Display modes via sysfs/DRM; `display.set_mode` on DRM hosts; `net.list_interfaces` via sysfs; `ip link` for up/down
+- [x] **G14 (partial)** `net.connect_wifi` via owner-only credential files + `wpa_cli` (`system-daemon/src/wifi.rs`)
 - [x] **G13 (partial)** Rootfs installer: debootstrap packages, kernel in `/boot`, GRUB `LABEL=the-machine` (`build/mkrootfs.sh`, `build/installer/install.sh`)
 
 ---
@@ -61,7 +62,7 @@ _None — all P0/P1 gaps from the expansion campaign are closed._
 | ID | Gap | Component | Priority |
 |----|-----|-----------|----------|
 | G13 | Rootfs installer: debootstrap + kernel link done; needs target-HW validation | build | P3 |
-| G14 | wifi connect + PipeWire audio + netlink admin still unwired; display + net + power done | system-daemon | P3 |
+| G14 | PipeWire audio + netlink admin still unwired; display + net + power + wifi connect done | system-daemon | P3 |
 | G17 | Full wlroots Wayland session (wl_display scaffold on main; seat/output/globals next) | compositor | P3 |
 
 ---

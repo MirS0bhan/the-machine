@@ -1,6 +1,6 @@
 //! Kernel/hardware abstraction: power, display, network, audio.
 
-use crate::{display, net, power};
+use crate::{display, net, power, wifi};
 use common::{AudioDevice, DisplayMode, NetworkInterface};
 
 pub struct KernelHandler;
@@ -69,8 +69,8 @@ impl KernelHandler {
         })
     }
 
-    pub async fn connect_wifi(&self, _ssid: &str, _credential_ref: &str) -> Result<String, String> {
-        Err("wifi connect requires wpa_supplicant adapter (not wired yet)".into())
+    pub async fn connect_wifi(&self, ssid: &str, credential_ref: &str) -> Result<String, String> {
+        wifi::connect_wifi(ssid, credential_ref).await
     }
 
     pub async fn set_default_audio(&self, _name: &str) -> Result<(), String> {
@@ -94,7 +94,10 @@ mod tests {
             .connect_wifi("example", "cred-ref")
             .await
             .unwrap_err();
-        assert!(err.contains("not wired"));
+        assert!(
+            err.contains("credential not found") || err.contains("wpa_cli not available"),
+            "unexpected: {err}"
+        );
     }
 
     #[test]

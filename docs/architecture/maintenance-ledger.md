@@ -15,6 +15,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
+| G14 wifi connect | cursor/maintenance-g14-wifi-wpa-2baba1e | — | pr-open | 2026-08-30 | wpa_cli + owner-only credential files |
 | verify-fix busybox/cpio | — | — | merged | 2026-08-30 | fetch-busybox.sh + busybox cpio fallback |
 | G14 power.set_profile | — | — | merged | 2026-08-30 | cpufreq scaling_governor read/write |
 | G17 wl_display scaffold | — | — | merged | 2026-08-30 | `wl_session.rs` + wayland-server on main |
@@ -28,6 +29,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-30 | gap | G14 wifi wpa_cli connect | pr-open |
 | 2026-08-30 | gap | G14 power.set_profile sysfs | merged to main |
 | 2026-08-30 | verify-fix | initramfs busybox/cpio fetch | merged to main |
 | 2026-08-30 | gap | G13 kernel scaffold | merged to main |
@@ -41,7 +43,7 @@ until the PR is merged to `main`.
 
 Rotate when completing a row. Prefer top item not in cooldown.
 
-1. **G17** — compositor: wlroots seat/output + `wl_compositor` global
-2. **G14** — wpa_supplicant wifi connect + PipeWire default device
+1. **G17** — compositor: wlroots seat/output + `wl_compositor` global (cooldown until 2026-09-06)
+2. **G14** — PipeWire default device + netlink admin (wifi connect wired)
 3. **G13** — validate installed rootfs on bare metal (debootstrap + GRUB)
 4. **audit** — `make verify` + fix first failure
