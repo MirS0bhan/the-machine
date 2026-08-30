@@ -29,7 +29,11 @@ impl AuditLog {
         self.entries.push(AuditEntry {
             timestamp: Utc::now().to_rfc3339(),
             method: capability.to_string(),
-            request: json!({ "path": path, "principal": principal }),
+            request: json!({
+                "path": path,
+                "principal": principal,
+                "reason": decision.reason,
+            }),
             provenance: principal.to_string(),
             decision: decision.decision.clone(),
             correlation_id: decision.correlation_id.clone(),
