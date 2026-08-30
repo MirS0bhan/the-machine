@@ -108,6 +108,7 @@ THE_MACHINE_RUNTIME=hybrid  # Rust bus + daemons, Python policy-broker + lambda-
 |----------|--------|
 | `THE_MACHINE_SOCKET_DIR` | Unix socket directory (default `/tmp/the-machine/run`) |
 | `THE_MACHINE_DISABLE_DBUS=1` | Skip event-bus D-Bus adapter (no system-bus subscription) |
+| `THE_MACHINE_DISABLE_HOTPLUG=1` | Skip system-daemon kernel uevent hotplug monitor |
 | `STATE_STORE_BACKEND=memory\|sled` | Rust/Python backend selection (`STATE_STORE_PATH` for sled) |
 | `LOCAL_MODEL_PATH` | GGUF path; omit for stub mode |
 
