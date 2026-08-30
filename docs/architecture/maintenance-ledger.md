@@ -8,15 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| audit ui-runtime MCP handlers | cursor/maintenance-audit-ui-runtime-mcp-05da786 | #162 | pr-open | 2026-08-30 | ui.patch/get/tree/event/status/auil + unknown method |
-| audit event-bus MCP handlers | cursor/maintenance-audit-event-bus-mcp-05da786 | #163 | pr-open | 2026-08-30 | event.publish/subscribe/schedule/register_handler |
-| audit local-model-daemon MCP handlers | cursor/maintenance-audit-local-model-daemon-mcp-05da786 | #164 | pr-open | 2026-08-30 | localmodel.health/complete/classify_intent/embed |
-| audit lambda-server MCP handlers | cursor/maintenance-audit-lambda-server-mcp-05da786 | #165 | pr-open | 2026-08-30 | lambda.register/invoke/search/deprecate |
-| audit mcp-bus MCP handlers | cursor/maintenance-audit-mcp-bus-mcp-05da786 | #166 | pr-open | 2026-08-30 | bus.resolve/list_routes/_bus.register/deregister/lease/external |
-| audit local-model-daemon clippy | cursor/maintenance-audit-local-model-daemon-clippy-05da786 | #167 | pr-open | 2026-08-30 | unused imports, dead_code |
-| G13 operator rootfs validation | cursor/maintenance-g13-target-hw-validate-05da786 | #168 | pr-open | 2026-08-30 | installed-rootfs software checks |
-| audit state-store clippy | cursor/maintenance-audit-state-store-clippy-05da786 | #169 | pr-open | 2026-08-30 | clippy/dead-code cleanup |
-| verify-fix ledger conflict guard | cursor/maintenance-verify-fix-ledger-conflicts-05da786 | — | pr-open | 2026-08-30 | resolve markers + verify-docs guard |
+| verify-fix initramfs modules skip | cursor/maintenance-verify-fix-initramfs-modules-9b9ce7c | — | pr-open | 2026-08-30 | skip test when /lib/modules missing |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -24,7 +16,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | verify-fix | maintenance-ledger conflict markers | pr-open |
+| 2026-08-30 | verify-fix | test-initramfs-modules skip on missing /lib/modules | pr-open |
 | 2026-08-30 | audit | state-store clippy/dead-code | pr-open (#169) |
 | 2026-08-30 | gap | G13 operator installed-rootfs validation | pr-open (#168) |
 | 2026-08-30 | audit | local-model-daemon clippy/dead-code | pr-open (#167) |
@@ -68,4 +60,4 @@ Rotate when completing a row. Prefer top item not in cooldown.
 1. **G17** — compositor: wlroots seat/output (cooldown until 2026-09-06)
 2. **audit** — missing Python integration test for an MCP method (see `component-inventory.yaml`)
 3. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
-4. **audit** — `make verify` + fix first failure
+4. **G13** — operator target-HW validation on installed rootfs (PR #168)
