@@ -5,11 +5,6 @@ use uuid::Uuid;
 
 use crate::UiTree;
 
-pub async fn sync_ui_tree(tree: &UiTree) -> usize {
-    let root = serialize_subtree(tree, &tree.root_id);
-    sync_tree_to_compositor(&root).await
-}
-
 pub fn serialize_subtree(tree: &UiTree, id: &str) -> Value {
     let Some(node) = tree.get(id) else {
         return Value::Null;
