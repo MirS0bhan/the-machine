@@ -499,6 +499,44 @@ stack#root dir=v
     print("\n✓ End-to-end test passed\n")
 
 
+def test_default_theme():
+    """Default theme (macOS/Adwaita reference design) loads correctly."""
+    print("Testing default theme...")
+
+    runtime = UIRuntime()
+
+    for name in ("Surface", "Hoverable", "Pressable", "Card", "PrimaryButton",
+                 "IconBtn", "Field", "ListRow", "Sidebar", "Popover",
+                 "Toggle", "Slider"):
+        assert name in runtime._styles, f"missing style mixin: {name}"
+
+    for name in ("surface.primary", "surface.card", "accent.bg", "text.primary",
+                 "border.subtle"):
+        assert name in runtime._tokens, f"missing token: {name}"
+
+    assert "snappy" in runtime._motions
+
+    from runtime import DEFAULT_THEME_PATH
+    with open(DEFAULT_THEME_PATH) as f:
+        parsed = parse_asl(f.read())
+    assert parsed["scales"]["radius"].values["md"] == 10
+    print("  ✓ Styles, tokens, scales and motions loaded")
+
+    root = runtime.load_auil('stack.PrimaryButton#go label=Go')
+    assert "PrimaryButton" in root.mixins
+    props = runtime.get_node_properties("go")
+    assert props.get("radius") == {"type": "scale_ref", "value": "r-sm"}
+    print("  ✓ PrimaryButton node resolves theme mixin")
+
+    # Opting out leaves the runtime theme-free.
+    bare = UIRuntime(load_default_theme=False)
+    assert bare._styles == {}
+    assert bare._tokens == {}
+    print("  ✓ load_default_theme=False skips the built-in theme")
+
+    print("✓ Default theme tests passed\n")
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("AUIL/ASL UI Engine - Test Suite")
@@ -514,6 +552,7 @@ if __name__ == "__main__":
     test_mcp_interface()
     test_engine()
     test_end_to_end()
+    test_default_theme()
     
     print("=" * 60)
     print("All tests passed!")
