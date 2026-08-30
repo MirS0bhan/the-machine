@@ -42,6 +42,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1.0"
 libc = "0.2"
+zbus = { version = "5.5", default-features = false, features = ["tokio"] }
 
 # For RocksDB (optional, might not use initially)
 sled = "0.34"
