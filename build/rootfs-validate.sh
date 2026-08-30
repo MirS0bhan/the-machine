@@ -2,6 +2,10 @@
 # Validate a The Machine rootfs tree (G13 — bare-metal install readiness).
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=rootfs-common.sh
+source "${SCRIPT_DIR}/rootfs-common.sh"
+
 ROOTFS="${1:-}"
 if [[ -z "${ROOTFS}" || ! -d "${ROOTFS}" ]]; then
   echo "Usage: $0 <rootfs-path>" >&2
@@ -54,6 +58,10 @@ fi
 
 if [[ -d "${ROOTFS}/usr/bin/apt-get" || -x "${ROOTFS}/usr/bin/apt-get" ]]; then
   ok "debootstrap rootfs detected"
+fi
+
+if [[ -f "${ROOTFS}/boot/grub/grub.cfg" ]]; then
+  bash "${SCRIPT_DIR}/verify-rootfs-grub.sh" "${ROOTFS}"
 fi
 
 echo "==> rootfs validation passed: ${ROOTFS}"

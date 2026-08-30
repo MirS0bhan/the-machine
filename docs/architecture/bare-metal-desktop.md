@@ -7,7 +7,7 @@
 | Milestone | Status |
 |-----------|--------|
 | Software phases A–E | **Complete** |
-| CI / QEMU validation | **Complete** (`build/test-rootfs-validate.sh`, `build/hardware-smoke.sh`) |
+| CI / QEMU validation | **Complete** (`build/test-rootfs-validate.sh`, `build/test-installer-grub.sh`, `build/hardware-smoke.sh`) |
 | Physical hardware smoke test | **Operator task** — see [Bare-metal guide](../guides/bare-metal.md) |
 
 The project is ready for **developers and early adopters** who can run the hardware checklist. It is **not** a general-consumer desktop OS until validated on diverse GPU/Wi-Fi hardware.
@@ -33,8 +33,7 @@ The project is ready for **developers and early adopters** who can run the hardw
 
 ```bash
 bash build/rootfs-validate.sh build/rootfs
-bash build/test-rootfs-validate.sh
-bash build/hardware-smoke.sh
+bash build/test-installer-grub.sh   # loopback install + GRUB check (CI)
 ```
 
 ## Shared code

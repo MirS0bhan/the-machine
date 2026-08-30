@@ -42,7 +42,10 @@ Validate a rootfs tree before writing to disk:
 
 ```bash
 bash build/rootfs-validate.sh build/rootfs
+bash build/test-installer-grub.sh   # loopback install + GRUB validation (CI)
 ```
+
+For automated installs (e.g. CI), set `THE_MACHINE_INSTALLER_YES=1` to skip the confirmation prompt.
 
 ---
 
