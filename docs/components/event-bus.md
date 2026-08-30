@@ -543,6 +543,20 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## External Event Adapters
+
+The Rust daemon ships background adapters under `event-bus/src/adapters/` that translate Linux ecosystem signals into `event.publish` calls on the local MCP socket:
+
+| Adapter | Source | Event patterns | Disable |
+|---------|--------|----------------|---------|
+| D-Bus | system bus via `zbus` | `desktop.notify`, `login.prepare_sleep` | `THE_MACHINE_DISABLE_DBUS=1` |
+| inotify | configured paths | `fs.change.*` | omit watch paths |
+| audio | PipeWire (when present) | `pipewire.state` | n/a |
+
+The D-Bus adapter registers match rules for `org.freedesktop.Notifications.Notify` and `org.freedesktop.login1.Manager.PrepareForSleep`, deserializes signal bodies, and republishes structured JSON payloads. No host `dbus-monitor` binary is required; only a reachable system D-Bus socket.
+
+---
+
 ## Performance
 
 ### Targets
