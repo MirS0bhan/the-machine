@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | — | pr-open | 2026-08-30 | merge MCP handler + resolve_token unit tests |
+| verify-fix agent-core/event-bus merge conflicts | cursor/maintenance-verify-fix-agent-core-conflicts-da8f2b1 | — | pr-open | 2026-08-30 | restore tests + event-bus main.rs; resolve inventory/verify-docs conflicts |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -16,7 +16,8 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | verify-fix | ui-runtime merge conflict markers | pr-open |
+| 2026-08-30 | verify-fix | agent-core/event-bus merge conflicts on main | pr-open |
+| 2026-08-30 | verify-fix | ui-runtime merge conflict markers | merged to main (#192) |
 | 2026-08-30 | audit | policy.register Python integration test | merged to main (#179) |
 | 2026-08-30 | audit | event.subscribe Python integration test | merged to main (#182) |
 | 2026-08-30 | verify-fix | test-initramfs-modules skip on missing /lib/modules | merged to main (#188) |
@@ -63,4 +64,3 @@ Rotate when completing a row. Prefer top item not in cooldown.
 1. **G17** — compositor: wlroots seat/output (cooldown until 2026-09-06)
 2. **audit** — missing Python integration test for an MCP method (see `component-inventory.yaml`)
 3. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
-4. **audit** — `make verify` + fix first failure

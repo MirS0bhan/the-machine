@@ -491,8 +491,6 @@ fn extract_chat_text(params: &Option<serde_json::Value>) -> String {
 mod tests {
     use super::*;
 
-    fn test_state() -> Arc<Mutex<AppState>> {
-        Arc::new(Mutex::new(AppState::new()))
     async fn test_state(local_only_mode: bool, cloud: Option<CloudRouter>) -> Arc<Mutex<AppState>> {
         Arc::new(Mutex::new(AppState {
             status: "running".to_string(),
@@ -514,12 +512,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn agent_status_reports_running_and_unavailable_model() {
-        let state = test_state();
-        let resp = handle_request("agent.status".into(), None, &state).await;
-        assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
-        let result = resp.result.expect("result");
-        assert_eq!(result.get("status").and_then(|v| v.as_str()), Some("running"));
     async fn agent_status_reports_running_without_cloud() {
         let state = test_state(true, None).await;
         let resp = handle_request("agent.status".into(), None, &state).await;
@@ -533,7 +525,6 @@ mod tests {
             result.get("local_model").and_then(|v| v.as_str()),
             Some("unavailable")
         );
-        assert_eq!(result.get("wakes_processed").and_then(|v| v.as_u64()), Some(0));
         assert_eq!(
             result.get("cloud_model").and_then(|v| v.as_str()),
             Some("disabled")
@@ -557,14 +548,6 @@ mod tests {
 
     #[tokio::test]
     async fn agent_cloud_status_reflects_local_only_mode() {
-        let state = test_state();
-        let resp = handle_request("agent.cloud.status".into(), None, &state).await;
-        assert!(resp.error.is_none());
-        let result = resp.result.expect("result");
-        assert_eq!(result.get("enabled").and_then(|v| v.as_bool()), Some(false));
-        assert_eq!(
-            result.get("local_only_mode").and_then(|v| v.as_bool()),
-            Some(false)
         let state = test_state(true, None).await;
         let resp = handle_request("agent.cloud.status".into(), None, &state).await;
         assert!(resp.error.is_none());
@@ -582,7 +565,7 @@ mod tests {
 
     #[tokio::test]
     async fn agent_interrupt_sets_flag() {
-        let state = test_state();
+        let state = test_state(false, None).await;
         let resp = handle_request("agent.interrupt".into(), None, &state).await;
         assert!(resp.error.is_none());
         assert_eq!(
@@ -597,8 +580,6 @@ mod tests {
 
     #[tokio::test]
     async fn agent_local_only_mode_toggles_state() {
-        let state = test_state();
-    async fn agent_local_only_mode_toggles_state() {
         let state = test_state(false, None).await;
         let resp = handle_request(
             "agent.local_only_mode".into(),
@@ -607,19 +588,18 @@ mod tests {
         )
         .await;
         assert!(resp.error.is_none());
-        assert!(state.lock().await.local_only_mode);
+        let result = resp.result.expect("result");
+        assert_eq!(result.get("ok").and_then(|v| v.as_bool()), Some(true));
         assert_eq!(
-            resp.result
-                .as_ref()
-                .and_then(|v| v.get("local_only_mode"))
-                .and_then(|v| v.as_bool()),
+            result.get("local_only_mode").and_then(|v| v.as_bool()),
             Some(true)
         );
+        assert!(state.lock().await.local_only_mode);
     }
 
     #[tokio::test]
     async fn agent_skills_list_returns_builtin_skills() {
-        let state = test_state();
+        let state = test_state(false, None).await;
         let resp = handle_request("agent.skills.list".into(), None, &state).await;
         assert!(resp.error.is_none());
         let skills = resp
@@ -631,7 +611,7 @@ mod tests {
 
     #[tokio::test]
     async fn agent_chat_send_queues_wake() {
-        let state = test_state();
+        let state = test_state(false, None).await;
         let resp = handle_request(
             "agent.chat.send".into(),
             Some(serde_json::json!({
@@ -649,18 +629,10 @@ mod tests {
                 .and_then(|v| v.as_bool()),
             Some(true)
         );
-        let result = resp.result.expect("result");
-        assert_eq!(result.get("ok").and_then(|v| v.as_bool()), Some(true));
-        assert_eq!(
-            result.get("local_only_mode").and_then(|v| v.as_bool()),
-            Some(true)
-        );
-        assert!(state.lock().await.local_only_mode);
     }
 
     #[tokio::test]
     async fn unknown_method_is_not_found() {
-        let state = test_state();
         let state = test_state(true, None).await;
         let resp = handle_request("agent.nope".into(), None, &state).await;
         assert_eq!(
