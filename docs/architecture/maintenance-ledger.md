@@ -12,9 +12,16 @@ until the PR is merged to `main`.
 | G14 rtnetlink | — | — | merged | 2026-08-30 | `system-daemon/src/netlink.rs` |
 | G17 surface paint | — | — | merged | 2026-08-30 | `wl_shm` + commit → pixel blit |
 | bare-metal phases A–E | — | — | merged | 2026-08-30 | see `bare-metal-desktop.md` |
+| audit hardware-smoke CI | cursor/maintenance-audit-hardware-smoke-ci-* | — | pr-open | 2026-08-30 | wire `build/hardware-smoke.sh` into `test-build-scripts` |
+
+## Recent runs (newest first)
+
+| Date (UTC) | Run type | Target | Outcome |
+|------------|----------|--------|---------|
+| 2026-08-30 | audit | hardware-smoke CI | pr-open |
 
 ## Next suggested work
 
 1. **G13** — smoke-test installed rootfs on physical hardware (debootstrap + GRUB boot)
-2. **G17** — wlroots xdg-shell compositing (optional; SHM path done)
-3. **audit** — `make verify` on release bundle
+2. **G17** — wlroots xdg-shell compositing (optional; SHM path done; 7-day cooldown)
+3. **audit** — dead code / clippy in one crate (-p compositor)
