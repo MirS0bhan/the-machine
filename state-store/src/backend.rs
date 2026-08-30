@@ -125,15 +125,13 @@ impl Backend for SledBackend {
 
     fn list_prefix(&self, prefix: &str) -> Vec<(String, StoredValue)> {
         let mut out = Vec::new();
-        for item in self.db.scan_prefix(prefix.as_bytes()) {
-            if let Ok((k, v)) = item {
-                if let Ok(s) = std::str::from_utf8(&k) {
-                    if s.starts_with("__meta__") {
-                        continue;
-                    }
-                    if let Ok(sv) = serde_json::from_slice::<StoredValue>(&v) {
-                        out.push((s.to_string(), sv));
-                    }
+        for (k, v) in self.db.scan_prefix(prefix.as_bytes()).flatten() {
+            if let Ok(s) = std::str::from_utf8(&k) {
+                if s.starts_with("__meta__") {
+                    continue;
+                }
+                if let Ok(sv) = serde_json::from_slice::<StoredValue>(&v) {
+                    out.push((s.to_string(), sv));
                 }
             }
         }

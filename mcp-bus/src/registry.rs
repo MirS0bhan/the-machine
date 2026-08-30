@@ -111,11 +111,6 @@ impl Registry {
         Ok(())
     }
 
-    /// Resolve a method name to its handler component id (legacy API).
-    pub fn resolve(&self, method: &str) -> Option<String> {
-        self.resolve_full(method).map(|r| r.handler)
-    }
-
     /// Full resolution including namespace and manifest reference.
     pub fn resolve_full(&self, method: &str) -> Option<ResolvedRoute> {
         if let Some(e) = self.exact.get(method) {
@@ -224,7 +219,10 @@ mod tests {
     fn exact_resolve() {
         let mut r = Registry::new();
         r.register("state.get", "state-store", true).unwrap();
-        assert_eq!(r.resolve("state.get").as_deref(), Some("state-store"));
+        assert_eq!(
+            r.resolve_full("state.get").map(|r| r.handler),
+            Some("state-store".into())
+        );
     }
 
     #[test]
@@ -265,9 +263,9 @@ mod tests {
         })
         .unwrap();
         assert!(r.deregister_route(Namespace::McpIntent, "calc.add"));
-        assert!(r.resolve("calc.add").is_none());
+        assert!(r.resolve_full("calc.add").is_none());
         assert!(r.deregister_route(Namespace::McpIntent, "math.*"));
-        assert!(r.resolve("math.add").is_none());
+        assert!(r.resolve_full("math.add").is_none());
         assert!(!r.deregister_route(Namespace::McpIntent, "missing"));
     }
 }
