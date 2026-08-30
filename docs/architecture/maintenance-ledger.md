@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| G13 installer fstab | cursor/maintenance-g13-installer-fstab-dd029fb | #159 | pr-open | 2026-08-30 | Writes `/etc/fstab` + validates in loopback GRUB test |
+| policy-broker MCP tests | cursor/maintenance-audit-policy-broker-mcp-114e468 | #156 | pr-open | 2026-08-30 | handler unit tests for policy.check/audit/validate_register |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -16,7 +16,8 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | gap | G13 installer fstab for target HW | pr-open |
+| 2026-08-30 | audit | policy-broker MCP handler tests | pr-open |
+| 2026-08-30 | gap | G13 installer fstab for target HW | merged to main (#159) |
 | 2026-08-30 | gap | G13 boot.auil in installed rootfs | merged to main (#157) |
 | 2026-08-30 | audit | lambda-server clippy/dead-code | merged to main (#155) |
 | 2026-08-30 | gap | boot greet e2e (GRUB → chat UI) | merged to main |
