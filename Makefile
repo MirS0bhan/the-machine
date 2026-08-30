@@ -97,12 +97,12 @@ test-rust:
 	$(CARGO) test --workspace
 
 test-python:
-	$(PYTHON) -m pytest tests/integration/ -v
-	$(PYTHON) -m pytest ui-engine/test_engine.py -v
-	$(PYTHON) -m pytest ui-engine-demo/test_demo.py -v
-	$(PYTHON) -m pytest policy-broker/tests/ -v
-	$(PYTHON) -m pytest state-store/tests/ -v
-	$(PYTHON) -m pytest local-model/tests/ -v
+	PYTHONPATH=.:policy-broker:state-store:local-model:event-bus:lambda-server:ui-engine $(PYTHON) -m pytest tests/integration/ -v
+	PYTHONPATH=.:ui-engine $(PYTHON) -m pytest ui-engine/test_engine.py -v
+	PYTHONPATH=.:ui-engine-demo:ui-engine $(PYTHON) -m pytest ui-engine-demo/test_demo.py -v
+	PYTHONPATH=.:policy-broker $(PYTHON) -m pytest policy-broker/tests/ -v
+	PYTHONPATH=.:state-store $(PYTHON) -m pytest state-store/tests/ -v
+	PYTHONPATH=.:local-model $(PYTHON) -m pytest local-model/tests/ -v
 	cd lambda-server && $(PYTHON) test_server.py
 
 test-all: test-rust test-python test-build-scripts

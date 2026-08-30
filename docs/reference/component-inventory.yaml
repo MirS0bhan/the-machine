@@ -145,3 +145,4 @@ integration_tests:
   localmodel.health: tests/integration/test_localmodel_health.py
   event.subscribe: tests/integration/test_event_subscribe.py
   marketplace.list: tests/integration/test_marketplace_list.py
+  marketplace.install: tests/integration/test_marketplace_install.py
