@@ -273,6 +273,20 @@ def main() -> None:
         if var not in env_docs and var not in (ROOT / "scripts/start-services.sh").read_text():
             errors.append(f"env var {var} not documented in guides or start scripts")
 
+    # Reject unresolved git merge conflict markers in architecture/docs trees.
+    conflict_markers = ("<<<<<<<", ">>>>>>>")
+    for path in sorted((ROOT / "docs").rglob("*")):
+        if not path.is_file():
+            continue
+        if path.suffix not in (".md", ".yaml", ".yml", ".sh"):
+            continue
+        text = path.read_text(errors="replace")
+        for marker in conflict_markers:
+            if marker in text:
+                errors.append(
+                    f"{path.relative_to(ROOT)} contains git conflict marker {marker!r}"
+                )
+
     if errors:
         print("Documentation ↔ code verification FAILED:\n", file=sys.stderr)
         for e in errors:
