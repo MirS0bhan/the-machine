@@ -1,3 +1,5 @@
 stack#ui.root dir=v gap=m
-  text#ui.title(role=title) "The Machine"
-  button#ui.status_btn label=Status on:press=mcp:ui.status
+  text#ui.greeting(role=title) "The Machine"
+  text#ui.chat_log(role=body) "Starting..."
+  input#ui.chat_input(placeholder=Message) ""
+  button#ui.chat_send label=Send on:press=mcp:agent.chat.send

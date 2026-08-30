@@ -8,6 +8,14 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use tracing::{info, warn};
 
+const BOOT_BACKEND_PATH: &str = "/var/log/compositor-backend";
+
+fn record_boot_backend(kind: &str, detail: &str) {
+    let msg = format!("backend={kind}\n{detail}\n");
+    let _ = std::fs::write(BOOT_BACKEND_PATH, &msg);
+    eprintln!("[compositor] backend={kind} {detail}");
+}
+
 pub enum BackendKind {
     Drm,
     Framebuffer,
@@ -43,6 +51,7 @@ impl PixelBackend {
                 let width = drm.width();
                 let height = drm.height();
                 let len = (width * height * 4) as usize;
+                record_boot_backend("drm-kms", &format!("{width}x{height} scanout active"));
                 return PixelBackend {
                     kind: BackendKind::Drm,
                     width,
@@ -66,6 +75,13 @@ impl PixelBackend {
                     "pixel backend: framebuffer {}x{} stride={} bpp={}",
                     fb.width, fb.height, fb.stride, fb.bpp
                 );
+                record_boot_backend(
+                    "framebuffer",
+                    &format!(
+                        "device={fb_path} {}x{} stride={} bpp={}",
+                        fb.width, fb.height, fb.stride, fb.bpp
+                    ),
+                );
                 let len = (fb.stride * fb.height) as usize;
                 return PixelBackend {
                     kind: BackendKind::Framebuffer,
@@ -78,15 +94,23 @@ impl PixelBackend {
                     dump_path,
                 };
             }
+            record_boot_backend("framebuffer", &format!("device={fb_path} open failed"));
         }
 
-        warn!("pixel backend: using 1280x720 memory buffer");
+        let (width, height) = crate::env::memory_framebuffer_size();
+        warn!("pixel backend: using {}x{} memory buffer (no VGA output)", width, height);
+        record_boot_backend(
+            "memory",
+            &format!("{width}x{height} — pixels not sent to display; check /dev/fb0 and /dev/dri"),
+        );
+        let stride = width * 4;
+        let len = (stride * height) as usize;
         PixelBackend {
             kind: BackendKind::Memory,
-            width: 1280,
-            height: 720,
-            stride: 1280 * 4,
-            buffer: vec![0u8; 1280 * 720 * 4],
+            width,
+            height,
+            stride,
+            buffer: vec![0u8; len],
             fb_mmap: None,
             drm: None,
             dump_path,
@@ -288,12 +312,15 @@ mod tests {
     #[test]
     fn memory_buffer_paints_pixels() {
         std::env::set_var("THE_MACHINE_COMPOSITOR_BACKEND", "memory");
-        std::env::set_var("THE_MACHINE_FB_DUMP", "/tmp/compositor-test.ppm");
+        if std::env::var("THE_MACHINE_FB_DUMP").is_err() {
+            std::env::set_var("THE_MACHINE_FB_DUMP", "/tmp/compositor-test.ppm");
+        }
+        let dump_path = std::env::var("THE_MACHINE_FB_DUMP").unwrap();
         let mut px = PixelBackend::open();
         assert_eq!(px.backend_name(), "memory");
         px.clear(0, 0, 0);
         px.fill_rect(10, 10, 50, 30, [255, 0, 0]);
         px.present();
-        assert!(Path::new("/tmp/compositor-test.ppm").exists());
+        assert!(Path::new(&dump_path).exists());
     }
 }

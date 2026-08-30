@@ -7,7 +7,7 @@
 | Milestone | Status |
 |-----------|--------|
 | Software phases A–E | **Complete** |
-| CI / QEMU validation | **Complete** (`build/test-rootfs-validate.sh`, `build/hardware-smoke.sh`) |
+| CI / QEMU validation | **Complete** (`build/test-rootfs-validate.sh`, `build/test-installer-grub.sh`, `build/hardware-smoke.sh`) |
 | Physical hardware smoke test | **Operator task** — see [Bare-metal guide](../guides/bare-metal.md) |
 
 The project is ready for **developers and early adopters** who can run the hardware checklist. It is **not** a general-consumer desktop OS until validated on diverse GPU/Wi-Fi hardware.
@@ -16,7 +16,7 @@ The project is ready for **developers and early adopters** who can run the hardw
 
 | Phase | Scope | Status |
 |-------|--------|--------|
-| **A — Boot & install (G13)** | debootstrap rootfs, kernel in `/boot`, GRUB `LABEL=the-machine`, GPU firmware + Mesa packages | Done |
+| **A — Boot & install (G13)** | debootstrap rootfs, kernel in `/boot`, GRUB + `/etc/fstab` `LABEL=the-machine`, GPU firmware + Mesa packages, `boot.auil` in `/etc/the-machine` | Done |
 | **B — Display (G14 + G16)** | sysfs/DRM mode query + `display.set_mode`; compositor DRM fb fix | Done |
 | **C — Network (G14)** | `net.list_interfaces` via rtnetlink; `net.set_interface_state` via RTM_SETLINK (`ip` fallback) | Done |
 | **D — Wayland session (G17)** | `wl_compositor` / `wl_output` / `wl_seat` / `wl_shm`; surface commit → pixel paint | Done |
@@ -33,8 +33,7 @@ The project is ready for **developers and early adopters** who can run the hardw
 
 ```bash
 bash build/rootfs-validate.sh build/rootfs
-bash build/test-rootfs-validate.sh
-bash build/hardware-smoke.sh
+bash build/test-installer-grub.sh   # loopback install + GRUB check (CI)
 ```
 
 ## Shared code

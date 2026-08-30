@@ -24,23 +24,40 @@ fi
 echo "==> The Machine installer"
 echo "    Target: ${TARGET_DISK}"
 echo "    Source: ${ROOTFS_SRC}"
-read -r -p "This will ERASE ${TARGET_DISK}. Continue? [y/N] " confirm
-if [[ "${confirm}" != "y" && "${confirm}" != "Y" ]]; then
-  echo "Aborted."
-  exit 0
+if [[ "${THE_MACHINE_INSTALLER_YES:-}" != "1" ]]; then
+  read -r -p "This will ERASE ${TARGET_DISK}. Continue? [y/N] " confirm
+  if [[ "${confirm}" != "y" && "${confirm}" != "Y" ]]; then
+    echo "Aborted."
+    exit 0
+  fi
 fi
 
 parted -s "${TARGET_DISK}" mklabel gpt
 parted -s "${TARGET_DISK}" mkpart primary ext4 1MiB 100%
-partprobe "${TARGET_DISK}" 2>/dev/null || true
-sleep 2
+if [[ "${TARGET_DISK}" != *"loop"* ]]; then
+  partprobe "${TARGET_DISK}" 2>/dev/null || true
+fi
 PART="${TARGET_DISK}1"
-[[ "${TARGET_DISK}" == *"nvme"* ]] && PART="${TARGET_DISK}p1"
+if [[ "${TARGET_DISK}" == *"nvme"* || "${TARGET_DISK}" == *"loop"* ]]; then
+  PART="${TARGET_DISK}p1"
+fi
+for _ in 1 2 3 4 5; do
+  [[ -b "${PART}" ]] && break
+  sleep 1
+done
+[[ -b "${PART}" ]] || { echo "ERROR: partition ${PART} not found" >&2; exit 1; }
 
 mkfs.ext4 -F -L the-machine "${PART}"
 MNT=$(mktemp -d)
 mount "${PART}" "${MNT}"
 rsync -a "${ROOTFS_SRC}/" "${MNT}/"
+
+# G13: fstab required for systemd mount units on target hardware (kernel cmdline alone is not enough).
+cat > "${MNT}/etc/fstab" <<'FSTAB'
+# The Machine installed root (GPT label from mkfs.ext4 -L the-machine)
+LABEL=the-machine  /  ext4  defaults  0  1
+FSTAB
+
 mkdir -p "${MNT}/boot/grub"
 
 # Prefer rootfs-bundled kernel; fall back to host kernel for skeleton installs.

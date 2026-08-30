@@ -11,7 +11,6 @@ use client::mcp_call;
 use cloud::{new_trace, CloudRouter};
 use common::*;
 use llm::{classify_intent, plan_from_model};
-use planner::PlanStep;
 use skills::{load_skills, seed_default_skills_if_empty, skills_for_wake, Skill};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -214,6 +213,22 @@ async fn handle_request(
             state.lock().await.skills = skills;
             success_response(&id, serde_json::json!({ "ok": true }))
         }
+        "agent.chat.send" => {
+            let text = extract_chat_text(&params);
+            let state = state.clone();
+            tokio::spawn(async move {
+                process_wake(
+                    serde_json::json!({
+                        "category": "input",
+                        "pattern": "chat.message",
+                        "payload": { "text": text, "source": "chat_ui" }
+                    }),
+                    state,
+                )
+                .await;
+            });
+            success_response(&id, serde_json::json!({ "ok": true, "queued": true }))
+        }
         _ => error_response(&id, "E_NOT_FOUND", &format!("Unknown method: {}", method)),
     }
 }
@@ -270,7 +285,17 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
         (s.skills.clone(), s.local_only_mode, s.cloud.is_some())
     };
     let active_skills = skills_for_wake(&skills, &category, "");
-    let classification = classify_intent(&text, &category, &active_skills).await;
+    let classification = if let Some(intent) = intent_from_wake(&category, &pattern) {
+        llm::Classification {
+            intent,
+            confidence: 1.0,
+            complexity: "low".into(),
+            routing: "local".into(),
+            requires_cloud: false,
+        }
+    } else {
+        classify_intent(&text, &category, &active_skills).await
+    };
     let active_skills = skills_for_wake(&skills, &category, &classification.intent);
 
     let privacy_tag = payload
@@ -316,7 +341,9 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
     }
 
     let trace = new_trace();
-    let plan = if routing == "cloud" {
+    let plan = if planner::uses_heuristic_plan(&classification.intent) {
+        planner::build_plan_heuristic(&classification.intent, &payload, &text)
+    } else if routing == "cloud" {
         let cloud_plan = {
             let s = state.lock().await;
             if let Some(router) = &s.cloud {
@@ -424,6 +451,54 @@ fn infer_target_method(intent: &str, text: &str, payload: &serde_json::Value) ->
 
 async fn bus_resolve(method: &str) -> Option<serde_json::Value> {
     mcp_call("bus.resolve", serde_json::json!({ "method": method })).await
+}
+
+fn intent_from_wake(category: &str, pattern: &str) -> Option<String> {
+    match (category, pattern) {
+        ("boot", "system.ready") => Some("boot.greet".into()),
+        (_, "chat.message") => Some("chat.message".into()),
+        (_, p) if p.contains('.') && !matches!(p, "system.ready" | "heartbeat") => {
+            Some(p.to_string())
+        }
+        _ => None,
+    }
+}
+
+fn extract_chat_text(params: &Option<serde_json::Value>) -> String {
+    let Some(p) = params.as_ref() else {
+        return String::new();
+    };
+    for key in ["text", "message"] {
+        if let Some(s) = p.get(key).and_then(|v| v.as_str()) {
+            if !s.is_empty() {
+                return s.to_string();
+            }
+        }
+        if let Some(s) = p
+            .get("payload")
+            .and_then(|pl| pl.get(key))
+            .and_then(|v| v.as_str())
+        {
+            if !s.is_empty() {
+                return s.to_string();
+            }
+        }
+    }
+    String::new()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_chat_text_reads_nested_payload() {
+        let params = Some(serde_json::json!({
+            "event": "press",
+            "payload": { "text": "hello from chat" }
+        }));
+        assert_eq!(extract_chat_text(&params), "hello from chat");
+    }
 }
 
 fn success_response(id: &Uuid, result: serde_json::Value) -> McpMessage {
