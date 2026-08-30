@@ -12,7 +12,10 @@ pub struct CloudSecret {
 /// Load cloud API key from env or secret files (owner-only permissions).
 pub fn load_cloud_api_key() -> Option<CloudSecret> {
     for (name, value) in [
-        ("THE_MACHINE_CLOUD_API_KEY", std::env::var("THE_MACHINE_CLOUD_API_KEY").ok()),
+        (
+            "THE_MACHINE_CLOUD_API_KEY",
+            std::env::var("THE_MACHINE_CLOUD_API_KEY").ok(),
+        ),
         ("OPENAI_API_KEY", std::env::var("OPENAI_API_KEY").ok()),
     ] {
         if let Some(key) = value {

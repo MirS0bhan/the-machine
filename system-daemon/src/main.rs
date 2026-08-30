@@ -7,11 +7,13 @@ use tokio::net::UnixListener;
 use tokio::sync::{Mutex, RwLock};
 use tracing::{error, info};
 
+mod audio;
 mod display;
 mod input;
 mod kernel;
 mod net;
 mod power;
+mod wifi;
 
 #[derive(Clone)]
 struct AppState {

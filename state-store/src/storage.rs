@@ -67,10 +67,7 @@ impl Store {
                 Some(p) => p,
                 None => continue,
             };
-            let op_type = op
-                .get("op")
-                .and_then(|v| v.as_str())
-                .unwrap_or("SET");
+            let op_type = op.get("op").and_then(|v| v.as_str()).unwrap_or("SET");
             match op_type.to_uppercase().as_str() {
                 "SET" | "UPDATE" => {
                     if let Some(value) = op.get("value").cloned() {

@@ -136,6 +136,13 @@ THE_MACHINE_COMPOSITOR_BACKEND=auto
 LOCAL_MODEL_PATH=/var/lib/the-machine/models/machine-tiny.gguf
 CONF
 
+# udev hotplug rules (Phase E)
+if [[ -f "${ROOT}/build/udev/99-the-machine.rules" ]]; then
+  mkdir -p "${ROOTFS}/etc/udev/rules.d"
+  install -m 0644 "${ROOT}/build/udev/99-the-machine.rules" \
+    "${ROOTFS}/etc/udev/rules.d/99-the-machine.rules"
+fi
+
 # G13: ensure kernel is linked for installer/grub (debootstrap chroot or host copy).
 if [[ "${DEBOOTSTRAP_OK}" -eq 1 && "${THE_MACHINE_ROOTFS_SKIP_KERNEL:-0}" != "1" ]]; then
   sudo rootfs_install_kernel_debian "${ROOTFS}" 2>/dev/null || \

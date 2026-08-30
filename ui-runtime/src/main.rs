@@ -6,10 +6,10 @@ mod renderer;
 use common::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, AsyncReadExt, BufReader};
 use tokio::sync::Mutex;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 type SharedTree = Arc<Mutex<UiTree>>;
 
@@ -197,7 +197,11 @@ async fn process_message(line: &str, tree: &SharedTree) -> anyhow::Result<String
     Ok(serde_json::to_string(&response)? + "\n")
 }
 
-async fn handle_request(method: String, params: Option<serde_json::Value>, tree: &SharedTree) -> McpMessage {
+async fn handle_request(
+    method: String,
+    params: Option<serde_json::Value>,
+    tree: &SharedTree,
+) -> McpMessage {
     let id = Uuid::new_v4();
     match method.as_str() {
         "ui.patch" => {
@@ -212,27 +216,43 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, tree:
         }
         "ui.get" => {
             let params = params.unwrap_or(serde_json::Value::Null);
-            let idp = params.get("id").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let idp = params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
             let t = tree.lock().await;
             if let Some(nid) = idp {
                 match t.get(&nid) {
-                    Some(node) => success_response(&id, serde_json::to_value(node).unwrap_or(serde_json::Value::Null)),
+                    Some(node) => success_response(
+                        &id,
+                        serde_json::to_value(node).unwrap_or(serde_json::Value::Null),
+                    ),
                     None => error_response(&id, "E_NOT_FOUND", "node not found"),
                 }
             } else {
                 let root = t.get(&t.root_id).cloned();
-                success_response(&id, serde_json::to_value(root).unwrap_or(serde_json::Value::Null))
+                success_response(
+                    &id,
+                    serde_json::to_value(root).unwrap_or(serde_json::Value::Null),
+                )
             }
         }
         "ui.tree" => {
             let t = tree.lock().await;
             let root = t.get(&t.root_id).cloned();
-            success_response(&id, serde_json::to_value(root).unwrap_or(serde_json::Value::Null))
+            success_response(
+                &id,
+                serde_json::to_value(root).unwrap_or(serde_json::Value::Null),
+            )
         }
         "ui.bind" => {
             // Register a binding on a node (state:* two-way or mcp: one-way).
             let params = params.unwrap_or(serde_json::Value::Null);
-            let nid = params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let nid = params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             let binding = params.get("binding").cloned();
             let mut t = tree.lock().await;
             if let Some(node) = t.get_mut(&nid) {
@@ -253,13 +273,20 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, tree:
         "ui.event" => {
             // Widget event: execute bindings on the target node.
             let params = params.unwrap_or(serde_json::Value::Null);
-            let nid = params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let nid = params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             let event = params
                 .get("event")
                 .and_then(|v| v.as_str())
                 .unwrap_or("press")
                 .to_string();
-            let event_payload = params.get("payload").cloned().unwrap_or(serde_json::Value::Null);
+            let event_payload = params
+                .get("payload")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
             let bindings = {
                 let t = tree.lock().await;
                 let node = t.get(&nid);
@@ -282,11 +309,17 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, tree:
                 let r = execute_binding(b, &event, &merged).await;
                 results.push(serde_json::json!({ "target": b.target, "result": r }));
             }
-            success_response(&id, serde_json::json!({ "handled": results.len(), "results": results }))
+            success_response(
+                &id,
+                serde_json::json!({ "handled": results.len(), "results": results }),
+            )
         }
         "ui.theme.set" => {
             let params = params.unwrap_or(serde_json::Value::Null);
-            let theme = params.get("theme").cloned().unwrap_or(serde_json::Value::Null);
+            let theme = params
+                .get("theme")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
             let mut t = tree.lock().await;
             if let Ok(th) = serde_json::from_value::<Theme>(theme) {
                 t.theme = th;
@@ -297,23 +330,26 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, tree:
         }
         "ui.theme.get" => {
             let t = tree.lock().await;
-            success_response(&id, serde_json::to_value(&t.theme).unwrap_or(serde_json::Value::Null))
+            success_response(
+                &id,
+                serde_json::to_value(&t.theme).unwrap_or(serde_json::Value::Null),
+            )
         }
         "ui.status" => {
             let t = tree.lock().await;
-            success_response(&id, serde_json::json!({
-                "status": "running",
-                "revision": t.revision,
-                "nodes": t.nodes.len(),
-                "auil_parser": "rust",
-            }))
+            success_response(
+                &id,
+                serde_json::json!({
+                    "status": "running",
+                    "revision": t.revision,
+                    "nodes": t.nodes.len(),
+                    "auil_parser": "rust",
+                }),
+            )
         }
         "ui.auil.parse" => {
             let params = params.unwrap_or(serde_json::Value::Null);
-            let source = params
-                .get("source")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let source = params.get("source").and_then(|v| v.as_str()).unwrap_or("");
             match auil::parse_auil(source) {
                 Ok(root) => {
                     let ops = auil::auil_to_patch_ops(&root, "ui.root");
@@ -334,7 +370,9 @@ async fn handle_request(method: String, params: Option<serde_json::Value>, tree:
             let source = if let Some(s) = params.get("source").and_then(|v| v.as_str()) {
                 s.to_string()
             } else if let Some(path) = params.get("path").and_then(|v| v.as_str()) {
-                std::fs::read_to_string(path).map_err(|e| e.to_string()).unwrap_or_default()
+                std::fs::read_to_string(path)
+                    .map_err(|e| e.to_string())
+                    .unwrap_or_default()
             } else {
                 String::new()
             };
@@ -370,8 +408,14 @@ async fn apply_patch(tree: &SharedTree, ops: Vec<serde_json::Value>) -> Result<u
             .unwrap_or("");
         match kind {
             "~" | "update" => {
-                let nid = op.get("id").and_then(|v| v.as_str()).ok_or("update missing id")?;
-                let props = op.get("props").and_then(|v| v.as_object()).ok_or("update missing props")?;
+                let nid = op
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .ok_or("update missing id")?;
+                let props = op
+                    .get("props")
+                    .and_then(|v| v.as_object())
+                    .ok_or("update missing props")?;
                 let node = t.get_mut(nid).ok_or("update: node not found")?;
                 for (k, v) in props {
                     node.props.insert(k.clone(), v.clone());
@@ -379,8 +423,14 @@ async fn apply_patch(tree: &SharedTree, ops: Vec<serde_json::Value>) -> Result<u
                 t.dirty.insert(nid.to_string());
             }
             "+" | "insert" => {
-                let anchor = op.get("anchor").and_then(|v| v.as_str()).unwrap_or("ui.root");
-                let position = op.get("position").and_then(|v| v.as_str()).unwrap_or("child");
+                let anchor = op
+                    .get("anchor")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("ui.root");
+                let position = op
+                    .get("position")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("child");
                 let node_val = op.get("node").ok_or("insert missing node")?;
                 let node = parse_node(node_val)?;
                 let nid = node.id.clone();
@@ -399,14 +449,20 @@ async fn apply_patch(tree: &SharedTree, ops: Vec<serde_json::Value>) -> Result<u
                 t.dirty.insert(parent);
             }
             "-" | "remove" => {
-                let nid = op.get("id").and_then(|v| v.as_str()).ok_or("remove missing id")?;
+                let nid = op
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .ok_or("remove missing id")?;
                 // detach from parent and drop subtree
                 t.detach(nid);
                 remove_subtree(&mut t, nid);
                 t.dirty.insert(nid.to_string());
             }
             "!" | "replace" => {
-                let nid = op.get("id").and_then(|v| v.as_str()).ok_or("replace missing id")?;
+                let nid = op
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .ok_or("replace missing id")?;
                 let node_val = op.get("node").ok_or("replace missing node")?;
                 let node = parse_node(node_val)?;
                 let nid = node.id.clone();
@@ -420,8 +476,14 @@ async fn apply_patch(tree: &SharedTree, ops: Vec<serde_json::Value>) -> Result<u
                 t.dirty.insert(nid);
             }
             "@" | "move" => {
-                let from = op.get("from").and_then(|v| v.as_str()).ok_or("move missing from")?;
-                let to = op.get("to").and_then(|v| v.as_str()).ok_or("move missing to")?;
+                let from = op
+                    .get("from")
+                    .and_then(|v| v.as_str())
+                    .ok_or("move missing from")?;
+                let to = op
+                    .get("to")
+                    .and_then(|v| v.as_str())
+                    .ok_or("move missing to")?;
                 let parent_from = t.parent_of(from);
                 if let Some(p) = t.get_mut(&parent_from) {
                     p.children.retain(|c| c != from);
@@ -483,7 +545,8 @@ fn remove_subtree(t: &mut UiTree, id: &str) {
 pub fn resolve_token(token: &str, theme: &Theme) -> serde_json::Value {
     if let Some(rest) = token.strip_prefix('$') {
         let parts: Vec<&str> = rest.split('.').collect();
-        let mut cur: serde_json::Value = serde_json::to_value(theme).unwrap_or(serde_json::Value::Null);
+        let mut cur: serde_json::Value =
+            serde_json::to_value(theme).unwrap_or(serde_json::Value::Null);
         for p in parts {
             match cur.get(p) {
                 Some(v) => cur = v.clone(),
@@ -498,7 +561,11 @@ pub fn resolve_token(token: &str, theme: &Theme) -> serde_json::Value {
 
 async fn reflect_to_state(root: &UiNode) -> Option<()> {
     let serialized = serde_json::to_value(root).ok()?;
-    mcp_call("state.set", serde_json::json!({ "path": "ui.root", "value": serialized })).await?;
+    mcp_call(
+        "state.set",
+        serde_json::json!({ "path": "ui.root", "value": serialized }),
+    )
+    .await?;
     Some(())
 }
 
@@ -535,11 +602,9 @@ async fn execute_binding(
             }
             mcp_call(&binding.target, params).await
         }
-        "state" => {
-            mcp_call("state.get", serde_json::json!({ "path": binding.target }))
-                .await
-                .and_then(|v| v.get("value").cloned())
-        }
+        "state" => mcp_call("state.get", serde_json::json!({ "path": binding.target }))
+            .await
+            .and_then(|v| v.get("value").cloned()),
         _ => None,
     }
 }

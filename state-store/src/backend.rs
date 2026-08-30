@@ -81,17 +81,15 @@ impl SledBackend {
         let db = sled::open(path)?;
         let revision = db
             .get(META_REVISION)?
-            .map(|b| {
-                String::from_utf8_lossy(&b)
-                    .parse()
-                    .unwrap_or(0)
-            })
+            .map(|b| String::from_utf8_lossy(&b).parse().unwrap_or(0))
             .unwrap_or(0);
         Ok(Self { db, revision })
     }
 
     fn persist_revision(&mut self) {
-        let _ = self.db.insert(META_REVISION, self.revision.to_string().as_bytes());
+        let _ = self
+            .db
+            .insert(META_REVISION, self.revision.to_string().as_bytes());
         let _ = self.db.flush();
     }
 }

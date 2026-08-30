@@ -4,6 +4,7 @@ mod drm;
 mod model;
 mod pixel;
 mod wayland_backend;
+mod wl_globals;
 mod wl_session;
 
 use common::*;

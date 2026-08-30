@@ -512,12 +512,10 @@ async fn handle_bus_local(method: &str, msg: &serde_json::Value, state: &AppStat
                 None => return error_bytes(id, "E_NOT_FOUND", "method not registered"),
             };
             let ttl = params.get("ttl_secs").and_then(|v| v.as_u64());
-            let mut result = state.leases.create(
-                method_name,
-                &route.handler,
-                route.manifest_ref.clone(),
-                ttl,
-            );
+            let mut result =
+                state
+                    .leases
+                    .create(method_name, &route.handler, route.manifest_ref.clone(), ttl);
             if lease_fast_path_enabled() {
                 if let Some(lease_id) = result.get("lease_id").and_then(|v| v.as_str()) {
                     if let Some(rec) = state.leases.get(lease_id) {
@@ -706,11 +704,9 @@ async fn spawn_lease_relay(
                 debug!("lease {} expired, stopping relay", lease_id);
                 break;
             }
-            let accept = tokio::time::timeout(
-                std::time::Duration::from_millis(500),
-                listener.accept(),
-            )
-            .await;
+            let accept =
+                tokio::time::timeout(std::time::Duration::from_millis(500), listener.accept())
+                    .await;
             match accept {
                 Ok(Ok((stream, _))) => {
                     let state = state.clone();
@@ -772,11 +768,7 @@ async fn handle_lease_relay_client(
     if method != leased_method {
         let id = msg.get("id").and_then(|i| i.as_u64()).unwrap_or(0);
         writer
-            .write_all(&error_bytes(
-                id,
-                "E_INVALID",
-                "method does not match lease",
-            ))
+            .write_all(&error_bytes(id, "E_INVALID", "method does not match lease"))
             .await?;
         return Ok(());
     }

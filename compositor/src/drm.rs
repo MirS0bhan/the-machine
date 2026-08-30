@@ -309,7 +309,7 @@ pub fn backend_available() -> bool {
     Path::new("/dev/dri/card0").exists()
 }
 
-fn preferred_drm_size() -> Option<(u32, u32)> {
+pub fn preferred_drm_size() -> Option<(u32, u32)> {
     let drm_root = Path::new("/sys/class/drm");
     let entries = std::fs::read_dir(drm_root).ok()?;
     for entry in entries.flatten() {

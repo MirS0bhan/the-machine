@@ -51,7 +51,11 @@ impl ConfirmationDaemon {
             "Denied".into()
         };
         Some(CheckResponse {
-            decision: if approved { "ALLOW".into() } else { "DENY".into() },
+            decision: if approved {
+                "ALLOW".into()
+            } else {
+                "DENY".into()
+            },
             correlation_id: Some(correlation_id.to_string()),
             message: None,
         })
@@ -70,6 +74,9 @@ impl ConfirmationDaemon {
     }
 
     pub fn pending_count(&self) -> usize {
-        self.pending.values().filter(|p| p.status == "Pending").count()
+        self.pending
+            .values()
+            .filter(|p| p.status == "Pending")
+            .count()
     }
 }

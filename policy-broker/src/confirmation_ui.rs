@@ -25,7 +25,13 @@ pub async fn run_confirmation_ui_loop(confirmation: Arc<tokio::sync::Mutex<Confi
         } else {
             let first = &pending[0];
             if last_rendered.as_deref() != Some(&first.correlation_id) {
-                if render_confirmation(&first.correlation_id, &first.capability, first.path.as_deref()).await {
+                if render_confirmation(
+                    &first.correlation_id,
+                    &first.capability,
+                    first.path.as_deref(),
+                )
+                .await
+                {
                     last_rendered = Some(first.correlation_id.clone());
                     info!("confirmation surface shown for {}", first.correlation_id);
                 }
@@ -147,7 +153,9 @@ async fn bus_call(method: &str, params: serde_json::Value) -> Option<serde_json:
         return None;
     }
     let mut buf = vec![0u8; 65536];
-    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf).await.ok()?;
+    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf)
+        .await
+        .ok()?;
     if n == 0 {
         return None;
     }

@@ -1,20 +1,22 @@
 //! Wayland display scaffold (G17) — binds `wl_display` via `wayland-server`.
 //!
-//! Full wlroots seat/output/compositing is future work; this module owns the
-//! compositor-side Wayland socket so clients can connect once globals exist.
+//! Registers `wl_compositor`, `wl_output`, and `wl_seat` globals so clients can
+//! connect. Full surface commit → pixel paint remains future work.
 
 use tracing::{info, warn};
 use wayland_server::{BindError, Display, ListeningSocket};
+
+use crate::wl_globals::{self, OutputInfo, WlGlobals};
 
 /// Minimal compositor state for the Wayland display event loop.
 #[derive(Debug, Default)]
 pub struct CompositorState;
 
-/// Active Wayland session: display + listening socket kept alive for the process lifetime.
+/// Active Wayland session: listening socket + display dispatch thread.
 pub struct WlSession {
     pub display_name: String,
-    _display: Display<CompositorState>,
     _socket: ListeningSocket,
+    _globals: WlGlobals,
 }
 
 /// Whether this run should bind a real `wl_display` socket.
@@ -36,6 +38,18 @@ pub fn resolve_display_name() -> String {
     std::env::var("WAYLAND_DISPLAY").unwrap_or_else(|_| "wayland-0".into())
 }
 
+fn output_info() -> OutputInfo {
+    if let Some((w, h)) = crate::drm::preferred_drm_size() {
+        return OutputInfo {
+            name: "drm-0".into(),
+            width: w as i32,
+            height: h as i32,
+            refresh_mhz: 60_000,
+        };
+    }
+    OutputInfo::default()
+}
+
 /// Bind `wl_display` and a listening socket when [`should_bind_display`] is true.
 pub fn try_init() -> Option<WlSession> {
     if !should_bind_display() {
@@ -50,6 +64,12 @@ pub fn try_init() -> Option<WlSession> {
             return None;
         }
     };
+
+    let output = output_info();
+    if let Err(e) = wl_globals::register_globals(&display, output.clone()) {
+        warn!("Wayland global registration failed: {e}");
+        return None;
+    }
 
     let socket = match ListeningSocket::bind(&preferred) {
         Ok(s) => s,
@@ -71,26 +91,36 @@ pub fn try_init() -> Option<WlSession> {
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or(preferred);
     std::env::set_var("WAYLAND_DISPLAY", &display_name);
+
+    let globals = WlGlobals::spawn(display, output);
     info!(
-        "wl_display bound (wayland-server scaffold); WAYLAND_DISPLAY={}",
+        "wl_display bound with compositor/output/seat globals; WAYLAND_DISPLAY={}",
         display_name
     );
 
     Some(WlSession {
         display_name,
-        _display: display,
         _socket: socket,
+        _globals: globals,
     })
 }
 
 impl WlSession {
     pub fn status(&self) -> serde_json::Value {
-        serde_json::json!({
+        let mut status = serde_json::json!({
             "bound": true,
             "display": self.display_name,
             "engine": "wayland-server",
             "wlroots": false,
-        })
+        });
+        if let Some(obj) = status.as_object_mut() {
+            if let Some(globals) = self._globals.status().as_object() {
+                for (k, v) in globals {
+                    obj.insert(k.clone(), v.clone());
+                }
+            }
+        }
+        status
     }
 }
 
@@ -170,7 +200,9 @@ mod tests {
 
         let session = try_init().expect("wl_display session");
         assert_eq!(session.display_name, "wayland-test");
-        assert!(session.status()["bound"].as_bool().unwrap());
+        let status = session.status();
+        assert!(status["bound"].as_bool().unwrap());
+        assert!(status["globals"].is_array());
 
         drop(session);
         let _ = std::fs::remove_dir_all(&dir);

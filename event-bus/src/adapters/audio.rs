@@ -6,10 +6,7 @@ use std::path::Path;
 use tracing::info;
 
 pub async fn run() {
-    let monitor_paths = [
-        "/run/user/0/pipewire-0",
-        "/run/user/1000/pipewire-0",
-    ];
+    let monitor_paths = ["/run/user/0/pipewire-0", "/run/user/1000/pipewire-0"];
     let mut last_state = String::new();
     loop {
         for p in monitor_paths {

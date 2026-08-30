@@ -13,8 +13,8 @@
 //! lambda.renew_lease, lambda.status, lambda.list, lambda.search,
 //! lambda.health, lambda.stop.
 
-mod sandbox;
 mod pool;
+mod sandbox;
 mod synthesis;
 mod validate;
 use sandbox::*;
@@ -265,11 +265,7 @@ async fn register(params: Option<Value>, state: Arc<AppState>, id: Value) -> Val
         let lang = manifest.language.as_deref().unwrap_or("python");
         let validation = validate::validate_source(source, lang);
         if !validation.ok {
-            return err(
-                id,
-                "E_VALIDATION_FAILED",
-                &validation.issues.join("; "),
-            );
+            return err(id, "E_VALIDATION_FAILED", &validation.issues.join("; "));
         }
         match synthesis::write_synthesized_function(&manifest.name, lang, source) {
             Ok(syn) => {
@@ -309,11 +305,7 @@ async fn register(params: Option<Value>, state: Arc<AppState>, id: Value) -> Val
         status: "Ready".into(),
         last_invoked: None,
     };
-    state
-        .functions
-        .lock()
-        .await
-        .insert(rec.name.clone(), rec);
+    state.functions.lock().await.insert(rec.name.clone(), rec);
 
     info!("registered function '{}'", manifest.name);
 
@@ -343,16 +335,27 @@ async fn register(params: Option<Value>, state: Arc<AppState>, id: Value) -> Val
             entry: manifest.entrypoint.clone(),
             args: vec![],
             input: vec![],
-            timeout_ms: if manifest.timeout_ms > 0 { manifest.timeout_ms } else { 10_000 },
+            timeout_ms: if manifest.timeout_ms > 0 {
+                manifest.timeout_ms
+            } else {
+                10_000
+            },
             ipc_ns_fd: ipc_fd,
             caps,
         };
-        state.warm_pool.warm_on_register(&manifest.name, input).await;
+        state
+            .warm_pool
+            .warm_on_register(&manifest.name, input)
+            .await;
     }
 
     // Store embedding for semantic search.
     if let Some(emb) = embed_description(&manifest.description).await {
-        state.embeddings.lock().await.insert(manifest.name.clone(), emb);
+        state
+            .embeddings
+            .lock()
+            .await
+            .insert(manifest.name.clone(), emb);
     }
 
     ok(
@@ -430,8 +433,7 @@ async fn invoke(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value
         return err(id, "E_INVOKE_FAILED", e);
     }
     let raw = out.stdout.trim();
-    let result: Value = serde_json::from_str(raw)
-        .unwrap_or_else(|_| json!({ "output": raw }));
+    let result: Value = serde_json::from_str(raw).unwrap_or_else(|_| json!({ "output": raw }));
     let mut resp = json!({ "result": result });
     if out.killed {
         resp["killed_by_seccomp"] = json!(true);
@@ -474,11 +476,7 @@ async fn lease(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value 
         _ => return err(id, "E_INVOKE_FAILED", "failed to start lease"),
     };
     let lid = Uuid::new_v4().to_string();
-    state
-        .leases
-        .lock()
-        .await
-        .insert(lid.clone(), persistent);
+    state.leases.lock().await.insert(lid.clone(), persistent);
     ok(
         id,
         json!({ "lease_id": lid, "socket_path": common::lease_socket(&lid) }),
@@ -543,11 +541,12 @@ async fn search(params: Option<Value>, state: Arc<AppState>, id: Value) -> Value
     for r in fns.values() {
         if let Some(w) = &want_desc {
             let text_match = r.manifest.description.to_lowercase().contains(w);
-            let semantic_match = if let (Some(qe), Some(fe)) = (&query_embedding, emb_snapshot.get(&r.name)) {
-                cosine_similarity(qe, fe) > 0.5
-            } else {
-                false
-            };
+            let semantic_match =
+                if let (Some(qe), Some(fe)) = (&query_embedding, emb_snapshot.get(&r.name)) {
+                    cosine_similarity(qe, fe) > 0.5
+                } else {
+                    false
+                };
             if !text_match && !semantic_match {
                 continue;
             }
@@ -595,9 +594,13 @@ async fn embed_description(text: &str) -> Option<Vec<f32>> {
     let mut stream = tokio::net::UnixStream::connect(&path).await.ok()?;
     let mut bytes = serde_json::to_vec(&req).ok()?;
     bytes.push(b'\n');
-    tokio::io::AsyncWriteExt::write_all(&mut stream, &bytes).await.ok()?;
+    tokio::io::AsyncWriteExt::write_all(&mut stream, &bytes)
+        .await
+        .ok()?;
     let mut buf = vec![0u8; 65536];
-    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf).await.ok()?;
+    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf)
+        .await
+        .ok()?;
     let resp: Value = serde_json::from_slice(&buf[..n]).ok()?;
     resp.get("result")?
         .get("embedding")?

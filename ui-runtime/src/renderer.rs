@@ -43,7 +43,11 @@ pub async fn sync_tree_to_compositor(root: &Value) -> usize {
 fn collect_visible_nodes(root: &Value) -> Option<Vec<Value>> {
     let mut out = Vec::new();
     walk_node(root, &mut out);
-    if out.is_empty() { None } else { Some(out) }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
 }
 
 fn walk_node(node: &Value, out: &mut Vec<Value>) {
@@ -74,9 +78,13 @@ async fn bus_call(method: &str, params: Value) -> Option<Value> {
     });
     let mut bytes = serde_json::to_vec(&req).ok()?;
     bytes.push(b'\n');
-    tokio::io::AsyncWriteExt::write_all(&mut stream, &bytes).await.ok()?;
+    tokio::io::AsyncWriteExt::write_all(&mut stream, &bytes)
+        .await
+        .ok()?;
     let mut buf = vec![0u8; 65536];
-    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf).await.ok()?;
+    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf)
+        .await
+        .ok()?;
     let resp: Value = serde_json::from_slice(&buf[..n]).ok()?;
     resp.get("result").cloned()
 }

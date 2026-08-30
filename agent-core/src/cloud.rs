@@ -2,7 +2,7 @@
 
 use crate::client::{mcp_call, trace_id};
 use crate::planner::PlanStep;
-use crate::secrets::{load_cloud_api_key, cloud_key_status};
+use crate::secrets::{cloud_key_status, load_cloud_api_key};
 use serde_json::{json, Value};
 
 pub struct CloudRouter {
@@ -18,8 +18,8 @@ impl CloudRouter {
         let secret = load_cloud_api_key()?;
         let base_url = std::env::var("OPENAI_BASE_URL")
             .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
-        let model = std::env::var("THE_MACHINE_CLOUD_MODEL")
-            .unwrap_or_else(|_| "gpt-4o-mini".to_string());
+        let model =
+            std::env::var("THE_MACHINE_CLOUD_MODEL").unwrap_or_else(|_| "gpt-4o-mini".to_string());
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(120))
             .build()
@@ -61,7 +61,10 @@ impl CloudRouter {
         });
         let resp = self
             .client
-            .post(format!("{}/chat/completions", self.base_url.trim_end_matches('/')))
+            .post(format!(
+                "{}/chat/completions",
+                self.base_url.trim_end_matches('/')
+            ))
             .bearer_auth(&self.api_key)
             .json(&body)
             .send()
@@ -88,7 +91,11 @@ impl CloudRouter {
                 params: step.get("params").cloned().unwrap_or(Value::Null),
             });
         }
-        if plan.is_empty() { None } else { Some(plan) }
+        if plan.is_empty() {
+            None
+        } else {
+            Some(plan)
+        }
     }
 
     async fn record_usage(&self, trace_id: &str, response: &Value) {
@@ -138,6 +145,9 @@ async fn cloud_policy_allowed() -> bool {
         }),
     )
     .await
-    .and_then(|v| v.get("decision").and_then(|d| d.as_str().map(|s| s == "ALLOW")))
+    .and_then(|v| {
+        v.get("decision")
+            .and_then(|d| d.as_str().map(|s| s == "ALLOW"))
+    })
     .unwrap_or(true)
 }

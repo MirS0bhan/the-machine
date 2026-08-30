@@ -9,14 +9,12 @@ pub struct Engine {
 
 impl Engine {
     pub fn new() -> Self {
-        let http_url = std::env::var("LOCAL_MODEL_HTTP_URL")
-            .ok()
-            .or_else(|| {
-                std::env::var("LOCAL_MODEL_PATH")
-                    .ok()
-                    .filter(|p| std::path::Path::new(p).is_file())
-                    .map(|_| "http://127.0.0.1:8010".to_string())
-            });
+        let http_url = std::env::var("LOCAL_MODEL_HTTP_URL").ok().or_else(|| {
+            std::env::var("LOCAL_MODEL_PATH")
+                .ok()
+                .filter(|p| std::path::Path::new(p).is_file())
+                .map(|_| "http://127.0.0.1:8010".to_string())
+        });
         let stub = http_url.is_none();
         Engine { http_url, stub }
     }
@@ -31,7 +29,10 @@ impl Engine {
 
     pub async fn complete(&self, prompt: &str, max_tokens: u32, temperature: f32) -> String {
         if let Some(url) = &self.http_url {
-            if let Ok(client) = reqwest::Client::builder().timeout(std::time::Duration::from_secs(60)).build() {
+            if let Ok(client) = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(60))
+                .build()
+            {
                 let body = json!({
                     "prompt": prompt,
                     "max_tokens": max_tokens,
@@ -39,7 +40,10 @@ impl Engine {
                     "privacy_tags": [],
                 });
                 if let Ok(resp) = client
-                    .post(format!("{}/mcp/localmodel.complete", url.trim_end_matches('/')))
+                    .post(format!(
+                        "{}/mcp/localmodel.complete",
+                        url.trim_end_matches('/')
+                    ))
                     .json(&body)
                     .send()
                     .await
@@ -62,19 +66,34 @@ impl Engine {
         format!("[local-stub] {}", &prompt[..prompt.len().min(120)])
     }
 
-    pub async fn classify_intent(&self, text: &str, category: &str) -> (String, f64, String, String, bool) {
+    pub async fn classify_intent(
+        &self,
+        text: &str,
+        category: &str,
+    ) -> (String, f64, String, String, bool) {
         if let Some(url) = &self.http_url {
-            if let Ok(client) = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build() {
+            if let Ok(client) = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+            {
                 let body = json!({ "text": text, "category": category, "privacy_tags": [] });
                 if let Ok(resp) = client
-                    .post(format!("{}/mcp/localmodel.classify_intent", url.trim_end_matches('/')))
+                    .post(format!(
+                        "{}/mcp/localmodel.classify_intent",
+                        url.trim_end_matches('/')
+                    ))
                     .json(&body)
                     .send()
                     .await
                 {
                     if let Ok(v) = resp.json::<Value>().await {
-                        let intent = v.get("intent").and_then(|x| x.as_str()).unwrap_or("generic").to_string();
-                        let confidence = v.get("confidence").and_then(|x| x.as_f64()).unwrap_or(0.8);
+                        let intent = v
+                            .get("intent")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("generic")
+                            .to_string();
+                        let confidence =
+                            v.get("confidence").and_then(|x| x.as_f64()).unwrap_or(0.8);
                         return (
                             intent.clone(),
                             confidence,
@@ -91,33 +110,57 @@ impl Engine {
 
     pub async fn embed(&self, text: &str) -> Vec<f32> {
         if let Some(url) = &self.http_url {
-            if let Ok(client) = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build() {
+            if let Ok(client) = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+            {
                 let body = json!({ "text": text, "privacy_tags": [] });
                 if let Ok(resp) = client
-                    .post(format!("{}/mcp/localmodel.embed", url.trim_end_matches('/')))
+                    .post(format!(
+                        "{}/mcp/localmodel.embed",
+                        url.trim_end_matches('/')
+                    ))
                     .json(&body)
                     .send()
                     .await
                 {
                     if let Ok(v) = resp.json::<Value>().await {
                         if let Some(arr) = v.get("embedding").and_then(|x| x.as_array()) {
-                            return arr.iter().filter_map(|x| x.as_f64().map(|f| f as f32)).collect();
+                            return arr
+                                .iter()
+                                .filter_map(|x| x.as_f64().map(|f| f as f32))
+                                .collect();
                         }
                     }
                 }
             }
         }
-        text.chars().take(16).map(|c| (c as u32 % 97) as f32 / 97.0).collect()
+        text.chars()
+            .take(16)
+            .map(|c| (c as u32 % 97) as f32 / 97.0)
+            .collect()
     }
 }
 
 fn classify_stub(text: &str, category: &str) -> (String, f64, String, String, bool) {
     let t = text.to_lowercase();
     if category == "scheduler" {
-        return ("heartbeat".into(), 0.99, "low".into(), "local".into(), false);
+        return (
+            "heartbeat".into(),
+            0.99,
+            "low".into(),
+            "local".into(),
+            false,
+        );
     }
     if category == "notification" || t.contains("notification") {
-        return ("notification.triage".into(), 0.9, "low".into(), "local".into(), false);
+        return (
+            "notification.triage".into(),
+            0.9,
+            "low".into(),
+            "local".into(),
+            false,
+        );
     }
     let intent = if t.contains("calc") || t.contains("math") || t.contains("+") {
         "calculator"
@@ -125,7 +168,11 @@ fn classify_stub(text: &str, category: &str) -> (String, f64, String, String, bo
         "media_control"
     } else if t.contains("weather") || t.contains("time") || t.contains("date") {
         "query"
-    } else if t.contains("build") || t.contains("create") || t.contains("make") || t.contains("show") {
+    } else if t.contains("build")
+        || t.contains("create")
+        || t.contains("make")
+        || t.contains("show")
+    {
         "synthesize"
     } else if t.contains("download") || t.contains("file") {
         "filesystem"
