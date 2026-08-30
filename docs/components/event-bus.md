@@ -543,6 +543,20 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## Event Adapters
+
+The Rust daemon starts background adapters (`event-bus/src/adapters/`) that translate OS signals into `event.publish` calls on the local Unix socket.
+
+| Adapter | Source | Patterns | Disable |
+|---------|--------|----------|---------|
+| D-Bus | Native `zbus` system-bus match rules | `desktop.notify`, `login.prepare_sleep` | `THE_MACHINE_DISABLE_DBUS=1` |
+| inotify | Filesystem watches | `fs.change.*` | omit watch paths |
+| audio | PipeWire state (when present) | `pipewire.state` | — |
+
+The D-Bus adapter subscribes to `org.freedesktop.Notifications.Notify` and `org.freedesktop.login1.Manager.PrepareForSleep` via in-process `zbus` match rules — no host `dbus-monitor` binary required. When the system bus is unavailable (e.g. initramfs without D-Bus), the adapter logs and retries with backoff.
+
+---
+
 ## Performance
 
 ### Targets
