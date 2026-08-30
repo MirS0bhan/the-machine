@@ -14,6 +14,12 @@ if [[ ! -d "/lib/modules/${KVER}" ]]; then
   exit 0
 fi
 
+if ! find "/lib/modules/${KVER}/kernel" \( -name 'virtio_gpu.ko' -o -name 'virtio-gpu.ko' \
+  -o -name 'virtio_gpu.ko.zst' -o -name 'virtio-gpu.ko.zst' \) 2>/dev/null | grep -q .; then
+  echo "SKIP: virtio_gpu not in host /lib/modules/${KVER} (cloud-tuned kernels lack display drivers)"
+  exit 0
+fi
+
 [[ -f "${STAGE}/lib/modules/${KVER}/kernel/drivers/gpu/drm/virtio/virtio-gpu.ko" ]] || {
   echo "FAIL: virtio-gpu.ko not bundled (KVER=${KVER})" >&2
   exit 1
