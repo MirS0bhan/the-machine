@@ -57,11 +57,7 @@ if [[ ! -d "${BIN_DIR}" ]] || [[ ! -x "${BIN_DIR}/mcp-bus" ]]; then
   (cd "${ROOT}" && cargo build --workspace --release)
 fi
 
-SERVICES=(
-  system-daemon mcp-bus policy-broker state-store event-bus
-  lambda-server agent-core ui-runtime compositor fallback-shell
-  local-model-daemon marketplace
-)
+SERVICES=("${ROOTFS_SERVICES[@]}")
 
 mkdir -p "${ROOTFS}/the-machine" "${ROOTFS}/etc/the-machine" "${ROOTFS}/var/lib/the-machine" "${ROOTFS}/boot"
 for svc in "${SERVICES[@]}"; do
@@ -97,7 +93,7 @@ Wants=network-online.target
 WantedBy=multi-user.target
 UNIT
 
-for svc in system-daemon mcp-bus policy-broker state-store event-bus lambda-server agent-core compositor ui-runtime fallback-shell local-model-daemon marketplace; do
+for svc in "${ROOTFS_SERVICES[@]}"; do
   AFTER="the-machine-mcp-bus.service"
   [[ "${svc}" == "system-daemon" ]] && AFTER="network.target"
   [[ "${svc}" == "mcp-bus" ]] && AFTER="the-machine-system-daemon.service"

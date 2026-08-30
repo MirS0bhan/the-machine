@@ -36,8 +36,7 @@ unsafe impl Send for MmapFb {}
 
 impl PixelBackend {
     pub fn open() -> Self {
-        let backend_pref =
-            std::env::var("THE_MACHINE_COMPOSITOR_BACKEND").unwrap_or_else(|_| "auto".into());
+        let backend_pref = crate::env::compositor_backend();
         let dump_path = std::env::var("THE_MACHINE_FB_DUMP").ok();
 
         if matches!(backend_pref.as_str(), "auto" | "drm") {

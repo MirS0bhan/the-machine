@@ -8,6 +8,7 @@ use tokio::sync::{Mutex, RwLock};
 use tracing::{error, info};
 
 mod audio;
+mod cli;
 mod display;
 mod input;
 mod kernel;

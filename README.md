@@ -2,96 +2,83 @@
 
 [![Build & Release Artifacts](https://github.com/MirS0bhan/the-machine/actions/workflows/build.yml/badge.svg)](https://github.com/MirS0bhan/the-machine/actions/workflows/build.yml)
 
-Agent-Native OS — where an AI agent sits between human intent and system mechanisms.
+Agent-native operating system — an AI agent sits between human intent and system mechanisms.
 
-## Status
+## Readiness
 
-**Production boot path (Rust)** — Phases 1–7 implemented. Python packages remain the reference for integration tests and agent prototyping. See the [overlap guide](./docs/guides/python-rust-overlap.md).
+| Track | Status |
+|-------|--------|
+| **Developer / QEMU / CI** | Production boot path — `make iso`, `make test-all`, `make verify` |
+| **Bare-metal desktop (early adopters)** | Software complete — ISO + rootfs installer, DRM/Wayland, rtnetlink, wifi, audio |
+| **General end users** | **Not yet** — needs your hardware smoke test ([checklist](./docs/guides/bare-metal.md#hardware-smoke-checklist)) |
 
-| Layer | Component | Status |
-|-------|-----------|--------|
-| L0 | System Daemon | Rust — evdev input, sysfs-backed power/net/audio/display |
-| L1 | Lambda Server | Rust (seccomp sandbox, synthesis) + Python (tests) |
-| L1 | State Store | Rust (sled + watch) + Python (RocksDB/memory) |
-| L1 | Event Bus | Rust (scheduler, D-Bus/inotify/audio adapters) |
-| L2 | Policy Broker | Rust (rule engine, audit, confirmation UI) |
-| L3 | MCP Bus | Rust (registry, policy middleware, leases) |
-| L4 | Agent Core | Rust (LLM planner, cloud router, skills) |
-| L4 | Local Model | Rust `local-model-daemon` (GGUF in initramfs) + Python reference |
-| L4 | Marketplace | Rust (bundle install → lambda + ui.patch) |
-| L5 | UI Engine | Python (AUIL/ASL parser, renderer) |
-| L5 | UI Runtime | Rust (patch tree, binding execution) |
-| L5 | Compositor | Rust (framebuffer `/dev/fb0`, confirmation surface) |
-| L5 | Fallback Shell | Rust (console recovery) |
+The bare-metal stack (phases A–E) is implemented and validated in CI. Shipping to arbitrary end-user hardware still requires confirming GPU, Wi-Fi, and disk on a physical machine.
 
-Canonical inventory: [`docs/reference/component-inventory.yaml`](./docs/reference/component-inventory.yaml) (verified by `make verify-docs`).
+## What's included
+
+| Layer | Component | Bare-metal notes |
+|-------|-----------|------------------|
+| L0 | System Daemon | evdev input, DRM display, rtnetlink, `wpa_cli`, `pactl` |
+| L1–L4 | Agent stack | MCP bus, policy-broker, state-store, agent-core, local-model-daemon, marketplace |
+| L5 | Compositor | DRM/framebuffer pixel output; Wayland `wl_shm` surface paint |
+| Build | G13 installer | debootstrap rootfs, GRUB, `build/rootfs-validate.sh` |
+
+Full inventory: [`docs/reference/component-inventory.yaml`](./docs/reference/component-inventory.yaml) (verified by `make verify-docs`).
 
 ## Documentation
 
-- [Full documentation](./docs/index.md)
-- [Python ↔ Rust overlap guide](./docs/guides/python-rust-overlap.md)
-- [Architecture overview](./docs/architecture/overview.md)
-- [Runtime model](./docs/architecture/runtime-model.md)
-- [Gap analysis](./docs/architecture/gap-analysis.md)
-- [Component specs](./docs/components/)
-- [Getting Started](./docs/guides/getting-started.md)
-- [Development Guide](./docs/guides/development.md)
-- [Testing & Coverage](./docs/guides/testing.md)
+| Doc | Description |
+|-----|-------------|
+| [Documentation index](./docs/index.md) | Full doc map |
+| [Bare-metal guide](./docs/guides/bare-metal.md) | Install, runtime env, hardware checklist |
+| [Getting started](./docs/guides/getting-started.md) | Dev host build & run |
+| [Architecture](./docs/architecture/overview.md) | System design |
+| [Gap analysis](./docs/architecture/gap-analysis.md) | Living checklist |
+| [Component specs](./docs/components/) | Per-service reference |
 
-## Building
+## Quick start (development)
 
 ```bash
-# Build all Rust crates
 make build
+make test-all
+make verify-docs
+make services-start    # local harness
+make iso               # bootable image
+```
 
-# Build release binaries + bootable ISO
+## Bare-metal install
+
+```bash
 make build-release
-make iso
+make rootfs-release                              # debootstrap + sudo
+bash build/rootfs-validate.sh build/rootfs     # pre-flight check
+sudo build/installer/install.sh /dev/sdX         # destructive — picks target disk
 ```
 
-## Running
+See [Bare-metal guide](./docs/guides/bare-metal.md) for Wi-Fi credentials, display modes, and the hardware smoke checklist.
 
-Start all services (development harness):
+## QEMU
 
 ```bash
-make services-start
-make services-stop
+make qemu          # kernel + initramfs (fast)
+make run           # ISO with graphics when $DISPLAY is set
 ```
 
-Boot in QEMU:
+## CI artifacts
+
+Every push to `main` runs [`.github/workflows/build.yml`](.github/workflows/build.yml). Download ISO, initramfs, and per-service binaries from the Actions **Artifacts** tab, or locally:
 
 ```bash
-make qemu    # kernel + initramfs
-make run     # ISO
+make ci-package
 ```
 
-## Testing & verification
+## Verification
 
 ```bash
-make test-all       # Rust + Python tests
-make verify         # Full verification (tests, builds, docs, inventory)
-make verify-docs    # Documentation ↔ code cross-check
-make coverage       # Rust test coverage report (llvm-cov)
-```
-
-## CI / Artifacts
-
-Every push to `main` runs [`.github/workflows/build.yml`](.github/workflows/build.yml):
-
-| Job | Artifact | Contents |
-|-----|----------|----------|
-| `test` | — | Rust + Python tests, doc verification |
-| `coverage` | `coverage-lcov` | LCOV report |
-| `build-rust-components` | `rust-<name>` × 12 | Release binary per Rust daemon |
-| `build-rust-examples` | `rust-lambda-examples` | `fn-add`, `fn-bad` |
-| `build-python-components` | `python-<pkg>` × 6 | Wheel per Python package |
-| `build-iso` | `boot-initramfs`, `boot-iso` | Initramfs + bootable ISO |
-| `package-release` | `the-machine-release` | Combined tarball + `manifest.json` |
-
-Download from the Actions run → **Artifacts** tab, or locally:
-
-```bash
-make ci-package   # build/artifacts/ with rust/, python/wheels/, iso/, manifest.json
+make test-all           # Rust + Python + build script tests
+make verify             # Full verification suite
+make verify-docs        # Docs ↔ code cross-check
+bash build/hardware-smoke.sh   # bare-metal software smoke
 ```
 
 ## License

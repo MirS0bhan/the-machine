@@ -60,10 +60,10 @@ _None — all P0/P1 gaps from the expansion campaign are closed._
 
 | ID | Gap | Component | Priority |
 |----|-----|-----------|----------|
-| G13 | Rootfs validated in CI; full debootstrap boot needs target-HW smoke test | build | P3 |
-| G17 | Full wlroots compositing (xdg-shell, input routing); SHM paint path done | compositor | P3 |
+| G13 | Physical hardware smoke test on target GPU/Wi-Fi/disk (software + CI validation done) | build | P3 |
+| G17 | Optional wlroots `xdg-shell` for third-party Wayland apps (SHM paint path done) | compositor | P4 |
 
-_None critical — G14 rtnetlink + wifi/audio closed._
+_All bare-metal software phases (A–E) are complete. Remaining items are hardware validation and optional compositor polish._
 
 ---
 

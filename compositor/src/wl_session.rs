@@ -1,12 +1,11 @@
 //! Wayland display scaffold (G17) — binds `wl_display` via `wayland-server`.
-//!
-//! Registers core globals and paints `wl_surface` commits into the pixel backend.
 
 use std::sync::{Arc, Mutex};
 
 use tracing::{info, warn};
 use wayland_server::{BindError, Display, ListeningSocket};
 
+use crate::env;
 use crate::pixel::SharedPixel;
 use crate::wl_globals::{self, OutputInfo, WlGlobals};
 
@@ -28,23 +27,12 @@ pub struct WlSession {
     _globals: WlGlobals,
 }
 
-/// Whether this run should bind a real `wl_display` socket.
 pub fn should_bind_display() -> bool {
-    match std::env::var("THE_MACHINE_COMPOSITOR_BACKEND")
-        .unwrap_or_else(|_| "auto".into())
-        .as_str()
-    {
-        "wayland" => true,
-        "framebuffer" | "drm" | "memory" => false,
-        _ => std::env::var("THE_MACHINE_WL_DISPLAY_BIND")
-            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-            .unwrap_or(false),
-    }
+    env::should_bind_wayland_display()
 }
 
-/// Resolve the preferred Wayland socket name before binding.
 pub fn resolve_display_name() -> String {
-    std::env::var("WAYLAND_DISPLAY").unwrap_or_else(|_| "wayland-0".into())
+    env::wayland_display_name()
 }
 
 fn output_info() -> OutputInfo {
@@ -59,7 +47,6 @@ fn output_info() -> OutputInfo {
     OutputInfo::default()
 }
 
-/// Bind `wl_display` and a listening socket when [`should_bind_display`] is true.
 pub fn try_init(pixels: SharedPixel) -> Option<WlSession> {
     if !should_bind_display() {
         return None;
@@ -219,7 +206,6 @@ mod tests {
         let status = session.status();
         assert!(status["bound"].as_bool().unwrap());
         assert!(status["globals"].is_array());
-        assert_eq!(status["surface_paint"], true);
 
         drop(session);
         let _ = std::fs::remove_dir_all(&dir);

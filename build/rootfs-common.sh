@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Shared rootfs helpers (G13 — kernel + layout for target HW installs).
 
+ROOTFS_SERVICES=(
+  system-daemon mcp-bus policy-broker state-store event-bus
+  lambda-server local-model-daemon agent-core ui-runtime compositor fallback-shell
+  marketplace
+)
+
 rootfs_skeleton_dirs() {
   local rootfs="$1"
   mkdir -p "${rootfs}"/{bin,sbin,etc,boot,the-machine,var/lib/the-machine,usr/lib/systemd/system}

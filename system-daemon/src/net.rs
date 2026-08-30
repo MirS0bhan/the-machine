@@ -4,7 +4,41 @@ use common::NetworkInterface;
 use std::fs;
 use std::path::Path;
 
+use crate::cli::run_sync;
 use crate::netlink;
+
+pub(crate) fn reject_loopback_mutation(name: &str) -> Result<(), String> {
+    if name == "lo" {
+        Err("refusing to change loopback state".into())
+    } else {
+        Ok(())
+    }
+}
+
+pub(crate) fn parse_link_state(state: &str) -> Result<bool, String> {
+    match state {
+        "up" => Ok(true),
+        "down" => Ok(false),
+        other => Err(format!("unsupported state: {other} (use up or down)")),
+    }
+}
+
+pub(crate) fn classify_iface(name: &str, sysfs_path: &Path) -> &'static str {
+    if name == "lo" {
+        return "loopback";
+    }
+    if sysfs_path.join("wireless").exists() {
+        return "wifi";
+    }
+    if fs::read_to_string(sysfs_path.join("type"))
+        .ok()
+        .and_then(|s| s.trim().parse::<u32>().ok())
+        == Some(772)
+    {
+        return "loopback";
+    }
+    "ethernet"
+}
 
 pub async fn list_interfaces() -> Vec<NetworkInterface> {
     if let Ok(ifaces) = netlink::list_interfaces_netlink().await {
@@ -27,22 +61,9 @@ pub fn list_interfaces_sysfs() -> Vec<NetworkInterface> {
         let state = fs::read_to_string(iface_path.join("operstate"))
             .map(|s| s.trim().to_string())
             .unwrap_or_else(|_| "unknown".into());
-        let kind = if name == "lo" {
-            "loopback"
-        } else if iface_path.join("wireless").exists() {
-            "wifi"
-        } else if fs::read_to_string(iface_path.join("type"))
-            .ok()
-            .and_then(|s| s.trim().parse::<u32>().ok())
-            == Some(772)
-        {
-            "loopback"
-        } else {
-            "ethernet"
-        };
         out.push(NetworkInterface {
-            name,
-            r#type: kind.to_string(),
+            name: name.clone(),
+            r#type: classify_iface(&name, &iface_path).to_string(),
             state,
         });
     }
@@ -55,42 +76,25 @@ pub fn list_interfaces_sysfs() -> Vec<NetworkInterface> {
 }
 
 pub async fn set_interface_state(name: &str, state: &str) -> Result<(), String> {
-    if name == "lo" {
-        return Err("refusing to change loopback state".into());
-    }
+    reject_loopback_mutation(name)?;
     if !Path::new(&format!("/sys/class/net/{name}")).exists() {
         return Err(format!("unknown interface: {name}"));
     }
-    let up = match state {
-        "up" => true,
-        "down" => false,
-        other => return Err(format!("unsupported state: {other} (use up or down)")),
-    };
+    let up = parse_link_state(state)?;
 
     if let Ok(()) = netlink::set_interface_state_netlink(name, up).await {
         return Ok(());
     }
-    set_interface_state_ip(name, state).await
+    set_interface_state_ip(name, state)
 }
 
-async fn set_interface_state_ip(name: &str, state: &str) -> Result<(), String> {
+fn set_interface_state_ip(name: &str, state: &str) -> Result<(), String> {
     let action = match state {
         "up" => "up",
         "down" => "down",
         other => return Err(format!("unsupported state: {other} (use up or down)")),
     };
-    let status = tokio::process::Command::new("ip")
-        .args(["link", "set", name, action])
-        .status()
-        .await
-        .map_err(|e| format!("ip link failed: {e}"))?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!(
-            "ip link set {name} {action} failed (CAP_NET_ADMIN required)"
-        ))
-    }
+    run_sync("ip", &["link", "set", name, action]).map(|_| ())
 }
 
 fn fallback_interfaces() -> Vec<NetworkInterface> {
@@ -109,5 +113,10 @@ mod tests {
     async fn list_interfaces_includes_loopback() {
         let ifaces = list_interfaces().await;
         assert!(ifaces.iter().any(|i| i.name == "lo"));
+    }
+
+    #[test]
+    fn loopback_guard() {
+        assert!(reject_loopback_mutation("lo").is_err());
     }
 }

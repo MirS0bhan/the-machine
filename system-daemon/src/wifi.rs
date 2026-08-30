@@ -1,29 +1,10 @@
 //! Wi-Fi via `wpa_supplicant` / `wpa_cli` on bare-metal hosts.
 
-use std::path::Path;
+use common::read_secret_by_name;
 use tokio::process::Command;
 
-const SECRET_DIRS: &[&str] = &["/run/the-machine/secrets", "/etc/the-machine/secrets"];
-
 fn resolve_credential(credential_ref: &str) -> Result<String, String> {
-    if credential_ref.is_empty() {
-        return Err("credential_ref is required for wifi connect".into());
-    }
-    if credential_ref.contains('/') || credential_ref.contains("..") {
-        return Err("invalid credential_ref".into());
-    }
-    for dir in SECRET_DIRS {
-        let path = Path::new(dir).join(credential_ref);
-        if path.is_file() {
-            return std::fs::read_to_string(&path)
-                .map(|s| s.trim().to_string())
-                .map_err(|e| format!("failed to read credential: {e}"));
-        }
-    }
-    Err(format!(
-        "credential_ref not found in {}",
-        SECRET_DIRS.join(" or ")
-    ))
+    read_secret_by_name(credential_ref, true)
 }
 
 fn wifi_interface() -> Option<String> {

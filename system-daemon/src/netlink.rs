@@ -3,18 +3,9 @@
 use common::NetworkInterface;
 use futures::stream::TryStreamExt;
 use netlink_packet_route::link::{LinkAttribute, LinkFlag, LinkMessage};
-use rtnetlink::new_connection;
+use rtnetlink::{new_connection, Handle};
 
-fn iface_type(name: &str) -> String {
-    if name == "lo" {
-        return "loopback".into();
-    }
-    let path = format!("/sys/class/net/{name}/wireless");
-    if std::path::Path::new(&path).exists() {
-        return "wifi".into();
-    }
-    "ethernet".into()
-}
+use crate::net::{classify_iface, reject_loopback_mutation};
 
 fn operstate_from_flags(flags: &[LinkFlag]) -> String {
     if flags.contains(&LinkFlag::Up) {
@@ -34,10 +25,15 @@ fn ifname_from_msg(msg: &LinkMessage) -> Option<String> {
     })
 }
 
-/// List interfaces via RTM_GETLINK; returns error when netlink unavailable.
-pub async fn list_interfaces_netlink() -> Result<Vec<NetworkInterface>, String> {
+async fn netlink_handle() -> Result<Handle, String> {
     let (connection, handle, _) = new_connection().map_err(|e| format!("netlink: {e}"))?;
     tokio::spawn(connection);
+    Ok(handle)
+}
+
+/// List interfaces via RTM_GETLINK; returns error when netlink unavailable.
+pub async fn list_interfaces_netlink() -> Result<Vec<NetworkInterface>, String> {
+    let handle = netlink_handle().await?;
 
     let mut out = Vec::new();
     let mut links = handle.link().get().execute();
@@ -49,9 +45,10 @@ pub async fn list_interfaces_netlink() -> Result<Vec<NetworkInterface>, String> 
         let Some(name) = ifname_from_msg(&msg) else {
             continue;
         };
+        let sysfs = std::path::Path::new("/sys/class/net").join(&name);
         out.push(NetworkInterface {
             name: name.clone(),
-            r#type: iface_type(&name),
+            r#type: classify_iface(&name, &sysfs).to_string(),
             state: operstate_from_flags(&msg.header.flags),
         });
     }
@@ -64,13 +61,9 @@ pub async fn list_interfaces_netlink() -> Result<Vec<NetworkInterface>, String> 
 
 /// Bring interface up/down via RTM_SETLINK.
 pub async fn set_interface_state_netlink(name: &str, up: bool) -> Result<(), String> {
-    if name == "lo" {
-        return Err("refusing to change loopback state".into());
-    }
+    reject_loopback_mutation(name)?;
 
-    let (connection, handle, _) = new_connection().map_err(|e| format!("netlink: {e}"))?;
-    tokio::spawn(connection);
-
+    let handle = netlink_handle().await?;
     let mut links = handle.link().get().execute();
     while let Some(msg) = links
         .try_next()

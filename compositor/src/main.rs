@@ -1,6 +1,7 @@
 //! Compositor — surface model + real pixel output (framebuffer / wlroots).
 
 mod drm;
+mod env;
 mod model;
 mod pixel;
 mod wayland_backend;
@@ -24,10 +25,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     info!("Starting Compositor");
-    std::env::set_var(
-        "WAYLAND_DISPLAY",
-        std::env::var("WAYLAND_DISPLAY").unwrap_or_else(|_| "wayland-0".into()),
-    );
+    std::env::set_var("WAYLAND_DISPLAY", crate::env::wayland_display_name());
     let pixels: SharedPixel = Arc::new(Mutex::new(PixelBackend::open()));
     let wayland: Arc<Option<wayland_backend::WaylandSession>> =
         Arc::new(wayland_backend::try_start(pixels.clone()));
@@ -67,7 +65,10 @@ async fn main() -> anyhow::Result<()> {
 async fn present_loop(comp: Arc<Mutex<Compositor>>, pixels: SharedPixel) {
     loop {
         paint_frame(&comp, &pixels).await;
-        tokio::time::sleep(std::time::Duration::from_millis(16)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(
+            crate::env::DEFAULT_FRAME_MS,
+        ))
+        .await;
     }
 }
 

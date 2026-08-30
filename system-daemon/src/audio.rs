@@ -1,35 +1,19 @@
 //! Audio devices via PipeWire / PulseAudio (`pactl`).
 
 use common::AudioDevice;
-use std::process::Command;
 
-fn pactl_sync(args: &[&str]) -> Result<String, String> {
-    let output = Command::new("pactl")
-        .args(args)
-        .output()
-        .map_err(|e| format!("pactl not available: {e}"))?;
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("pactl failed: {stderr}"));
-    }
-    Ok(stdout)
-}
-
-async fn pactl(args: &[&str]) -> Result<String, String> {
-    pactl_sync(args)
-}
+use crate::cli::run_sync;
 
 /// List sinks and sources from `pactl list short`.
 pub fn list_audio_devices() -> Vec<AudioDevice> {
-    let Ok(sinks) = pactl_sync(&["list", "short", "sinks"]) else {
+    let Ok(sinks) = run_sync("pactl", &["list", "short", "sinks"]) else {
         return fallback_devices();
     };
-    let Ok(sources) = pactl_sync(&["list", "short", "sources"]) else {
+    let Ok(sources) = run_sync("pactl", &["list", "short", "sources"]) else {
         return fallback_devices();
     };
 
-    let default_sink = pactl_sync(&["get-default-sink"])
+    let default_sink = run_sync("pactl", &["get-default-sink"])
         .unwrap_or_default()
         .trim()
         .to_string();
@@ -74,7 +58,7 @@ fn fallback_devices() -> Vec<AudioDevice> {
 
 /// Set default sink via `pactl set-default-sink`.
 pub async fn set_default_device(name: &str) -> Result<(), String> {
-    pactl(&["set-default-sink", name]).await?;
+    run_sync("pactl", &["set-default-sink", name])?;
     Ok(())
 }
 

@@ -14,7 +14,7 @@ pub struct WaylandSession {
 }
 
 pub fn try_start(pixels: SharedPixel) -> Option<WaylandSession> {
-    let backend = std::env::var("THE_MACHINE_COMPOSITOR_BACKEND").unwrap_or_else(|_| "auto".into());
+    let backend = crate::env::compositor_backend();
     if !matches!(backend.as_str(), "auto" | "drm" | "wayland") {
         return None;
     }

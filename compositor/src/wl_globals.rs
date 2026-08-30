@@ -33,8 +33,8 @@ impl Default for OutputInfo {
     fn default() -> Self {
         Self {
             name: "the-machine-0".into(),
-            width: 1920,
-            height: 1080,
+            width: crate::env::DEFAULT_WIDTH as i32,
+            height: crate::env::DEFAULT_HEIGHT as i32,
             refresh_mhz: 60_000,
         }
     }
@@ -152,7 +152,9 @@ fn run_display_loop(
             warn!("wl_display flush error: {e}");
             break;
         }
-        std::thread::sleep(std::time::Duration::from_millis(16));
+        std::thread::sleep(std::time::Duration::from_millis(
+            crate::env::DEFAULT_FRAME_MS,
+        ));
     }
 }
 
@@ -380,7 +382,7 @@ mod tests {
     #[test]
     fn output_info_defaults_to_hd() {
         let o = OutputInfo::default();
-        assert_eq!(o.width, 1920);
-        assert_eq!(o.height, 1080);
+        assert_eq!(o.width, crate::env::DEFAULT_WIDTH as i32);
+        assert_eq!(o.height, crate::env::DEFAULT_HEIGHT as i32);
     }
 }

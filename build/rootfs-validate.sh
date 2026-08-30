@@ -17,11 +17,7 @@ ok() {
   echo "OK: $*"
 }
 
-SERVICES=(
-  system-daemon mcp-bus policy-broker state-store event-bus
-  lambda-server agent-core ui-runtime compositor fallback-shell
-  local-model-daemon marketplace
-)
+SERVICES=("${ROOTFS_SERVICES[@]}")
 
 for svc in "${SERVICES[@]}"; do
   [[ -x "${ROOTFS}/the-machine/${svc}" ]] || fail "missing executable /the-machine/${svc}"
