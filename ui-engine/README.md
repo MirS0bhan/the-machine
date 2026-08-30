@@ -164,16 +164,36 @@ The agent emits patches, not full trees:
 | `ui.get_tree` | Get full UI state tree |
 | `ui.get_stats` | Get engine statistics |
 
+## Default Theme (macOS × GNOME/Adwaita)
+
+`UIRuntime` auto-loads a built-in reference design system on construction
+(pass `UIRuntime(load_default_theme=False)` to opt out). It's an ASL theme
+derived from researching macOS Human Interface Guidelines and GNOME's
+libadwaita/GTK4 (Adwaita) — colors, corner radii, spacing, elevation,
+vibrancy/materials, and motion curves, plus the mixins that use them
+(`Surface`, `Hoverable`, `Pressable`, `Card`, `PrimaryButton`, `IconBtn`,
+`Field`, `ListRow`, `Sidebar`, `Popover`, `Toggle`, `Slider`).
+
+- Research + sourced values: [`docs/design-research-macos-gnome-adwaita.md`](docs/design-research-macos-gnome-adwaita.md)
+- ASL implementation: [`themes/adwaita_macos.asl`](themes/adwaita_macos.asl)
+
+Apps override it the normal way — call `runtime.load_asl(...)` again with
+just the tokens/styles that should differ; ASL merges last-applied-wins.
+
 ## Components
 
 Built-in components with inheritance:
 
 - **Surface** - Base surface with styling
-- **Card** - Surface + Hoverable
-- **ListRow** - Surface + Hoverable + Pressable
-- **PrimaryButton** - Surface + Hoverable + Pressable
-- **IconBtn** - Surface + Hoverable + Pressable
-- **Field** - Surface with label and input slots
+- **Card** - Surface + Hoverable + Card look (grouped box, subtle shadow)
+- **ListRow** - Surface + Hoverable + Pressable + ListRow look
+- **PrimaryButton** - Surface + Hoverable + Pressable + accent-filled look
+- **IconBtn** - Surface + Hoverable + Pressable + circular icon-button look
+- **Field** - Surface + Field look, with label and input slots
+- **Sidebar** - Surface + Sidebar look (navigation pane material)
+- **Popover** - Surface + Popover look (menu/popover elevation)
+- **ToggleSwitch** - Toggle + Pressable
+- **SliderTrack** - Slider + Pressable
 - **MediaPlayer** - Surface with video and controls slots
 - **Chart** - Surface with data slot
 

@@ -22,7 +22,14 @@ from models import (
 logger = logging.getLogger(__name__)
 
 
-# Default built-in components
+# Default built-in components.
+#
+# Mixin lists include a component's own style mixin (e.g. "Card") when a
+# matching `style Card ... ` block exists in the loaded ASL theme, so that
+# instances pick up the widget-specific look defined there, in addition to
+# the generic behavioral mixins (Surface/Hoverable/Pressable). See the
+# built-in theme at `themes/adwaita_macos.asl` and its rationale in
+# `docs/design-research-macos-gnome-adwaita.md`.
 DEFAULT_COMPONENTS = {
     "Surface": ComponentDefinition(
         name="Surface",
@@ -31,27 +38,45 @@ DEFAULT_COMPONENTS = {
     "Card": ComponentDefinition(
         name="Card",
         parent="Surface",
-        mixins=["Surface", "Hoverable"],
+        mixins=["Surface", "Hoverable", "Card"],
     ),
     "ListRow": ComponentDefinition(
         name="ListRow",
         parent="Surface",
-        mixins=["Surface", "Hoverable", "Pressable"],
+        mixins=["Surface", "Hoverable", "Pressable", "ListRow"],
     ),
     "PrimaryButton": ComponentDefinition(
         name="PrimaryButton",
         parent="Surface",
-        mixins=["Surface", "Hoverable", "Pressable"],
+        mixins=["Surface", "Hoverable", "Pressable", "PrimaryButton"],
     ),
     "IconBtn": ComponentDefinition(
         name="IconBtn",
         parent="Surface",
-        mixins=["Surface", "Hoverable", "Pressable"],
+        mixins=["Surface", "Hoverable", "Pressable", "IconBtn"],
     ),
     "Field": ComponentDefinition(
         name="Field",
-        mixins=["Surface"],
+        mixins=["Surface", "Field"],
         slots=[SlotDefinition(name="label"), SlotDefinition(name="input")],
+    ),
+    "Sidebar": ComponentDefinition(
+        name="Sidebar",
+        parent="Surface",
+        mixins=["Surface", "Sidebar"],
+    ),
+    "Popover": ComponentDefinition(
+        name="Popover",
+        parent="Surface",
+        mixins=["Surface", "Popover"],
+    ),
+    "ToggleSwitch": ComponentDefinition(
+        name="ToggleSwitch",
+        mixins=["Toggle", "Pressable"],
+    ),
+    "SliderTrack": ComponentDefinition(
+        name="SliderTrack",
+        mixins=["Slider", "Pressable"],
     ),
     "MediaPlayer": ComponentDefinition(
         name="MediaPlayer",
