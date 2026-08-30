@@ -34,6 +34,7 @@ The project is ready for **developers and early adopters** who can run the hardw
 ```bash
 bash build/rootfs-validate.sh build/rootfs
 bash build/test-installer-grub.sh   # loopback install + GRUB check (CI)
+bash build/validate-installed-rootfs.sh /mnt   # mounted install (operator)
 ```
 
 ## Shared code

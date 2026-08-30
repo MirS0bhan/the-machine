@@ -6,7 +6,6 @@
 
 use dashmap::DashMap;
 use serde_json::{json, Value};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
@@ -95,8 +94,6 @@ impl LeaseManager {
     }
 }
 
-pub type SharedLeases = Arc<LeaseManager>;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,5 +108,15 @@ mod tests {
         let sock = v["handler_socket"].as_str().unwrap();
         assert!(sock.ends_with("/lambda-server.sock"));
         assert_eq!(v["ttl_secs"], 45);
+    }
+
+    #[test]
+    fn purge_expired_drops_stale_leases() {
+        let mgr = LeaseManager::new(1);
+        let v = mgr.create("calc.add", "lambda-server", None, Some(0));
+        let lease_id = v["lease_id"].as_str().unwrap().to_string();
+        std::thread::sleep(Duration::from_millis(5));
+        mgr.purge_expired();
+        assert!(mgr.get(&lease_id).is_none());
     }
 }
