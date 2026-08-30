@@ -40,6 +40,9 @@ fi
 cp "${KERNEL_STAGE}" "${ISO_DIR}/boot/vmlinuz"
 cp "${INITRAMFS}" "${ISO_DIR}/boot/initramfs.cpio.gz"
 
+# grub-mkrescue runs xorriso as the current user; root-only files break grafting.
+chmod -R a+rX "${ISO_DIR}" 2>/dev/null || sudo chmod -R a+rX "${ISO_DIR}"
+
 cat > "${ISO_DIR}/boot/grub/grub.cfg" <<'GRUB'
 set timeout=3
 set default=0
@@ -56,11 +59,23 @@ menuentry "The Machine (debug shell)" {
 GRUB
 
 mkdir -p "${BUILD_DIR}"
-if command -v grub-mkrescue >/dev/null 2>&1; then
-  grub-mkrescue -o "${OUTPUT}" "${ISO_DIR}" 2>/dev/null \
-    || xorriso -as mkisofs -R -J -o "${OUTPUT}" "${ISO_DIR}"
-else
-  xorriso -as mkisofs -R -J -o "${OUTPUT}" "${ISO_DIR}"
+rm -f "${OUTPUT}"
+
+if ! command -v grub-mkrescue >/dev/null 2>&1; then
+  echo "ERROR: grub-mkrescue not found. Install grub-pc-bin, grub-common, xorriso, and mtools." >&2
+  exit 1
 fi
+if ! command -v mformat >/dev/null 2>&1; then
+  echo "ERROR: mformat not found. Install mtools (required by grub-mkrescue)." >&2
+  exit 1
+fi
+
+echo "==> Running grub-mkrescue"
+if ! grub-mkrescue -o "${OUTPUT}" "${ISO_DIR}"; then
+  echo "ERROR: grub-mkrescue failed; refusing to emit a non-bootable ISO." >&2
+  exit 1
+fi
+
+bash "${ROOT}/build/verify-iso-bootable.sh" "${OUTPUT}"
 
 echo "==> ISO written to ${OUTPUT} ($(du -h "${OUTPUT}" | cut -f1))"

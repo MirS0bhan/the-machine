@@ -73,7 +73,7 @@ mod tests {
             .await
             .unwrap_err();
         assert!(
-            err.contains("credential_ref") || err.contains("wpa_cli") || err.contains("wireless"),
+            err.contains("credential") || err.contains("wpa_cli") || err.contains("wireless"),
             "unexpected: {err}"
         );
     }

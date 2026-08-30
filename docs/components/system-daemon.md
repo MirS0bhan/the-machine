@@ -157,16 +157,16 @@ The shared secret is compiled into both the System Daemon and Broker binaries at
 
 | MCP Method | Implementation | Notes |
 |------------|----------------|-------|
-| `power.get_profile` | Read `/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor` | Returns current profile (falls back to `balanced` when cpufreq sysfs is absent) |
-| `power.set_profile` | Write to scaling_governor files | Requires grant token; returns `E_UNAVAILABLE` when cpufreq sysfs is absent |
-| `display.get_modes` | Use DRM/KMS `drmModeGetResources` + `drmModeGetConnector` | Returns available modes |
-| `display.set_mode` | Use DRM/KMS `drmModeSetCrtc` | Requires grant token |
-| `net.list_interfaces` | `rtnetlink` RTM_GETLINK (sysfs fallback) | Returns all interfaces |
-| `net.set_interface_state` | `rtnetlink` RTM_SETLINK (`ip link` fallback) | Requires grant token |
+| `power.get_profile` | Read `/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor` | Returns current profile |
+| `power.set_profile` | Write to scaling_governor files | Requires grant token |
+| `display.get_modes` | Read `/sys/class/drm/card*-*/modes`, then DRM `MODE_GETCONNECTOR` | Falls back to 1920×1080 when no DRM sysfs |
+| `display.set_mode` | DRM/KMS `MODE_SETCRTC` on `THE_MACHINE_DRM_DEVICE` (default `/dev/dri/card0`) | Requires grant token; returns `E_UNAVAILABLE` when no DRM device |
+| `net.list_interfaces` | Use `rtnetlink` (RTM_GETLINK) | Returns all interfaces |
+| `net.set_interface_state` | Use `rtnetlink` (RTM_SETLINK) | Requires grant token |
 | `net.get_wifi_status` | Read `/proc/net/wireless` when present | `"disconnected"` or `"associated"` |
-| `net.connect_wifi` | `wpa_cli` + secret file at `/run/the-machine/secrets/<credential_ref>` | Requires grant token; `E_UNAVAILABLE` when no wireless iface or wpa_cli |
-| `audio.list_devices` | `pactl list short` (PipeWire/Pulse) | Falls back to single `default` output |
-| `audio.set_default` | `pactl set-default-sink` | Requires grant token |
+| `net.connect_wifi` | Grant-gated; resolves PSK from `/run/the-machine/secrets/wifi/<ref>` + `wpa_cli` | Returns `E_UNAVAILABLE` when iface/wpa_cli/credential missing |
+| `audio.list_devices` | Use ALSA `snd_card_next` or PipeWire | Returns audio devices |
+| `audio.set_default` | Update PipeWire or ALSA default symlink | Requires grant token |
 
 ### Grant Token Verification
 
@@ -281,7 +281,7 @@ system-daemon.stats() → {
 ```
 power.set_profile(profile: "balanced" | "performance" | "powersave") → {}
 
-display.set_mode(width: u32, height: u32, refresh: f32) → {}
+display.set_mode(width: u32, height: u32, refresh: f32) → {} | E_UNAVAILABLE when DRM/KMS is absent
 
 net.set_interface_state(name: string, state: "up" | "down") → {}
 

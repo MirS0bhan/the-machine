@@ -8,20 +8,32 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| G13 rootfs CI validate | — | — | merged | 2026-08-30 | `rootfs-validate.sh` + test in Makefile |
-| G14 rtnetlink | — | — | merged | 2026-08-30 | `system-daemon/src/netlink.rs` |
-| G17 surface paint | — | — | merged | 2026-08-30 | `wl_shm` + commit → pixel blit |
-| bare-metal phases A–E | — | — | merged | 2026-08-30 | see `bare-metal-desktop.md` |
-| audit hardware-smoke CI | cursor/maintenance-audit-hardware-smoke-ci-* | — | pr-open | 2026-08-30 | wire `build/hardware-smoke.sh` into `test-build-scripts` |
+| G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
+| Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
 ## Recent runs (newest first)
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | audit | hardware-smoke CI | pr-open |
+| 2026-08-30 | audit | hardware-smoke CI | merged to main |
+| 2026-08-30 | audit | system-daemon MCP handler tests | merged to main (#146) |
+| 2026-08-30 | gap | G14 wifi wpa_cli connect | merged to main |
+| 2026-08-30 | gap | G14 display.set_mode DRM | merged to main |
+| 2026-08-30 | gap | compositor MCP handler tests | merged to main (#142) |
+| 2026-08-30 | gap | G14 power.set_profile sysfs | merged to main |
+| 2026-08-30 | verify-fix | initramfs busybox/cpio fetch | merged to main |
+| 2026-08-30 | gap | G13 kernel scaffold | merged to main |
+| 2026-08-30 | gap | G12 lease fast-path | merged to main |
+| 2026-08-30 | gap | bare-metal desktop A–C | merged to main |
+| 2026-08-30 | gap | G17 wl_display scaffold | merged to main |
+| 2026-08-30 | gap | G7 | merged to main |
+| 2026-08-30 | gap | policy hardening | merged to main |
 
 ## Next suggested work
 
-1. **G13** — smoke-test installed rootfs on physical hardware (debootstrap + GRUB boot)
-2. **G17** — wlroots xdg-shell compositing (optional; SHM path done; 7-day cooldown)
-3. **audit** — dead code / clippy in one crate (-p compositor)
+Rotate when completing a row. Prefer top item not in cooldown.
+
+1. **G14** — udev hotplug → event.publish (PR #145)
+2. **G17** — compositor: wlroots seat/output + `wl_compositor` global (cooldown until 2026-09-06)
+3. **G13** — validate installed rootfs on bare metal (debootstrap + GRUB)
+4. **audit** — dead code / clippy in one crate (-p compositor)
