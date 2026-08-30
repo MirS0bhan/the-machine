@@ -24,17 +24,16 @@ pub async fn run_confirmation_ui_loop(confirmation: Arc<tokio::sync::Mutex<Confi
             }
         } else {
             let first = &pending[0];
-            if last_rendered.as_deref() != Some(&first.correlation_id) {
-                if render_confirmation(
+            if last_rendered.as_deref() != Some(&first.correlation_id)
+                && render_confirmation(
                     &first.correlation_id,
                     &first.capability,
                     first.path.as_deref(),
                 )
                 .await
-                {
-                    last_rendered = Some(first.correlation_id.clone());
-                    info!("confirmation surface shown for {}", first.correlation_id);
-                }
+            {
+                last_rendered = Some(first.correlation_id.clone());
+                info!("confirmation surface shown for {}", first.correlation_id);
             }
         }
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
