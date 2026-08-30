@@ -52,8 +52,13 @@ menuentry "The Machine" {
   initrd /boot/initramfs.cpio.gz
 }
 
-menuentry "The Machine (debug shell)" {
-  linux /boot/vmlinuz console=tty0 console=ttyS0,115200 rdinit=/init single
+menuentry "The Machine (debug)" {
+  linux /boot/vmlinuz console=tty0 console=ttyS0,115200 rdinit=/init the-machine.debug loglevel=7
+  initrd /boot/initramfs.cpio.gz
+}
+
+menuentry "The Machine (rescue shell)" {
+  linux /boot/vmlinuz console=tty0 console=ttyS0,115200 rdinit=/init the-machine.rescue
   initrd /boot/initramfs.cpio.gz
 }
 GRUB

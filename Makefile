@@ -8,7 +8,7 @@ ISO        ?= build/the-machine.iso
 MEM        ?= 1G
 PYTHON     ?= python3
 
-.PHONY: all build build-release initramfs initramfs-release iso iso-release qemu run run-console clean \
+.PHONY: all build build-release initramfs initramfs-release iso iso-release qemu run run-console run-debug clean \
         test test-rust test-python test-all test-build-scripts verify verify-docs coverage lint docs help \
         services-start services-stop ci-package fetch-model fetch-busybox rootfs rootfs-release
 
@@ -43,20 +43,27 @@ iso-release: initramfs-release
 # KVM when available (bare metal / nested virt); TCG otherwise (CI, cloud VMs).
 QEMU_ACCEL ?= $(shell if [ -r /dev/kvm ]; then echo -enable-kvm; else echo -accel tcg; fi)
 
+# Serial console on the same terminal as QEMU (see docs/guides/boot-debugging.md).
+QEMU_SERIAL ?= -serial mon:stdio
+
 # Boot directly from the kernel + initramfs (fast iteration, no ISO).
 qemu: initramfs
 	$(QEMU) $(QEMU_ACCEL) -kernel "$(KERNEL)" -initrd "$(INITRAMFS)" \
-		-append "console=ttyS0,115200 rdinit=/init" -m $(MEM) -nographic
+		-append "console=ttyS0,115200 rdinit=/init the-machine.debug" -m $(MEM) -nographic
 
 # Boot the produced ISO in QEMU.
 # `run` uses a graphical display when $DISPLAY is set (framebuffer compositor);
 # otherwise it falls back to serial. `run-console` is always nographic.
+# `run-debug` adds serial logging on the launching terminal (recommended for blank-screen diagnosis).
 run: iso
 	@if [ -n "$$DISPLAY" ]; then \
-		$(QEMU) $(QEMU_ACCEL) -m $(MEM) -cdrom "$(ISO)" -vga std; \
+		$(QEMU) $(QEMU_ACCEL) -m $(MEM) -cdrom "$(ISO)" -boot d -vga std; \
 	else \
 		$(QEMU) $(QEMU_ACCEL) -m $(MEM) -cdrom "$(ISO)" -nographic; \
 	fi
+
+run-debug: iso
+	$(QEMU) $(QEMU_ACCEL) -m $(MEM) -cdrom "$(ISO)" -boot d -vga std $(QEMU_SERIAL)
 
 run-console: iso
 	$(QEMU) $(QEMU_ACCEL) -m $(MEM) -cdrom "$(ISO)" -nographic
@@ -77,6 +84,7 @@ test-build-scripts:
 	bash build/hardware-smoke.sh
 	bash build/test-boot-greet-e2e.sh
 	bash build/test-boot-greet-services.sh
+	bash build/test-boot-logging.sh
 
 test-rust:
 	$(CARGO) test --workspace
@@ -140,6 +148,7 @@ help:
 	@echo "  iso            - Build the bootable ISO image"
 	@echo "  qemu           - Boot kernel+initramfs directly in QEMU"
 	@echo "  run            - Boot the ISO in QEMU (graphical if DISPLAY is set)"
+	@echo "  run-debug      - Boot ISO with VGA + serial logs on this terminal"
 	@echo "  run-console    - Boot the ISO in QEMU (serial / nographic)"
 	@echo "  lint           - rustfmt + clippy on socket/bus/daemon crates"
 	@echo "  fetch-model    - Download or stub the GGUF weights for the ISO"
