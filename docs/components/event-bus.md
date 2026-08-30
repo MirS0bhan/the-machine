@@ -563,6 +563,23 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## External Event Adapters
+
+On boot, the Rust daemon starts three optional ingress adapters (`event-bus/src/adapters/`):
+
+| Adapter | Source | Events emitted | Disable |
+|---------|--------|----------------|---------|
+| **D-Bus** | System bus via `zbus` | `desktop.notify`, `login.prepare_sleep` | `THE_MACHINE_DISABLE_DBUS=1` |
+| **inotify** | Filesystem watches | `fs.change.*` | No paths configured |
+| **audio** | ALSA/Pulse (when present) | `audio.*` | Unavailable on headless hosts |
+
+The D-Bus adapter subscribes directly to `org.freedesktop.Notifications.Notify` and
+`org.freedesktop.login1.Manager.PrepareForSleep` using in-process `zbus` match rules.
+No host `dbus-monitor` binary is required; when the system bus is unavailable the adapter
+logs and retries on a 30s backoff.
+
+---
+
 ## See Also
 
 - [State Store](./state-store.md) — for the underlying storage and subscriptions
