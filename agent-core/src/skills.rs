@@ -42,7 +42,10 @@ pub fn builtin_skills() -> Vec<Skill> {
         Skill {
             name: "notification-triage".into(),
             version: 1,
-            applies_to: vec!["category:notification".into(), "intent:notification.triage".into()],
+            applies_to: vec![
+                "category:notification".into(),
+                "intent:notification.triage".into(),
+            ],
             system_prompt: "Summarize notifications and patch UI with actionable cards.".into(),
             description: "Notification triage".into(),
         },
@@ -79,9 +82,9 @@ pub fn skills_for_wake(skills: &[Skill], category: &str, intent: &str) -> Vec<Sk
         .iter()
         .filter(|s| {
             s.applies_to.is_empty()
-                || s.applies_to.iter().any(|a| {
-                    a == "*" || a == &cat_key || a == &intent_key || a == "category:*"
-                })
+                || s.applies_to
+                    .iter()
+                    .any(|a| a == "*" || a == &cat_key || a == &intent_key || a == "category:*")
         })
         .cloned()
         .collect()
@@ -93,7 +96,10 @@ pub fn build_skill_prompt(skills: &[Skill]) -> String {
     }
     let mut out = String::from("Active skills:\n");
     for s in skills {
-        out.push_str(&format!("- {} (v{}): {}\n", s.name, s.version, s.system_prompt));
+        out.push_str(&format!(
+            "- {} (v{}): {}\n",
+            s.name, s.version, s.system_prompt
+        ));
     }
     out
 }

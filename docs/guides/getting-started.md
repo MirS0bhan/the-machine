@@ -11,7 +11,7 @@ This guide walks through building, testing, and running **The Machine** on a Lin
 |------|---------|---------|
 | Rust | 1.98+ (see `rust-toolchain.toml`) | L0–L5 service daemons |
 | Python | 3.10+ | L1 MCP servers (lambda, policy, state, local-model, ui-engine) |
-| busybox-static | any | Initramfs `/bin/sh` |
+| busybox-static | any | Initramfs `/bin/sh` (or auto-fetched via `build/fetch-busybox.sh`) |
 | grub-pc-bin, xorriso | any | ISO image creation |
 | pytest, pytest-asyncio | any | Integration tests |
 | cargo-llvm-cov | optional | `make coverage` |
@@ -39,7 +39,7 @@ make build
 # Release binaries (for ISO)
 make build-release
 
-# Bootable initramfs + ISO (fetches GGUF model via build/fetch-model.sh)
+# Bootable initramfs + ISO (fetches GGUF model + busybox when missing)
 make iso
 ```
 
@@ -78,6 +78,7 @@ Boot services started by `scripts/start-services.sh` (rust mode):
 | `THE_MACHINE_LAMBDA_DIR` | `/var/the-machine/lambdas` | Synthesized lambda source root |
 | `THE_MACHINE_TOKEN_SECRET` | ISO default material | HMAC key for grant tokens |
 | `THE_MACHINE_POLICY_FAIL_OPEN` | unset (fail closed) | Set `1` to allow mutations when the broker is down |
+| `THE_MACHINE_LEASE_FAST_PATH` | unset (metadata only) | Set `1` to bind per-lease relay sockets on `bus.lease` |
 
 ## Test
 

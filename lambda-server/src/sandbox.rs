@@ -107,53 +107,156 @@ fn extract_list(raw: &str) -> Option<Vec<String>> {
 fn base_syscalls() -> Vec<i64> {
     use libc::*;
     vec![
-        SYS_read, SYS_write, SYS_close, SYS_fstat, SYS_lseek, SYS_mmap,
-        SYS_mprotect, SYS_munmap, SYS_brk, SYS_rt_sigaction, SYS_rt_sigprocmask,
-        SYS_rt_sigreturn, SYS_ioctl, SYS_pread64, SYS_pwrite64, SYS_readv,
-        SYS_writev, SYS_pipe, SYS_pipe2, SYS_select, SYS_poll, SYS_ppoll,
-        SYS_sched_yield, SYS_mremap, SYS_madvise, SYS_dup, SYS_dup2, SYS_dup3,
-        SYS_nanosleep, SYS_clock_nanosleep, SYS_getitimer, SYS_setitimer,
-        SYS_alarm, SYS_getpid, SYS_getppid, SYS_gettid, SYS_futex,
-        SYS_set_tid_address, SYS_restart_syscall, SYS_getdents64,
-        SYS_set_robust_list, SYS_get_robust_list, SYS_sched_getaffinity,
-        SYS_sched_setaffinity, SYS_getpriority, SYS_setpriority,
-        SYS_prlimit64, SYS_prctl, SYS_arch_prctl, SYS_getrandom,
-        SYS_clock_gettime, SYS_clock_getres, SYS_gettimeofday,
-        SYS_getrlimit, SYS_getrusage, SYS_umask, SYS_getcwd, SYS_chdir,
-        SYS_getuid, SYS_getgid, SYS_geteuid, SYS_getegid, SYS_getgroups,
-        SYS_setpgid, SYS_setsid, SYS_fcntl, SYS_flock, SYS_fsync,
-        SYS_fdatasync, SYS_epoll_create1, SYS_epoll_ctl, SYS_epoll_wait,
-        SYS_epoll_pwait, SYS_eventfd2, SYS_signalfd4, SYS_membarrier,
-        SYS_rseq, SYS_clone, SYS_clone3, SYS_fork, SYS_vfork, SYS_execve,
-        SYS_wait4, SYS_kill, SYS_tkill, SYS_tgkill, SYS_exit, SYS_exit_group,
+        SYS_read,
+        SYS_write,
+        SYS_close,
+        SYS_fstat,
+        SYS_lseek,
+        SYS_mmap,
+        SYS_mprotect,
+        SYS_munmap,
+        SYS_brk,
+        SYS_rt_sigaction,
+        SYS_rt_sigprocmask,
+        SYS_rt_sigreturn,
+        SYS_ioctl,
+        SYS_pread64,
+        SYS_pwrite64,
+        SYS_readv,
+        SYS_writev,
+        SYS_pipe,
+        SYS_pipe2,
+        SYS_select,
+        SYS_poll,
+        SYS_ppoll,
+        SYS_sched_yield,
+        SYS_mremap,
+        SYS_madvise,
+        SYS_dup,
+        SYS_dup2,
+        SYS_dup3,
+        SYS_nanosleep,
+        SYS_clock_nanosleep,
+        SYS_getitimer,
+        SYS_setitimer,
+        SYS_alarm,
+        SYS_getpid,
+        SYS_getppid,
+        SYS_gettid,
+        SYS_futex,
+        SYS_set_tid_address,
+        SYS_restart_syscall,
+        SYS_getdents64,
+        SYS_set_robust_list,
+        SYS_get_robust_list,
+        SYS_sched_getaffinity,
+        SYS_sched_setaffinity,
+        SYS_getpriority,
+        SYS_setpriority,
+        SYS_prlimit64,
+        SYS_prctl,
+        SYS_arch_prctl,
+        SYS_getrandom,
+        SYS_clock_gettime,
+        SYS_clock_getres,
+        SYS_gettimeofday,
+        SYS_getrlimit,
+        SYS_getrusage,
+        SYS_umask,
+        SYS_getcwd,
+        SYS_chdir,
+        SYS_getuid,
+        SYS_getgid,
+        SYS_geteuid,
+        SYS_getegid,
+        SYS_getgroups,
+        SYS_setpgid,
+        SYS_setsid,
+        SYS_fcntl,
+        SYS_flock,
+        SYS_fsync,
+        SYS_fdatasync,
+        SYS_epoll_create1,
+        SYS_epoll_ctl,
+        SYS_epoll_wait,
+        SYS_epoll_pwait,
+        SYS_eventfd2,
+        SYS_signalfd4,
+        SYS_membarrier,
+        SYS_rseq,
+        SYS_clone,
+        SYS_clone3,
+        SYS_fork,
+        SYS_vfork,
+        SYS_execve,
+        SYS_wait4,
+        SYS_kill,
+        SYS_tkill,
+        SYS_tgkill,
+        SYS_exit,
+        SYS_exit_group,
     ]
 }
 
 fn fs_read_syscalls() -> Vec<i64> {
     use libc::*;
     vec![
-        SYS_open, SYS_openat, SYS_stat, SYS_lstat, SYS_newfstatat, SYS_access,
-        SYS_faccessat, SYS_faccessat2, SYS_readlink, SYS_statx,
+        SYS_open,
+        SYS_openat,
+        SYS_stat,
+        SYS_lstat,
+        SYS_newfstatat,
+        SYS_access,
+        SYS_faccessat,
+        SYS_faccessat2,
+        SYS_readlink,
+        SYS_statx,
     ]
 }
 
 fn fs_write_syscalls() -> Vec<i64> {
     use libc::*;
     vec![
-        SYS_creat, SYS_link, SYS_unlink, SYS_symlink, SYS_rename, SYS_mkdir,
-        SYS_rmdir, SYS_truncate, SYS_ftruncate, SYS_chmod, SYS_fchmod,
-        SYS_chown, SYS_fchown, SYS_lchown, SYS_utime, SYS_utimes,
-        SYS_fchmodat, SYS_renameat2,
+        SYS_creat,
+        SYS_link,
+        SYS_unlink,
+        SYS_symlink,
+        SYS_rename,
+        SYS_mkdir,
+        SYS_rmdir,
+        SYS_truncate,
+        SYS_ftruncate,
+        SYS_chmod,
+        SYS_fchmod,
+        SYS_chown,
+        SYS_fchown,
+        SYS_lchown,
+        SYS_utime,
+        SYS_utimes,
+        SYS_fchmodat,
+        SYS_renameat2,
     ]
 }
 
 fn net_ipc_syscalls() -> Vec<i64> {
     use libc::*;
     vec![
-        SYS_socket, SYS_socketpair, SYS_connect, SYS_accept, SYS_accept4,
-        SYS_bind, SYS_listen, SYS_sendto, SYS_recvfrom, SYS_sendmsg,
-        SYS_recvmsg, SYS_getsockname, SYS_getpeername, SYS_setsockopt,
-        SYS_getsockopt, SYS_shutdown,
+        SYS_socket,
+        SYS_socketpair,
+        SYS_connect,
+        SYS_accept,
+        SYS_accept4,
+        SYS_bind,
+        SYS_listen,
+        SYS_sendto,
+        SYS_recvfrom,
+        SYS_sendmsg,
+        SYS_recvmsg,
+        SYS_getsockname,
+        SYS_getpeername,
+        SYS_setsockopt,
+        SYS_getsockopt,
+        SYS_shutdown,
     ]
 }
 
@@ -218,7 +321,12 @@ const SECCOMP_RET_KILL_PROCESS: u32 = 0x8000_0000;
 const AUDIT_ARCH_X86_64: u32 = 0xC000_003E;
 
 fn stmt(code: u16, k: u32) -> SockFilter {
-    SockFilter { code, jt: 0, jf: 0, k }
+    SockFilter {
+        code,
+        jt: 0,
+        jf: 0,
+        k,
+    }
 }
 fn jt(code: u16, k: u32, jt: u8, jf: u8) -> SockFilter {
     SockFilter { code, jt, jf, k }
@@ -292,7 +400,13 @@ fn drop_caps() {
             &mut data as *mut [CapData; 2] as libc::c_ulong,
         );
         // Clear any ambient capabilities too.
-        libc::prctl(libc::PR_CAP_AMBIENT, libc::PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0);
+        libc::prctl(
+            libc::PR_CAP_AMBIENT,
+            libc::PR_CAP_AMBIENT_CLEAR_ALL,
+            0,
+            0,
+            0,
+        );
     }
 }
 
@@ -407,9 +521,7 @@ fn read_thread(fd: i32) -> String {
     let mut s = String::new();
     let mut buf = [0u8; 4096];
     loop {
-        let n = unsafe {
-            libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len())
-        };
+        let n = unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
         if n <= 0 {
             break;
         }
@@ -429,11 +541,7 @@ pub fn run_sandboxed(input: &SandboxInput) -> SandboxOutput {
     let mut st_r = -1;
     let mut st_w = -1;
 
-    let mut pipes = [
-        [0i32; 2],
-        [0i32; 2],
-        [0i32; 2],
-    ];
+    let mut pipes = [[0i32; 2], [0i32; 2], [0i32; 2]];
     unsafe {
         if libc::pipe(pipes[0].as_mut_ptr()) != 0
             || libc::pipe(pipes[1].as_mut_ptr()) != 0
@@ -455,7 +563,9 @@ pub fn run_sandboxed(input: &SandboxInput) -> SandboxOutput {
     in_w = pipes[2][1];
 
     let mut st_pipe = [0i32; 2];
-    unsafe { libc::pipe(st_pipe.as_mut_ptr()); }
+    unsafe {
+        libc::pipe(st_pipe.as_mut_ptr());
+    }
     st_r = st_pipe[0];
     st_w = st_pipe[1];
 
@@ -475,8 +585,7 @@ pub fn run_sandboxed(input: &SandboxInput) -> SandboxOutput {
         .chain(input.args.iter().cloned())
         .filter_map(|s| CString::new(s).ok())
         .collect();
-    let mut argv_ptrs: Vec<*const libc::c_char> =
-        argv.iter().map(|c| c.as_ptr()).collect();
+    let mut argv_ptrs: Vec<*const libc::c_char> = argv.iter().map(|c| c.as_ptr()).collect();
     argv_ptrs.push(std::ptr::null());
 
     let ipc_fd = input.ipc_ns_fd;
@@ -574,7 +683,9 @@ pub fn run_sandboxed(input: &SandboxInput) -> SandboxOutput {
     let out_thr = std::thread::spawn(move || read_thread(out_r));
     let err_thr = std::thread::spawn(move || read_thread(err_r));
     let timeout_ms = input.timeout_ms;
-    unsafe { libc::close(st_w); }
+    unsafe {
+        libc::close(st_w);
+    }
 
     let watchdog = std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(timeout_ms));
@@ -600,8 +711,7 @@ pub fn run_sandboxed(input: &SandboxInput) -> SandboxOutput {
     }
     let killed = unsafe {
         libc::WIFSIGNALED(status)
-            && (libc::WTERMSIG(status) == libc::SIGSYS
-                || libc::WTERMSIG(status) == libc::SIGKILL)
+            && (libc::WTERMSIG(status) == libc::SIGSYS || libc::WTERMSIG(status) == libc::SIGKILL)
     };
 
     SandboxOutput {
@@ -703,7 +813,11 @@ pub fn run_persistent(input: &SandboxInput) -> Option<Persistent> {
 }
 
 /// Send one request to a persistent process and read one response line.
-pub fn persistent_request(p: &Persistent, payload: &[u8], timeout_ms: u64) -> Result<String, String> {
+pub fn persistent_request(
+    p: &Persistent,
+    payload: &[u8],
+    timeout_ms: u64,
+) -> Result<String, String> {
     unsafe {
         write_all(p.stdin_fd, payload);
         // Newline-delimited protocol.
@@ -714,8 +828,7 @@ pub fn persistent_request(p: &Persistent, payload: &[u8], timeout_ms: u64) -> Re
         let mut s = String::new();
         let mut buf = [0u8; 4096];
         loop {
-            let n =
-                unsafe { libc::read(out_fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
+            let n = unsafe { libc::read(out_fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
             if n <= 0 {
                 break;
             }

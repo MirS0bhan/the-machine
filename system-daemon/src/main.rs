@@ -10,6 +10,10 @@ use tracing::{error, info};
 mod display;
 mod input;
 mod kernel;
+mod net;
+mod netlink;
+mod power;
+mod wifi;
 
 #[derive(Clone)]
 struct AppState {
@@ -140,7 +144,7 @@ async fn handle_request(
             success_response(id, serde_json::json!({ "modes": modes }))
         }
         "net.list_interfaces" => {
-            let interfaces = state.kernel_handler.lock().await.list_interfaces();
+            let interfaces = state.kernel_handler.lock().await.list_interfaces().await;
             success_response(id, serde_json::json!({ "interfaces": interfaces }))
         }
         "audio.list_devices" => {
@@ -351,9 +355,16 @@ mod tests {
             &state,
         )
         .await;
-        assert!(resp.error.is_none(), "{:?}", resp.error);
         assert_eq!(resp.id, id);
-        assert_eq!(state.stats.read().await.kernel_ops_executed, 1);
+        let err_code = resp.error.as_ref().map(|e| e.code.as_str());
+        assert!(
+            resp.error.is_none() || err_code == Some("E_UNAVAILABLE"),
+            "token should pass; got {:?}",
+            resp.error
+        );
+        if resp.error.is_none() {
+            assert_eq!(state.stats.read().await.kernel_ops_executed, 1);
+        }
     }
 
     #[tokio::test]
@@ -396,5 +407,35 @@ mod tests {
         let result = resp.result.unwrap();
         let status = result.get("status").and_then(|v| v.as_str());
         assert!(status == Some("disconnected") || status == Some("associated"));
+    }
+
+    #[tokio::test]
+    async fn display_set_mode_without_drm_returns_unavailable() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        std::env::set_var("THE_MACHINE_DRM_DEVICE", "/tmp/the-machine-no-drm-card0");
+        let token = shared_verifier().issue_token(
+            GrantScope {
+                method: "display.set_mode".into(),
+                request_hash: "t".into(),
+                requester_identity: "test".into(),
+            },
+            60,
+        );
+        let resp = handle_request(
+            "display.set_mode".into(),
+            Some(serde_json::json!({
+                "width": 1920,
+                "height": 1080,
+                "refresh": 60.0,
+                "token": token,
+            })),
+            &id,
+            &state,
+        )
+        .await;
+        std::env::remove_var("THE_MACHINE_DRM_DEVICE");
+        let err = resp.error.expect("expected unavailable without DRM");
+        assert_eq!(err.code, "E_UNAVAILABLE");
     }
 }

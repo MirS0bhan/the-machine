@@ -11,4 +11,5 @@ __pycache__/
 /build/verify-wheels
 /build/artifacts
 /build/coverage.lcov
+/build/tools
 

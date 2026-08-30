@@ -2,15 +2,19 @@
 
 **Layer:** L5  
 **Type:** Deterministic, non-LLM  
-**Technology:** wlroots-based Wayland compositor  
-**Language:** C or Rust  
+**Technology:** Rust compositor — DRM/KMS, framebuffer, and `wayland-server`  
+**Language:** Rust  
 **Dependencies:** System Daemon (for input events)  
 
 ---
 
 ## Overview
 
-The Wayland Compositor in The Machine is a **standard-ish** compositor (based on wlroots) that can run conventional Wayland/X11 clients. Its role is to perform low-level compositing, damage tracking, frame scheduling, and input event delivery — all deterministic, all outside the agent's real-time path.
+The compositor paints the agent UI to real pixels and optionally exposes a Wayland session. On bare metal, `THE_MACHINE_COMPOSITOR_BACKEND=auto` prefers DRM when `/dev/dri/card0` is present.
+
+With `THE_MACHINE_COMPOSITOR_BACKEND=wayland` or `THE_MACHINE_WL_DISPLAY_BIND=1`, the compositor binds `wl_display` and registers `wl_compositor`, `wl_output`, `wl_seat`, and `wl_shm`. Surface commits blit SHM buffers into the pixel backend.
+
+A future wlroots `xdg-shell` path for third-party Wayland clients is optional (gap G17 in the architecture checklist).
 
 ---
 
@@ -254,9 +258,14 @@ The UI Runtime can embed XWayland surfaces using `ExternalSurface` nodes:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `THE_MACHINE_COMPOSITOR_BACKEND` | `auto` | Pixel backend: `auto`, `drm`, `framebuffer`, `memory`, or `wayland` |
+| `THE_MACHINE_WL_DISPLAY_BIND` | unset | Set to `1` to bind a real `wl_display` socket in `auto` mode (G17 scaffold) |
+| `WAYLAND_DISPLAY` | `wayland-0` | Wayland socket name when `THE_MACHINE_COMPOSITOR_BACKEND=wayland` |
 | `THE_MACHINE_COMPOSITOR_SOCKET` | `/run/the-machine/compositor-input.sock` | Input socket from System Daemon |
 | `THE_MACHINE_COMPOSITOR_OUTPUT` | `auto` | Output to use (`auto` detects first available) |
 | `THE_MACHINE_COMPOSITOR_REFRESH` | `60` | Refresh rate in Hz |
+
+`compositor.status` includes a `wayland_session` object when the Wayland scaffold is active (`bound`, `display`, `engine`, `surface_paint`, `globals`).
 
 ### Command-Line Arguments
 

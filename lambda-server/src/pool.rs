@@ -1,6 +1,6 @@
 //! Warm pool: pre-lease sandboxes for hot MCP routes.
 
-use crate::sandbox::{run_persistent, persistent_kill, SandboxInput, Persistent};
+use crate::sandbox::{persistent_kill, run_persistent, Persistent, SandboxInput};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;

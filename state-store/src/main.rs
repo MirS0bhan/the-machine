@@ -298,7 +298,11 @@ async fn handle_request(
                 }),
             )
         }
-        _ => error_response(req_id, "E_NOT_FOUND", &format!("Unknown method: {}", method)),
+        _ => error_response(
+            req_id,
+            "E_NOT_FOUND",
+            &format!("Unknown method: {}", method),
+        ),
     }
 }
 

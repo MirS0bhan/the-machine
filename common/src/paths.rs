@@ -8,6 +8,14 @@
 /// Default socket directory on the ISO / initramfs boot path.
 pub const DEFAULT_SOCKET_DIR: &str = "/run/the-machine";
 
+/// Wayland runtime directory on boot / bare-metal installs.
+pub const DEFAULT_RUNTIME_DIR: &str = "/run/the-machine";
+
+/// DRM/KMS device node used by compositor and system-daemon display ops.
+pub fn drm_device_path() -> String {
+    std::env::var("THE_MACHINE_DRM_DEVICE").unwrap_or_else(|_| "/dev/dri/card0".into())
+}
+
 /// Directory that holds component Unix sockets.
 pub fn socket_dir() -> String {
     std::env::var("THE_MACHINE_SOCKET_DIR").unwrap_or_else(|_| DEFAULT_SOCKET_DIR.to_string())

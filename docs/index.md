@@ -18,6 +18,7 @@ Welcome to the documentation for **The Machine**, an agent-native operating syst
 - [Layer Reference](./architecture/layers.md) — Detailed layer-by-layer breakdown
 - [Component Reference](./components/) — Each component's spec
 - [Getting Started](./guides/getting-started.md) — How to build and run
+- [Bare-Metal Desktop](./guides/bare-metal.md) — Install on physical hardware
 - [Testing & Coverage](./guides/testing.md) — Test suites and coverage reporting
 - [Python ↔ Rust Overlap](./guides/python-rust-overlap.md) — Which implementation to use
 - [Glossary](./reference/glossary.md) — Terminology reference
@@ -68,7 +69,8 @@ This OS removes the manual wiring. A single **Agent Core** sits between the huma
 3. Test: `make test-all`
 4. Verify docs ↔ code: `make verify-docs`
 5. Build ISO: `make iso`
-6. Build documentation: `make docs`
+6. Bare metal: see [Bare-Metal Desktop](./guides/bare-metal.md)
+7. Build documentation: `make docs`
 
 See the [Getting Started Guide](./guides/getting-started.md) for detailed setup.
 

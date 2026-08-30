@@ -124,11 +124,7 @@ mod tests {
     use super::*;
     use zbus::Message;
 
-    fn notify_message(
-        app_name: &str,
-        summary: &str,
-        body: &str,
-    ) -> zbus::Result<Message> {
+    fn notify_message(app_name: &str, summary: &str, body: &str) -> zbus::Result<Message> {
         Message::signal(
             "/org/freedesktop/Notifications",
             "org.freedesktop.Notifications",

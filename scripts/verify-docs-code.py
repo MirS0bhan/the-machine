@@ -38,12 +38,19 @@ def load_inventory() -> dict:
     return yaml.safe_load(INVENTORY.read_text())
 
 
-def parse_mkinitramfs_services() -> list[str]:
-    text = (ROOT / "build/mkinitramfs.sh").read_text()
-    m = re.search(r"SERVICES=\(\n((?:\s+[^\n]+\n)+)\)", text)
+def parse_rootfs_services() -> list[str]:
+    text = (ROOT / "build/rootfs-common.sh").read_text()
+    m = re.search(r"ROOTFS_SERVICES=\(\n((?:\s+[^\n]+\n)+)\)", text)
     if not m:
-        fail("Could not parse SERVICES from build/mkinitramfs.sh")
-    return [line.strip() for line in m.group(1).splitlines() if line.strip()]
+        fail("Could not parse ROOTFS_SERVICES from build/rootfs-common.sh")
+    services: list[str] = []
+    for line in m.group(1).splitlines():
+        services.extend(line.strip().split())
+    return services
+
+
+def parse_mkinitramfs_services() -> list[str]:
+    return parse_rootfs_services()
 
 
 def parse_verify_all_bins() -> list[str]:

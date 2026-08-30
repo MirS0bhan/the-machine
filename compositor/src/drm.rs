@@ -36,11 +36,12 @@ struct DrmModeDestroyDumb {
 
 #[repr(C)]
 struct DrmModeFbCmd2 {
-    flags: u32,
+    fb_id: u32,
     width: u32,
     height: u32,
     pixel_format: u32,
-    bo_handles: [u32; 4],
+    flags: u32,
+    handles: [u32; 4],
     pitches: [u32; 4],
     offsets: [u32; 4],
     modifier: [u64; 4],
@@ -116,14 +117,13 @@ unsafe impl Send for DrmMmap {}
 
 impl DrmBackend {
     pub fn open() -> Option<Self> {
-        let path = std::env::var("THE_MACHINE_DRM_DEVICE")
-            .unwrap_or_else(|_| "/dev/dri/card0".into());
+        let path = common::paths::drm_device_path();
         if !Path::new(&path).exists() {
             return None;
         }
         let card = OpenOptions::new().read(true).write(true).open(&path).ok()?;
         let fd = card.as_raw_fd();
-        let (width, height) = (1280u32, 720u32);
+        let (width, height) = preferred_drm_size().unwrap_or((1280u32, 720u32));
         let mut create = DrmModeCreateDumb {
             height,
             width,
@@ -169,11 +169,12 @@ impl DrmBackend {
         }
         let mut fb_id = 0u32;
         let mut fb_cmd = DrmModeFbCmd2 {
-            flags: 0,
+            fb_id: 0,
             width,
             height,
             pixel_format: fourcc(b"XR24"),
-            bo_handles: [create.handle, 0, 0, 0],
+            flags: 0,
+            handles: [create.handle, 0, 0, 0],
             pitches: [create.pitch, 0, 0, 0],
             offsets: [0, 0, 0, 0],
             modifier: [0, 0, 0, 0],
@@ -181,7 +182,7 @@ impl DrmBackend {
         };
         // DRM_IOCTL_MODE_ADDFB2 = 0xc0b064b8
         if unsafe { libc::ioctl(fd, 0xc0b064b8u64 as libc::c_ulong, &mut fb_cmd) } == 0 {
-            fb_id = fb_cmd.bo_handles[0];
+            fb_id = fb_cmd.fb_id;
         }
         let _ = set_crtc(fd, fb_id, width, height);
         info!(
@@ -300,11 +301,13 @@ fn set_crtc(fd: i32, fb_id: u32, width: u32, height: u32) -> bool {
         mode_valid: 1,
         mode,
     };
-    unsafe {
-        libc::ioctl(fd, DRM_IOCTL_MODE_SETCRTC as _, &mut crtc) == 0
-    }
+    unsafe { libc::ioctl(fd, DRM_IOCTL_MODE_SETCRTC as _, &mut crtc) == 0 }
 }
 
 pub fn backend_available() -> bool {
     Path::new("/dev/dri/card0").exists()
+}
+
+pub fn preferred_drm_size() -> Option<(u32, u32)> {
+    common::preferred_connector_size()
 }

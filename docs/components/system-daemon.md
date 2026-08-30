@@ -164,9 +164,9 @@ The shared secret is compiled into both the System Daemon and Broker binaries at
 | `net.list_interfaces` | Use `rtnetlink` (RTM_GETLINK) | Returns all interfaces |
 | `net.set_interface_state` | Use `rtnetlink` (RTM_SETLINK) | Requires grant token |
 | `net.get_wifi_status` | Read `/proc/net/wireless` when present | `"disconnected"` or `"associated"` |
-| `net.connect_wifi` | Grant-gated; host `wpa_supplicant` adapter not wired | Returns `E_UNAVAILABLE` rather than a fake success |
-| `audio.list_devices` | Use ALSA `snd_card_next` or PipeWire | Returns audio devices |
-| `audio.set_default` | Update PipeWire or ALSA default symlink | Requires grant token |
+| `net.connect_wifi` | `wpa_cli` + secret file at `/run/the-machine/secrets/<credential_ref>` | Requires grant token; `E_UNAVAILABLE` when no wireless iface or wpa_cli |
+| `audio.list_devices` | `pactl list short` (PipeWire/Pulse) | Falls back to single `default` output |
+| `audio.set_default` | `pactl set-default-sink` | Requires grant token |
 
 ### Grant Token Verification
 

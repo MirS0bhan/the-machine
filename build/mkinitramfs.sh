@@ -8,15 +8,18 @@ STAGE="${BUILD_DIR}/initramfs.stage"
 OUTPUT="${BUILD_DIR}/initramfs.cpio.gz"
 PROFILE="${1:-debug}"
 
+# shellcheck source=rootfs-common.sh
+source "${ROOT}/build/rootfs-common.sh"
+
 echo "==> Building initramfs (${PROFILE})"
 
 rm -rf "${STAGE}"
 mkdir -p "${STAGE}"/{bin,sbin,etc,the-machine,run/the-machine,proc,sys,dev,tmp,var/log}
 
 # Busybox provides /bin/sh and core utilities in the initramfs.
-BUSYBOX="$(command -v busybox || true)"
-if [[ -z "${BUSYBOX}" ]]; then
-  echo "ERROR: busybox not found. Install busybox-static." >&2
+BUSYBOX="$(bash "${ROOT}/build/fetch-busybox.sh" | tail -1)"
+if [[ -z "${BUSYBOX}" || ! -x "${BUSYBOX}" ]]; then
+  echo "ERROR: busybox not found. Install busybox-static or allow fetch." >&2
   exit 1
 fi
 cp "${BUSYBOX}" "${STAGE}/bin/busybox"
@@ -33,20 +36,7 @@ else
   BIN_DIR="${ROOT}/target/debug"
 fi
 
-SERVICES=(
-  system-daemon
-  mcp-bus
-  policy-broker
-  state-store
-  event-bus
-  lambda-server
-  local-model-daemon
-  agent-core
-  ui-runtime
-  compositor
-  fallback-shell
-  marketplace
-)
+SERVICES=("${ROOTFS_SERVICES[@]}")
 
 for svc in "${SERVICES[@]}"; do
   if [[ -x "${BIN_DIR}/${svc}" ]]; then
@@ -77,6 +67,7 @@ cat > "${STAGE}/init" <<'INIT'
 export PATH=/bin:/sbin:/the-machine
 export RUST_LOG=info
 export THE_MACHINE_SOCKET_DIR=/run/the-machine
+export XDG_RUNTIME_DIR=/run/the-machine
 export WAYLAND_DISPLAY=wayland-0
 export STATE_STORE_BACKEND=sled
 export STATE_STORE_PATH=/var/the-machine/state
@@ -138,11 +129,16 @@ while true; do sleep 3600; done
 INIT
 chmod +x "${STAGE}/init"
 
-# Pack cpio archive.
+# Pack cpio archive (use busybox cpio when host cpio is absent).
 mkdir -p "${BUILD_DIR}"
+if command -v cpio >/dev/null 2>&1; then
+  CPIO=(cpio -o -H newc)
+else
+  CPIO=("${BUSYBOX}" cpio -o -H newc)
+fi
 (
   cd "${STAGE}"
-  find . | cpio -o -H newc 2>/dev/null | gzip -9 > "${OUTPUT}"
+  find . | "${CPIO[@]}" 2>/dev/null | gzip -9 > "${OUTPUT}"
 )
 
 echo "==> Initramfs written to ${OUTPUT} ($(du -h "${OUTPUT}" | cut -f1))"

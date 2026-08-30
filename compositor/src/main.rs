@@ -1,9 +1,13 @@
 //! Compositor — surface model + real pixel output (framebuffer / wlroots).
 
-mod model;
 mod drm;
+mod env;
+mod model;
 mod pixel;
 mod wayland_backend;
+mod wl_globals;
+mod wl_session;
+mod wl_shm;
 
 use common::*;
 use model::{Compositor, Geometry, Surface};
@@ -21,12 +25,10 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     info!("Starting Compositor");
-    std::env::set_var(
-        "WAYLAND_DISPLAY",
-        std::env::var("WAYLAND_DISPLAY").unwrap_or_else(|_| "wayland-0".into()),
-    );
-    let _wayland = wayland_backend::try_start();
+    std::env::set_var("WAYLAND_DISPLAY", crate::env::wayland_display_name());
     let pixels: SharedPixel = Arc::new(Mutex::new(PixelBackend::open()));
+    let wayland: Arc<Option<wayland_backend::WaylandSession>> =
+        Arc::new(wayland_backend::try_start(pixels.clone()));
     let comp: Arc<Mutex<Compositor>> = Arc::new(Mutex::new(Compositor::new()));
 
     // Background present loop.
@@ -38,19 +40,24 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    let socket_dir =
-        std::env::var("THE_MACHINE_SOCKET_DIR").unwrap_or_else(|_| "/run/the-machine".to_string());
-    let socket_path = format!("{}/compositor.sock", socket_dir);
+    let socket_path = common::component_socket("compositor");
+    if let Some(parent) = std::path::Path::new(&socket_path).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
     let _ = std::fs::remove_file(&socket_path);
     let listener = UnixListener::bind(&socket_path)?;
-    info!("Compositor listening on {} (pixel backend active)", socket_path);
+    info!(
+        "Compositor listening on {} (pixel backend active)",
+        socket_path
+    );
 
     loop {
         let (stream, _) = listener.accept().await?;
         let comp = comp.clone();
         let pixels = pixels.clone();
+        let wayland = wayland.clone();
         tokio::spawn(async move {
-            handle_connection(stream, comp, pixels).await;
+            handle_connection(stream, comp, pixels, wayland).await;
         });
     }
 }
@@ -58,7 +65,10 @@ async fn main() -> anyhow::Result<()> {
 async fn present_loop(comp: Arc<Mutex<Compositor>>, pixels: SharedPixel) {
     loop {
         paint_frame(&comp, &pixels).await;
-        tokio::time::sleep(std::time::Duration::from_millis(16)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(
+            crate::env::DEFAULT_FRAME_MS,
+        ))
+        .await;
     }
 }
 
@@ -95,6 +105,7 @@ async fn handle_connection(
     stream: tokio::net::UnixStream,
     comp: Arc<Mutex<Compositor>>,
     pixels: SharedPixel,
+    wayland: Arc<Option<wayland_backend::WaylandSession>>,
 ) {
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
@@ -104,7 +115,7 @@ async fn handle_connection(
         match reader.read_line(&mut line).await {
             Ok(0) => break,
             Ok(_) => {
-                if let Ok(response) = process_message(&line, &comp, &pixels).await {
+                if let Ok(response) = process_message(&line, &comp, &pixels, &wayland).await {
                     if let Err(e) = writer.write_all(response.as_bytes()).await {
                         error!("Write error: {}", e);
                         break;
@@ -123,13 +134,14 @@ async fn process_message(
     line: &str,
     comp: &Arc<Mutex<Compositor>>,
     pixels: &SharedPixel,
+    wayland: &Arc<Option<wayland_backend::WaylandSession>>,
 ) -> anyhow::Result<String> {
     let msg: McpMessage = serde_json::from_str(line.trim())?;
     let id = msg.id;
     let response = match msg.kind {
         MessageKind::Request => {
             let method = msg.method.clone().unwrap_or_default();
-            handle_request(method, msg.params, comp, pixels).await
+            handle_request(method, msg.params, comp, pixels, wayland).await
         }
         _ => error_response(&id, "E_INVALID_REQUEST", "Only requests supported"),
     };
@@ -141,13 +153,17 @@ async fn handle_request(
     params: Option<serde_json::Value>,
     comp: &Arc<Mutex<Compositor>>,
     pixels: &SharedPixel,
+    wayland: &Arc<Option<wayland_backend::WaylandSession>>,
 ) -> McpMessage {
     let id = Uuid::new_v4();
     let params = params.unwrap_or(serde_json::Value::Null);
     match method.as_str() {
         "compositor.surface" => handle_surface(params, comp, pixels, &id).await,
         "compositor.confirmation.set_active" => {
-            let active = params.get("active").and_then(|v| v.as_bool()).unwrap_or(false);
+            let active = params
+                .get("active")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             let surface_id = params
                 .get("surface_id")
                 .and_then(|v| v.as_str())
@@ -168,7 +184,11 @@ async fn handle_request(
             )
         }
         "compositor.blur" => {
-            let sid = params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let sid = params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             let on = params.get("on").and_then(|v| v.as_bool()).unwrap_or(true);
             let mut c = comp.lock().await;
             if let Some(s) = c.surfaces.get_mut(&sid) {
@@ -197,11 +217,19 @@ async fn handle_request(
         "compositor.list" => {
             let c = comp.lock().await;
             let surfaces: Vec<&Surface> = c.order.iter().map(|id| &c.surfaces[id]).collect();
-            success_response(&id, serde_json::to_value(surfaces).unwrap_or(serde_json::Value::Null))
+            success_response(
+                &id,
+                serde_json::to_value(surfaces).unwrap_or(serde_json::Value::Null),
+            )
         }
         "compositor.status" => {
             let c = comp.lock().await;
             let backend = pixels.lock().await.backend_name();
+            let wayland_session = wayland
+                .as_ref()
+                .as_ref()
+                .map(wayland_backend::WaylandSession::status)
+                .unwrap_or(serde_json::Value::Null);
             success_response(
                 &id,
                 serde_json::json!({
@@ -211,6 +239,7 @@ async fn handle_request(
                     "pixels": true,
                     "confirmation_active": c.confirmation_active,
                     "backend": backend,
+                    "wayland_session": wayland_session,
                 }),
             )
         }
@@ -224,7 +253,10 @@ async fn handle_surface(
     pixels: &SharedPixel,
     id: &Uuid,
 ) -> McpMessage {
-    let action = params.get("action").and_then(|v| v.as_str()).unwrap_or("create");
+    let action = params
+        .get("action")
+        .and_then(|v| v.as_str())
+        .unwrap_or("create");
     match action {
         "create" => {
             let sid = params
@@ -260,18 +292,32 @@ async fn handle_surface(
             c.recompute_order();
             drop(c);
             paint_frame(comp, pixels).await;
-            success_response(id, serde_json::json!({ "id": sid, "ok": true, "pixels": true }))
+            success_response(
+                id,
+                serde_json::json!({ "id": sid, "ok": true, "pixels": true }),
+            )
         }
         "destroy" => {
-            let sid = params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let sid = params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             let mut c = comp.lock().await;
             c.surfaces.remove(&sid);
             c.recompute_order();
             success_response(id, serde_json::json!({ "ok": true }))
         }
         "geometry" => {
-            let sid = params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let g = params.get("geometry").cloned().unwrap_or(serde_json::Value::Null);
+            let sid = params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let g = params
+                .get("geometry")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
             let mut c = comp.lock().await;
             if let Some(s) = c.surfaces.get_mut(&sid) {
                 if let Ok(geo) = serde_json::from_value::<Geometry>(g) {
@@ -293,7 +339,10 @@ async fn handle_focus(
     comp: &Arc<Mutex<Compositor>>,
     id: &Uuid,
 ) -> McpMessage {
-    let sid = params.get("id").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let sid = params
+        .get("id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     let mut c = comp.lock().await;
     for (_, s) in c.surfaces.iter_mut() {
         s.focused = false;
@@ -308,7 +357,10 @@ async fn handle_focus(
         }
     } else {
         c.focused = None;
-        success_response(id, serde_json::json!({ "focused": serde_json::Value::Null }))
+        success_response(
+            id,
+            serde_json::json!({ "focused": serde_json::Value::Null }),
+        )
     }
 }
 
@@ -380,5 +432,114 @@ fn error_response(id: &Uuid, code: &str, message: &str) -> McpMessage {
             message: message.to_string(),
             details: None,
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_harness() -> (
+        Arc<Mutex<Compositor>>,
+        SharedPixel,
+        Arc<Option<wayland_backend::WaylandSession>>,
+    ) {
+        std::env::set_var("THE_MACHINE_COMPOSITOR_BACKEND", "memory");
+        (
+            Arc::new(Mutex::new(Compositor::new())),
+            Arc::new(Mutex::new(PixelBackend::open())),
+            Arc::new(None),
+        )
+    }
+
+    #[tokio::test]
+    async fn compositor_present_reports_memory_backend() {
+        let (comp, pixels, wayland) = test_harness();
+        let resp = handle_request(
+            "compositor.present".into(),
+            None,
+            &comp,
+            &pixels,
+            &wayland,
+        )
+        .await;
+        assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
+        let result = resp.result.expect("result");
+        assert_eq!(result.get("presented").and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(result.get("pixels").and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(result.get("surfaces").and_then(|v| v.as_u64()), Some(0));
+    }
+
+    #[tokio::test]
+    async fn compositor_surface_create_increments_present_count() {
+        let (comp, pixels, wayland) = test_harness();
+        let create = handle_request(
+            "compositor.surface".into(),
+            Some(serde_json::json!({
+                "action": "create",
+                "id": "widget.test",
+                "geometry": { "x": 10, "y": 20, "width": 100, "height": 50 }
+            })),
+            &comp,
+            &pixels,
+            &wayland,
+        )
+        .await;
+        assert!(create.error.is_none());
+        let id = create
+            .result
+            .and_then(|r| r.get("id").and_then(|v| v.as_str()).map(str::to_string));
+        assert_eq!(id.as_deref(), Some("widget.test"));
+
+        let present = handle_request(
+            "compositor.present".into(),
+            None,
+            &comp,
+            &pixels,
+            &wayland,
+        )
+        .await;
+        let result = present.result.expect("present result");
+        assert_eq!(result.get("surfaces").and_then(|v| v.as_u64()), Some(1));
+    }
+
+    #[tokio::test]
+    async fn confirmation_set_active_promotes_surface() {
+        let (comp, pixels, wayland) = test_harness();
+        handle_request(
+            "compositor.surface".into(),
+            Some(serde_json::json!({
+                "action": "create",
+                "id": "confirm.me",
+                "geometry": { "x": 0, "y": 0, "width": 80, "height": 40 }
+            })),
+            &comp,
+            &pixels,
+            &wayland,
+        )
+        .await;
+
+        let activate = handle_request(
+            "compositor.confirmation.set_active".into(),
+            Some(serde_json::json!({ "active": true, "surface_id": "confirm.me" })),
+            &comp,
+            &pixels,
+            &wayland,
+        )
+        .await;
+        assert!(activate.error.is_none());
+        let result = activate.result.expect("activate result");
+        assert_eq!(result.get("active").and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(
+            result.get("surface_id").and_then(|v| v.as_str()),
+            Some("confirm.me")
+        );
+
+        let c = comp.lock().await;
+        assert!(c.confirmation_active);
+        assert_eq!(c.confirmation_surface.as_deref(), Some("confirm.me"));
+        let surface = c.surfaces.get("confirm.me").expect("surface");
+        assert!(surface.confirmation);
+        assert_eq!(surface.z_order, 10_000);
     }
 }

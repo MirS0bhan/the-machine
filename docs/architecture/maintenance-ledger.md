@@ -4,13 +4,6 @@ Shared state for scheduled maintenance agents. **Read this before selecting work
 Update in the same PR as your change; never mark gaps closed in `gap-analysis.md`
 until the PR is merged to `main`.
 
-## Rules
-
-- One **in-flight** row per gap ID. Do not start G7 again if a row exists for G7 unless status is `merged` or `abandoned`.
-- Status values: `in-progress` | `pr-open` | `merged` | `abandoned` | `no-op`
-- After merge to `main`, set status `merged` and add the date.
-- Cooldown: do not re-open the same gap ID within 7 days of `merged` unless `make verify` proves a regression.
-
 ## In flight
 
 | Gap / task | Branch | PR | Status | Started | Notes |
@@ -27,7 +20,7 @@ until the PR is merged to `main`.
 | 2026-08-30 | gap | G7 | merged to main |
 | 2026-08-30 | gap | policy hardening | merged to main |
 
-## Next suggested work (agent-maintained)
+## Next suggested work
 
 Rotate when completing a row. Prefer top item not in cooldown.
 

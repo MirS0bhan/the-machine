@@ -2,7 +2,7 @@
 
 Tracks known gaps between the **north-star** (fully agentic Linux OS) and the current codebase. Updated alongside implementation PRs.
 
-**Last reviewed:** 2026-08-29
+**Last reviewed:** 2026-08-30
 
 ---
 
@@ -43,6 +43,10 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 - [x] Marketplace bundle HMAC check + no `eval(` in pack sources
 - [x] `shell.*` / `hello` routed to fallback-shell
 - [x] `net.get_wifi_status` implemented; `connect_wifi` no longer returns `status: null`
+- [x] **G12** `bus.lease` optional fast-path relay socket when `THE_MACHINE_LEASE_FAST_PATH=1` (`mcp-bus/src/lease.rs`)
+- [x] **G13 (partial)** Rootfs installer + `build/rootfs-validate.sh` CI validation (`build/mkrootfs.sh`, `build/installer/install.sh`)
+- [x] **G14 (partial)** rtnetlink list/set link; wifi via `wpa_cli`; PipeWire via `pactl`; display + power done
+- [x] **G17 (partial)** Wayland globals + `wl_shm` surface commit → pixel paint (`compositor/src/wl_globals.rs`, `wl_shm.rs`)
 
 ---
 
