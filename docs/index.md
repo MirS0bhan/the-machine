@@ -22,6 +22,7 @@ Welcome to the documentation for **The Machine**, an agent-native operating syst
 - [Testing & Coverage](./guides/testing.md) — Test suites and coverage reporting
 - [Python ↔ Rust Overlap](./guides/python-rust-overlap.md) — Which implementation to use
 - [Glossary](./reference/glossary.md) — Terminology reference
+- [Design System](./design-system/README.md) — The visual language: HIG, tokens, widget catalog, event model, and UI/UX patterns for AUIL/ASL
 
 ---
 
