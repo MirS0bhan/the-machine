@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| audit localmodel.classify_intent integration | cursor/maintenance-audit-localmodel-classify-intent-df6ea6f | — | pr-open | 2026-08-30 | Python integration test + inventory |
+| audit localmodel.health integration | cursor/maintenance-audit-localmodel-health-df6ea6f | #209 | pr-open | 2026-08-30 | policy-gated health poll stub |
 | verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | #189–#192 | merged | 2026-08-30 | Landed on main (also #193 tree repair) |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
@@ -17,7 +17,9 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-30 | audit | localmodel.classify_intent Python integration test | pr-open |
+| 2026-08-30 | docs | The Machine Design System (visual language) | merged to main (#210) |
+| 2026-08-30 | audit | localmodel.classify_intent Python integration test | merged to main (#206) |
+| 2026-08-30 | audit | localmodel.health Python integration test | pr-open (#209) |
 | 2026-08-30 | verify-fix | agent-core / event-bus / docs merge corruption | merged to main (#193) |
 | 2026-08-30 | verify-fix | ui-runtime merge conflict markers | merged to main (#189–#192) |
 | 2026-08-30 | audit | policy.register Python integration test | merged to main (#179) |

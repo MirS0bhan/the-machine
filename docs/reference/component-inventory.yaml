@@ -142,5 +142,6 @@ integration_tests:
   policy.register: tests/integration/test_policy_register.py
   localmodel.complete: tests/integration/test_localmodel_complete.py
   localmodel.classify_intent: tests/integration/test_localmodel_classify_intent.py
+  localmodel.health: tests/integration/test_localmodel_health.py
   event.subscribe: tests/integration/test_event_subscribe.py
   marketplace.list: tests/integration/test_marketplace_list.py
