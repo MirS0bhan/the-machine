@@ -407,3 +407,176 @@ fn error_response(id: &Uuid, code: &str, message: &str) -> McpMessage {
         }),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_state() -> AppState {
+        AppState {
+            policy_engine: Arc::new(Mutex::new(PolicyEngine::new())),
+            audit_log: Arc::new(Mutex::new(audit::AuditLog::new())),
+            confirmation: Arc::new(Mutex::new(confirmation::ConfirmationDaemon::new())),
+            tokens: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    #[tokio::test]
+    async fn policy_check_allow_issues_grant_token() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request(
+            "policy.check".into(),
+            Some(serde_json::json!({
+                "method": "lambda.register",
+                "provenance": "agent-core",
+                "request": { "path": "calc.add" }
+            })),
+            &id,
+            &state,
+        )
+        .await;
+        assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
+        let result = resp.result.expect("result");
+        assert_eq!(
+            result.get("decision").and_then(|v| v.as_str()),
+            Some("ALLOW")
+        );
+        assert!(result.get("token").and_then(|v| v.as_str()).is_some());
+    }
+
+    #[tokio::test]
+    async fn policy_check_deny_omits_grant_token() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request(
+            "policy.check".into(),
+            Some(serde_json::json!({
+                "capability": "CAP_STATE_WRITE",
+                "path": "policy.register",
+                "principal": "agent-core",
+                "method": "policy.register"
+            })),
+            &id,
+            &state,
+        )
+        .await;
+        assert!(resp.error.is_none());
+        let result = resp.result.expect("result");
+        assert_eq!(
+            result.get("decision").and_then(|v| v.as_str()),
+            Some("DENY")
+        );
+        assert!(result.get("token").is_none());
+    }
+
+    #[tokio::test]
+    async fn policy_hold_status_clear_when_no_pending() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request("policy.hold_status".into(), None, &id, &state).await;
+        assert!(resp.error.is_none());
+        let result = resp.result.expect("result");
+        assert_eq!(
+            result.get("status").and_then(|v| v.as_str()),
+            Some("Clear")
+        );
+        assert_eq!(
+            result.get("pending_confirmations").and_then(|v| v.as_u64()),
+            Some(0)
+        );
+    }
+
+    #[tokio::test]
+    async fn policy_audit_returns_entries_array() {
+        let state = test_state();
+        let check_id = Uuid::new_v4();
+        handle_request(
+            "policy.check".into(),
+            Some(serde_json::json!({
+                "method": "state.get",
+                "provenance": "test-audit"
+            })),
+            &check_id,
+            &state,
+        )
+        .await;
+
+        let id = Uuid::new_v4();
+        let resp = handle_request("policy.audit".into(), None, &id, &state).await;
+        assert!(resp.error.is_none());
+        let entries = resp
+            .result
+            .and_then(|r| r.get("entries").cloned())
+            .and_then(|v| v.as_array().cloned())
+            .expect("entries array");
+        assert!(!entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn policy_validate_register_allows_mcp_route_pattern() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request(
+            "policy.validate_register".into(),
+            Some(serde_json::json!({
+                "pattern": "perm.mcp_routes.calc.add",
+                "namespace": "mcp-intent",
+                "registered_by": "lambda-server"
+            })),
+            &id,
+            &state,
+        )
+        .await;
+        assert!(resp.error.is_none());
+        let result = resp.result.expect("result");
+        assert_eq!(
+            result.get("allowed").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            result.get("decision").and_then(|v| v.as_str()),
+            Some("ALLOW")
+        );
+    }
+
+    #[tokio::test]
+    async fn policy_confirm_unknown_correlation_is_not_found() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request(
+            "policy.confirm".into(),
+            Some(serde_json::json!({
+                "correlation_id": "missing-id",
+                "approved": true
+            })),
+            &id,
+            &state,
+        )
+        .await;
+        assert_eq!(
+            resp.error.as_ref().map(|e| e.code.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_method_is_not_found() {
+        let state = test_state();
+        let id = Uuid::new_v4();
+        let resp = handle_request("policy.nope".into(), None, &id, &state).await;
+        assert_eq!(
+            resp.error.as_ref().map(|e| e.code.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
+
+    #[test]
+    fn infer_capability_maps_state_and_bus_methods() {
+        assert_eq!(infer_capability("state.get"), "CAP_STATE_READ");
+        assert_eq!(infer_capability("state.set"), "CAP_STATE_WRITE");
+        assert_eq!(infer_capability("_bus.register"), "mcp.intent-register");
+        assert_eq!(infer_capability("event.schedule"), "CAP_TIMER");
+        assert_eq!(infer_capability("lambda.invoke"), "CAP_IPC_CALL");
+    }
+}
