@@ -12,14 +12,14 @@ This guide walks through building, testing, and running **The Machine** on a Lin
 | Rust | 1.98+ (see `rust-toolchain.toml`) | L0–L5 service daemons |
 | Python | 3.10+ | L1 MCP servers (lambda, policy, state, local-model, ui-engine) |
 | busybox-static | any | Initramfs `/bin/sh` (or auto-fetched via `build/fetch-busybox.sh`) |
-| grub-pc-bin, xorriso | any | ISO image creation |
+| grub-pc-bin, xorriso, mtools | any | ISO image creation (`grub-mkrescue` needs `mformat` from mtools) |
 | pytest, pytest-asyncio | any | Integration tests |
 | cargo-llvm-cov | optional | `make coverage` |
 
 Install system packages on Debian/Ubuntu:
 
 ```bash
-sudo apt-get install -y busybox-static grub-pc-bin xorriso
+sudo apt-get install -y busybox-static grub-pc-bin grub-common xorriso mtools
 ```
 
 Install Python packages:

@@ -278,7 +278,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            busybox-static grub-pc-bin grub-common xorriso linux-image-virtual
+            busybox-static grub-pc-bin grub-common xorriso mtools linux-image-virtual
 
       - name: Build release initramfs + ISO
         run: |

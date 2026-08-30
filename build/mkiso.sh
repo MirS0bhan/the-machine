@@ -62,7 +62,11 @@ mkdir -p "${BUILD_DIR}"
 rm -f "${OUTPUT}"
 
 if ! command -v grub-mkrescue >/dev/null 2>&1; then
-  echo "ERROR: grub-mkrescue not found. Install grub-pc-bin, grub-common, and xorriso." >&2
+  echo "ERROR: grub-mkrescue not found. Install grub-pc-bin, grub-common, xorriso, and mtools." >&2
+  exit 1
+fi
+if ! command -v mformat >/dev/null 2>&1; then
+  echo "ERROR: mformat not found. Install mtools (required by grub-mkrescue)." >&2
   exit 1
 fi
 

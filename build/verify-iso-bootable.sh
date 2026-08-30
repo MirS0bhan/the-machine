@@ -12,7 +12,7 @@ fi
 desc="$(file -b "${ISO}")"
 if [[ "${desc}" != *bootable* ]]; then
   echo "ERROR: ${ISO} is not bootable: ${desc}" >&2
-  echo "Hint: install grub-pc-bin + xorriso; ensure kernel files in the ISO tree are world-readable." >&2
+  echo "Hint: install grub-pc-bin, xorriso, and mtools; ensure kernel files in the ISO tree are world-readable." >&2
   exit 1
 fi
 
