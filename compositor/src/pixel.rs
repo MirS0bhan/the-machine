@@ -8,6 +8,14 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use tracing::{info, warn};
 
+const BOOT_BACKEND_PATH: &str = "/var/log/compositor-backend";
+
+fn record_boot_backend(kind: &str, detail: &str) {
+    let msg = format!("backend={kind}\n{detail}\n");
+    let _ = std::fs::write(BOOT_BACKEND_PATH, &msg);
+    eprintln!("[compositor] backend={kind} {detail}");
+}
+
 pub enum BackendKind {
     Drm,
     Framebuffer,
@@ -43,6 +51,7 @@ impl PixelBackend {
                 let width = drm.width();
                 let height = drm.height();
                 let len = (width * height * 4) as usize;
+                record_boot_backend("drm-kms", &format!("{width}x{height} scanout active"));
                 return PixelBackend {
                     kind: BackendKind::Drm,
                     width,
@@ -66,6 +75,13 @@ impl PixelBackend {
                     "pixel backend: framebuffer {}x{} stride={} bpp={}",
                     fb.width, fb.height, fb.stride, fb.bpp
                 );
+                record_boot_backend(
+                    "framebuffer",
+                    &format!(
+                        "device={fb_path} {}x{} stride={} bpp={}",
+                        fb.width, fb.height, fb.stride, fb.bpp
+                    ),
+                );
                 let len = (fb.stride * fb.height) as usize;
                 return PixelBackend {
                     kind: BackendKind::Framebuffer,
@@ -78,10 +94,15 @@ impl PixelBackend {
                     dump_path,
                 };
             }
+            record_boot_backend("framebuffer", &format!("device={fb_path} open failed"));
         }
 
         let (width, height) = crate::env::memory_framebuffer_size();
-        warn!("pixel backend: using {}x{} memory buffer", width, height);
+        warn!("pixel backend: using {}x{} memory buffer (no VGA output)", width, height);
+        record_boot_backend(
+            "memory",
+            &format!("{width}x{height} — pixels not sent to display; check /dev/fb0 and /dev/dri"),
+        );
         let stride = width * 4;
         let len = (stride * height) as usize;
         PixelBackend {

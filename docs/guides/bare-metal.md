@@ -23,6 +23,8 @@ make iso
 
 Boot requirements: x86_64 CPU, 1 GB+ RAM, kernel with KMS + evdev (most modern Linux live environments qualify for building the ISO).
 
+**Blank screen after GRUB?** See [Boot Debugging Guide](boot-debugging.md) — use `make run-debug` or the **The Machine (debug)** GRUB entry and check `/var/log/boot-report.txt`.
+
 ---
 
 ## Full install (disk)
