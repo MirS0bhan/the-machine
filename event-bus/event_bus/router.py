@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
+from uuid import uuid4
 
 from event_bus.models import EventPublishRequest, EventRecord
 
@@ -30,6 +31,7 @@ class EventRouter:
         self.subscribers: Dict[str, List[EventHandler]] = {}
         self._handlers: Dict[str, EventHandler] = {}
         self._published: List[EventRecord] = []
+        self._subscriptions: Dict[str, Dict[str, str]] = {}
 
     def register_handler(
         self,
@@ -50,6 +52,38 @@ class EventRouter:
     def publish_request(self, request: EventPublishRequest) -> EventRecord:
         return self.publish(request.category, request.payload)
 
+    def subscribe(
+        self,
+        category: str,
+        handler: EventHandler,
+        *,
+        pattern: str = "*",
+        subscriber: str = "anonymous",
+    ) -> str:
+        """Register a push subscription; returns ``subscription_id``."""
+        sub_id = str(uuid4())
+        self._subscriptions[sub_id] = {
+            "category": category,
+            "pattern": pattern,
+            "subscriber": subscriber,
+            "handler": handler,
+        }
+        self.subscribers.setdefault(category, []).append(handler)
+        return sub_id
+
+    def unsubscribe(self, subscription_id: str) -> bool:
+        meta = self._subscriptions.pop(subscription_id, None)
+        if meta is None:
+            return False
+        category = meta["category"]
+        handler = meta["handler"]
+        handlers = self.subscribers.get(category, [])
+        if handler in handlers:
+            handlers.remove(handler)
+        if not handlers:
+            self.subscribers.pop(category, None)
+        return True
+
     async def _dispatch(self, category: str, payload: Dict[str, Any]) -> None:
         handlers = list(self.subscribers.get(category, []))
         for handler in handlers:
@@ -67,3 +101,4 @@ class EventRouter:
         self.subscribers.clear()
         self._handlers.clear()
         self._published.clear()
+        self._subscriptions.clear()
