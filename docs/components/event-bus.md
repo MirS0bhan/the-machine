@@ -569,3 +569,17 @@ This ensures that state changes automatically generate events without requiring 
 - [Agent Core](./agent-core.md) — for the primary consumer of wake events
 - [Lambda Server](./lambda-server.md) — for lambda health events
 - [Policy Broker](./policy-broker.md) — for capability enforcement on scheduling
+
+---
+
+## External Adapters (Rust daemon)
+
+The Rust `event-bus` binary runs optional ingress adapters alongside the MCP server:
+
+| Adapter | Source | Events |
+|---------|--------|--------|
+| **D-Bus** (`adapters/dbus.rs`) | System bus via **zbus** match rules | `desktop.notify` (`org.freedesktop.Notifications.Notify`), `login.prepare_sleep` (`org.freedesktop.login1.Manager.PrepareForSleep`) |
+| **inotify** | Configured filesystem paths | `fs.change.*` |
+| **PipeWire/Pulse** | Audio server | Volume / device changes |
+
+Set `THE_MACHINE_DISABLE_DBUS=1` to skip D-Bus monitoring (e.g. in CI or containers without a system bus). No host `dbus-monitor` binary is required.

@@ -55,3 +55,6 @@ wlroots = "0.17"
 
 # For MCP protocol
 mcp-protocol = { path = "common" }
+
+# For D-Bus signal adapters (event-bus)
+zbus = { version = "5.5", default-features = false, features = ["tokio"] }
