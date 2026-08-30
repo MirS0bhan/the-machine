@@ -543,6 +543,20 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## Event Adapters
+
+Boot-time adapters translate OS signals into `event.publish` calls on the event-bus socket.
+
+| Adapter | Source | Events |
+|---------|--------|--------|
+| D-Bus | zbus system bus (`event-bus/src/adapters/dbus.rs`) | `desktop.notify`, `login.prepare_sleep` |
+| inotify | Filesystem watches | `fs.change.*` |
+| audio | PipeWire socket presence | `pipewire.state` |
+
+The D-Bus adapter subscribes natively via `zbus::MessageStream` match rules (no `dbus-monitor` binary). Set `THE_MACHINE_DISABLE_DBUS=1` to skip it in environments without a system bus.
+
+---
+
 ## Performance
 
 ### Targets
