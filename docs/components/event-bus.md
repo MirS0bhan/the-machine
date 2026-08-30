@@ -563,6 +563,20 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## External Adapters
+
+Background tasks in `event-bus/src/adapters/` publish proactive events to the local bus socket:
+
+| Adapter | Source | Events |
+|---------|--------|--------|
+| D-Bus | Native **zbus** system-bus match rules | `desktop.notify` (`org.freedesktop.Notifications.Notify`), `login.prepare_sleep` (`org.freedesktop.login1.Manager.PrepareForSleep`) |
+| inotify | `THE_MACHINE_FS_WATCHES` or default download paths | `fs.change.*` |
+| audio | PipeWire state (when available) | `pipewire.state` |
+
+Set `THE_MACHINE_DISABLE_DBUS=1` to skip the D-Bus adapter (e.g. in CI or headless dev). The adapter retries on connection loss; no host `dbus-monitor` binary is required.
+
+---
+
 ## See Also
 
 - [State Store](./state-store.md) — for the underlying storage and subscriptions
