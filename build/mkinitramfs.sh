@@ -41,10 +41,16 @@ SERVICES=("${ROOTFS_SERVICES[@]}")
 for svc in "${SERVICES[@]}"; do
   if [[ -x "${BIN_DIR}/${svc}" ]]; then
     install -m 0755 "${BIN_DIR}/${svc}" "${STAGE}/the-machine/${svc}"
+    bash "${ROOT}/build/bundle-shared-libs.sh" "${BIN_DIR}/${svc}" "${STAGE}"
   else
     echo "WARN: ${svc} binary not found at ${BIN_DIR}/${svc}" >&2
   fi
 done
+
+if compgen -G "${STAGE}/the-machine/*" >/dev/null && \
+   ldd "${STAGE}/the-machine/"* >/dev/null 2>&1; then
+  echo "==> Bundled shared libraries for dynamic Rust binaries"
+fi
 
 # Bundle GGUF model when available (G11).
 MODEL_SRC="${ROOT}/build/models/machine-tiny.gguf"

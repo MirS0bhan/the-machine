@@ -25,8 +25,17 @@ mount -t sysfs sys /sys
 mount -t devtmpfs dev /dev 2>/dev/null || true
 mkdir -p /run/the-machine
 
+boot_check_dynamic_linker() {
+  if [ -f /the-machine/compositor ] && [ ! -f /lib64/ld-linux-x86-64.so.2 ] \
+    && [ ! -f /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 ]; then
+    boot_log "WARN: dynamic linker missing in initramfs — services will fail with ': not found'"
+    boot_log "WARN: rebuild ISO: make initramfs-release (bundles libc from host)"
+  fi
+}
+
 boot_log_section "The Machine boot starting"
 boot_probe_system
+boot_check_dynamic_linker
 
 if boot_cmdline_has "the-machine.rescue"; then
   boot_log "the-machine.rescue on cmdline — dropping to /bin/sh"
@@ -36,13 +45,14 @@ fi
 
 start_svc() {
   name="$1"
-  if [ -x "/the-machine/$name" ]; then
-    boot_log "starting $name"
-    "/the-machine/$name" >>"/var/log/$name.log" 2>&1 &
-    echo "$!" >"/run/the-machine/${name}.pid"
-  else
-    boot_log "MISSING binary: /the-machine/$name"
+  path="/the-machine/$name"
+  if [ ! -f "$path" ]; then
+    boot_log "MISSING binary: $path"
+    return
   fi
+  boot_log "starting $name"
+  "$path" >>"/var/log/$name.log" 2>&1 &
+  echo "$!" >"/run/the-machine/${name}.pid"
 }
 
 # L0
@@ -70,6 +80,13 @@ start_svc agent-core
 sleep 1
 
 boot_probe_display
+
+# QEMU -vga std may register /dev/fb0 slightly after devtmpfs mount.
+fb_wait=0
+while [ ! -e /dev/fb0 ] && [ "$fb_wait" -lt 3 ]; do
+  sleep 1
+  fb_wait=$((fb_wait + 1))
+done
 
 boot_warn_if_no_display
 

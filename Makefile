@@ -86,6 +86,7 @@ test-build-scripts:
 	bash build/test-boot-greet-services.sh
 	bash build/test-boot-logging.sh
 	bash build/test-select-kernel.sh
+	bash build/test-initramfs-libs.sh
 	bash build/test-iso-boot-smoke.sh
 
 test-rust:

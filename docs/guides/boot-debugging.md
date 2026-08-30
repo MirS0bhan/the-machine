@@ -99,6 +99,25 @@ Use the **debug** GRUB entry or remove `quiet` from `build/mkiso.sh`.
 
 `boot_dump_status` in `/var/log/boot.log` lists each service as `running` or `NOT RUNNING` with log tails.
 
+#### `/the-machine/<service>: not found` (binary exists)
+
+If every service log shows:
+
+```
+/init: line 41: /the-machine/system-daemon: not found
+```
+
+the ELF is present but the **dynamic linker** (`/lib64/ld-linux-x86-64.so.2`) is missing from the initramfs. Rust binaries are dynamically linked against glibc on the build host; busybox alone is not enough.
+
+**Fix:** rebuild the initramfs/ISO — `build/mkinitramfs.sh` bundles shared libraries via `build/bundle-shared-libs.sh`. Verify with:
+
+```bash
+bash build/test-initramfs-libs.sh
+make iso
+```
+
+At early boot, `/init` also warns when the linker is absent (`boot_check_dynamic_linker` in `build/boot-init.sh`).
+
 ## Bare metal (USB stick)
 
 1. Boot with **The Machine (debug)**.
@@ -117,5 +136,6 @@ make qemu    # kernel + initramfs directly, nographic, debug cmdline
 - `build/boot-init.sh` — PID 1 service launcher
 - `build/boot-log-lib.sh` — `boot_log`, `boot_probe_display`, `boot_dump_status`
 - `build/collect-boot-logs.sh` — aggregate report script (also installed at `/collect-boot-logs.sh`)
-- `build/mkiso.sh` — GRUB entries
+- `build/mkinitramfs.sh` — assembles initramfs; bundles glibc via `build/bundle-shared-libs.sh`
+- `build/bundle-shared-libs.sh` — copies `ld-linux`, `libc`, and other `ldd` deps into the initramfs
 - `compositor/src/pixel.rs` — writes `/var/log/compositor-backend`
