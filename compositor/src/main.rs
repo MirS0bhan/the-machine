@@ -40,9 +40,10 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    let socket_dir =
-        std::env::var("THE_MACHINE_SOCKET_DIR").unwrap_or_else(|_| "/run/the-machine".to_string());
-    let socket_path = format!("{}/compositor.sock", socket_dir);
+    let socket_path = common::component_socket("compositor");
+    if let Some(parent) = std::path::Path::new(&socket_path).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
     let _ = std::fs::remove_file(&socket_path);
     let listener = UnixListener::bind(&socket_path)?;
     info!("Compositor listening on {} (pixel backend active)", socket_path);
