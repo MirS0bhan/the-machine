@@ -8,7 +8,11 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
+<<<<<<< HEAD
 | audit agent-core MCP handler tests | cursor/maintenance-audit-agent-core-mcp-dd029fb | #160 | pr-open | 2026-08-30 | `agent.status`, `agent.cloud.status`, local_only_mode guards |
+=======
+| policy-broker MCP tests | cursor/maintenance-audit-policy-broker-mcp-114e468 | #156 | pr-open | 2026-08-30 | handler unit tests for policy.check/audit/validate_register |
+>>>>>>> origin/main
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
 | Policy fail-closed | — | — | merged | 2026-08-30 | Landed on main `ad7520d` |
 
@@ -16,8 +20,12 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+<<<<<<< HEAD
 | 2026-08-30 | audit | agent-core MCP handler unit tests | pr-open |
 | 2026-08-30 | audit | policy-broker MCP handler tests | merged to main (#156) |
+=======
+| 2026-08-30 | audit | policy-broker MCP handler tests | pr-open |
+>>>>>>> origin/main
 | 2026-08-30 | gap | G13 installer fstab for target HW | merged to main (#159) |
 | 2026-08-30 | gap | G13 boot.auil in installed rootfs | merged to main (#157) |
 | 2026-08-30 | audit | lambda-server clippy/dead-code | merged to main (#155) |
