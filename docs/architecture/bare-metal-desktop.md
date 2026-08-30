@@ -16,7 +16,7 @@ The project is ready for **developers and early adopters** who can run the hardw
 
 | Phase | Scope | Status |
 |-------|--------|--------|
-| **A — Boot & install (G13)** | debootstrap rootfs, kernel in `/boot`, GRUB + `/etc/fstab` `LABEL=the-machine`, GPU firmware + Mesa packages | Done |
+| **A — Boot & install (G13)** | debootstrap rootfs, kernel in `/boot`, GRUB + `/etc/fstab` `LABEL=the-machine`, GPU firmware + Mesa packages, `boot.auil` in `/etc/the-machine` | Done |
 | **B — Display (G14 + G16)** | sysfs/DRM mode query + `display.set_mode`; compositor DRM fb fix | Done |
 | **C — Network (G14)** | `net.list_interfaces` via rtnetlink; `net.set_interface_state` via RTM_SETLINK (`ip` fallback) | Done |
 | **D — Wayland session (G17)** | `wl_compositor` / `wl_output` / `wl_seat` / `wl_shm`; surface commit → pixel paint | Done |

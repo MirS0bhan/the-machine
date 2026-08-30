@@ -17,6 +17,7 @@ until the PR is merged to `main`.
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
 | 2026-08-30 | gap | G13 installer fstab for target HW | pr-open |
+| 2026-08-30 | gap | G13 boot.auil in installed rootfs | merged to main (#157) |
 | 2026-08-30 | audit | lambda-server clippy/dead-code | merged to main (#155) |
 | 2026-08-30 | gap | boot greet e2e (GRUB → chat UI) | merged to main |
 | 2026-08-30 | gap | G13 loopback installer GRUB | merged to main (#148) |
@@ -45,6 +46,6 @@ until the PR is merged to `main`.
 Rotate when completing a row. Prefer top item not in cooldown.
 
 1. **G17** — compositor: wlroots seat/output (cooldown until 2026-09-06)
-2. **G13** — QEMU boot smoke from installed loopback disk (physical HW still operator task)
+2. **G13** — operator target-HW validation on installed rootfs (software checks complete)
 3. **audit** — missing MCP integration test in component-inventory.yaml
 4. **audit** — `make verify` + fix first failure
