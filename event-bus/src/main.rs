@@ -943,3 +943,229 @@ async fn handle_connection(mut stream: UnixStream, state: State) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    fn test_state() -> State {
+        Arc::new(Mutex::new(BusState::new()))
+    }
+
+    async fn call(state: State, method: &str, params: Option<Value>) -> Value {
+        let id = json!("test-id");
+        handle_request(
+            json!({ "id": id, "method": method, "params": params }),
+            state,
+        )
+        .await
+    }
+
+    fn error_code(resp: &Value) -> Option<&str> {
+        resp.get("error")?.get("code")?.as_str()
+    }
+
+    #[tokio::test]
+    async fn hello_returns_ok() {
+        let resp = call(test_state(), "hello", None).await;
+        assert_eq!(
+            resp.get("result")
+                .and_then(|v| v.get("status"))
+                .and_then(|v| v.as_str()),
+            Some("ok")
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_method_is_invalid_request() {
+        let id = json!("req-1");
+        let resp = handle_request(json!({ "id": id }), test_state()).await;
+        assert_eq!(error_code(&resp), Some("E_INVALID_REQUEST"));
+    }
+
+    #[tokio::test]
+    async fn unknown_method_is_not_found() {
+        let resp = call(test_state(), "event.nope", None).await;
+        assert_eq!(error_code(&resp), Some("E_NOT_FOUND"));
+    }
+
+    #[tokio::test]
+    async fn publish_requires_category() {
+        let resp = call(
+            test_state(),
+            "event.publish",
+            Some(json!({ "pattern": "tick", "payload": {} })),
+        )
+        .await;
+        assert_eq!(error_code(&resp), Some("E_INVALID_CATEGORY"));
+    }
+
+    #[tokio::test]
+    async fn publish_emits_event_and_routes_to_agent() {
+        let state = test_state();
+        let resp = call(
+            state.clone(),
+            "event.publish",
+            Some(json!({
+                "category": "scheduler",
+                "pattern": "heartbeat.tick",
+                "payload": { "kind": "test" },
+                "requires_decision": true,
+                "source": "test"
+            })),
+        )
+        .await;
+        assert!(error_code(&resp).is_none());
+        assert!(resp.get("result").and_then(|v| v.get("event_id")).is_some());
+        assert_eq!(
+            resp.get("result")
+                .and_then(|v| v.get("decision"))
+                .and_then(|v| v.as_str()),
+            Some("AgentWake")
+        );
+
+        let stats = call(state, "event.stats", None).await;
+        assert_eq!(
+            stats
+                .get("result")
+                .and_then(|v| v.get("events_emitted"))
+                .and_then(|v| v.as_u64()),
+            Some(1)
+        );
+    }
+
+    #[tokio::test]
+    async fn subscribe_and_unsubscribe_roundtrip() {
+        let state = test_state();
+        let sub = call(
+            state.clone(),
+            "event.subscribe",
+            Some(json!({
+                "category": "ui",
+                "pattern": "button.*",
+                "subscriber": "ui-runtime"
+            })),
+        )
+        .await;
+        assert!(error_code(&sub).is_none());
+        let sub_id = sub
+            .get("result")
+            .and_then(|v| v.get("subscription_id"))
+            .and_then(|v| v.as_str())
+            .expect("subscription_id");
+
+        let removed = call(
+            state.clone(),
+            "event.unsubscribe",
+            Some(json!({ "subscription_id": sub_id })),
+        )
+        .await;
+        assert!(error_code(&removed).is_none());
+
+        let missing = call(
+            state,
+            "event.unsubscribe",
+            Some(json!({ "subscription_id": sub_id })),
+        )
+        .await;
+        assert_eq!(error_code(&missing), Some("E_NOT_FOUND"));
+    }
+
+    #[tokio::test]
+    async fn register_handler_and_list_handlers() {
+        let state = test_state();
+        let reg = call(
+            state.clone(),
+            "event.register_handler",
+            Some(json!({
+                "category": "media",
+                "pattern": "track.*",
+                "handler": "lambda-server",
+                "priority": 10
+            })),
+        )
+        .await;
+        assert!(error_code(&reg).is_none());
+        assert_eq!(
+            reg.get("result")
+                .and_then(|v| v.get("registered"))
+                .and_then(|v| v.as_bool()),
+            Some(true)
+        );
+
+        let list = call(state, "event.list_handlers", None).await;
+        assert!(error_code(&list).is_none());
+        let handlers = list
+            .get("result")
+            .and_then(|v| v.get("handlers"))
+            .and_then(|v| v.as_array())
+            .expect("handlers array");
+        assert_eq!(handlers.len(), 1);
+        assert_eq!(
+            handlers[0].get("handler").and_then(|v| v.as_str()),
+            Some("lambda-server")
+        );
+    }
+
+    #[tokio::test]
+    async fn schedule_requires_cron() {
+        let resp = call(
+            test_state(),
+            "event.schedule",
+            Some(json!({ "category": "scheduler", "pattern": "timer.fire" })),
+        )
+        .await;
+        assert_eq!(error_code(&resp), Some("E_INVALID_CRON"));
+    }
+
+    #[tokio::test]
+    async fn schedule_accepts_hourly_cron() {
+        let state = test_state();
+        let resp = call(
+            state.clone(),
+            "event.schedule",
+            Some(json!({
+                "cron": "@hourly",
+                "category": "scheduler",
+                "pattern": "timer.fire",
+                "scheduled_by": "test"
+            })),
+        )
+        .await;
+        assert!(error_code(&resp).is_none());
+        assert!(resp.get("result").and_then(|v| v.get("event_id")).is_some());
+        assert!(resp
+            .get("result")
+            .and_then(|v| v.get("trigger_time"))
+            .and_then(|v| v.as_i64())
+            .is_some());
+
+        let stats = call(state, "event.stats", None).await;
+        assert_eq!(
+            stats
+                .get("result")
+                .and_then(|v| v.get("scheduled_events"))
+                .and_then(|v| v.as_u64()),
+            Some(1)
+        );
+    }
+
+    #[tokio::test]
+    async fn stats_reports_initial_counters() {
+        let resp = call(test_state(), "event.stats", None).await;
+        assert!(error_code(&resp).is_none());
+        assert_eq!(
+            resp.get("result")
+                .and_then(|v| v.get("events_emitted"))
+                .and_then(|v| v.as_u64()),
+            Some(0)
+        );
+        assert_eq!(
+            resp.get("result")
+                .and_then(|v| v.get("subscriptions"))
+                .and_then(|v| v.as_u64()),
+            Some(0)
+        );
+    }
+}
