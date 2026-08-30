@@ -157,8 +157,8 @@ The shared secret is compiled into both the System Daemon and Broker binaries at
 
 | MCP Method | Implementation | Notes |
 |------------|----------------|-------|
-| `power.get_profile` | Read `/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor` | Returns current profile |
-| `power.set_profile` | Write to scaling_governor files | Requires grant token |
+| `power.get_profile` | Read `/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor` | Returns current profile (falls back to `balanced` when cpufreq sysfs is absent) |
+| `power.set_profile` | Write to scaling_governor files | Requires grant token; returns `E_UNAVAILABLE` when cpufreq sysfs is absent |
 | `display.get_modes` | Use DRM/KMS `drmModeGetResources` + `drmModeGetConnector` | Returns available modes |
 | `display.set_mode` | Use DRM/KMS `drmModeSetCrtc` | Requires grant token |
 | `net.list_interfaces` | Use `rtnetlink` (RTM_GETLINK) | Returns all interfaces |

@@ -1,6 +1,6 @@
 //! Kernel/hardware abstraction: power, display, network, audio.
 
-use crate::{display, net};
+use crate::{display, net, power};
 use common::{AudioDevice, DisplayMode, NetworkInterface};
 
 pub struct KernelHandler;
@@ -11,12 +11,7 @@ impl KernelHandler {
     }
 
     pub fn get_power_profile(&self) -> String {
-        if let Ok(body) =
-            std::fs::read_to_string("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")
-        {
-            return body.trim().to_string();
-        }
-        "balanced".to_string()
+        power::read_power_profile().unwrap_or_else(|| "balanced".to_string())
     }
 
     pub fn get_display_modes(&self) -> Vec<DisplayMode> {
@@ -35,13 +30,8 @@ impl KernelHandler {
         }]
     }
 
-    pub async fn set_power_profile(&self, _profile: &str) -> Result<(), String> {
-        let path = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor";
-        if !std::path::Path::new(path).exists() {
-            return Ok(());
-        }
-        std::fs::write(path, format!("{_profile}\n"))
-            .map_err(|e| format!("failed to set governor: {e}"))
+    pub async fn set_power_profile(&self, profile: &str) -> Result<(), String> {
+        power::write_power_profile(profile)
     }
 
     pub async fn set_display_mode(
@@ -105,5 +95,23 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.contains("not wired"));
+    }
+
+    #[test]
+    fn power_profile_read_returns_known_value() {
+        let profile = KernelHandler::new().get_power_profile();
+        assert!(matches!(
+            profile.as_str(),
+            "balanced" | "performance" | "powersave"
+        ));
+    }
+
+    #[tokio::test]
+    async fn set_power_profile_rejects_invalid_name() {
+        let err = KernelHandler::new()
+            .set_power_profile("turbo")
+            .await
+            .unwrap_err();
+        assert!(err.contains("unsupported profile"));
     }
 }
