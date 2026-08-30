@@ -354,22 +354,7 @@ async fn handle_connection(stream: tokio::net::UnixStream) {
                     let response = match msg.kind {
                         MessageKind::Request => {
                             let method = msg.method.unwrap_or_default();
-                            match method.as_str() {
-                                "shell.status" => {
-                                    success_response(&msg.id, serde_json::json!({"active": false}))
-                                }
-                                "shell.activate" => {
-                                    success_response(&msg.id, serde_json::json!({}))
-                                }
-                                "hello" => {
-                                    success_response(&msg.id, serde_json::json!({"status": "ok"}))
-                                }
-                                _ => error_response(
-                                    &msg.id,
-                                    "E_NOT_FOUND",
-                                    &format!("Unknown method: {}", method),
-                                ),
-                            }
+                            handle_request(&method, &msg.id)
                         }
                         _ => {
                             error_response(&msg.id, "E_INVALID_REQUEST", "Only requests supported")
@@ -386,6 +371,15 @@ async fn handle_connection(stream: tokio::net::UnixStream) {
                 break;
             }
         }
+    }
+}
+
+fn handle_request(method: &str, id: &Uuid) -> McpMessage {
+    match method {
+        "shell.status" => success_response(id, serde_json::json!({"active": false})),
+        "shell.activate" => success_response(id, serde_json::json!({})),
+        "hello" => success_response(id, serde_json::json!({"status": "ok"})),
+        _ => error_response(id, "E_NOT_FOUND", &format!("Unknown method: {method}")),
     }
 }
 
@@ -414,5 +408,57 @@ fn error_response(id: &Uuid, code: &str, message: &str) -> McpMessage {
             message: message.to_string(),
             details: None,
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shell_status_returns_inactive() {
+        let id = Uuid::new_v4();
+        let resp = handle_request("shell.status", &id);
+        assert_eq!(resp.id, id);
+        assert!(resp.error.is_none());
+        assert_eq!(
+            resp.result
+                .as_ref()
+                .and_then(|v| v.get("active"))
+                .and_then(|v| v.as_bool()),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn shell_activate_succeeds() {
+        let id = Uuid::new_v4();
+        let resp = handle_request("shell.activate", &id);
+        assert_eq!(resp.id, id);
+        assert!(resp.error.is_none());
+        assert!(resp.result.as_ref().is_some_and(|v| v.is_object()));
+    }
+
+    #[test]
+    fn hello_returns_ok() {
+        let id = Uuid::new_v4();
+        let resp = handle_request("hello", &id);
+        assert_eq!(
+            resp.result
+                .as_ref()
+                .and_then(|v| v.get("status"))
+                .and_then(|v| v.as_str()),
+            Some("ok")
+        );
+    }
+
+    #[test]
+    fn unknown_method_is_not_found() {
+        let id = Uuid::new_v4();
+        let resp = handle_request("shell.nope", &id);
+        assert_eq!(
+            resp.error.as_ref().map(|e| e.code.as_str()),
+            Some("E_NOT_FOUND")
+        );
     }
 }
