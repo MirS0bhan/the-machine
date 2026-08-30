@@ -2,28 +2,6 @@ name: Close stale automation PRs
 
 on:
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "List PRs only (do not close)"
-        required: false
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/close-stale-prs.yml
-    inputs:
-      dry_run:
-        description: "List PRs only (do not close)"
-        required: false
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
 
 permissions:
   pull-requests: write
@@ -37,7 +15,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          DRY_RUN: ${{ inputs.dry_run }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
           set -euo pipefail
           page=1
