@@ -563,6 +563,20 @@ This ensures that state changes automatically generate events without requiring 
 
 ---
 
+## External Adapters
+
+The Rust daemon starts background adapters that translate OS signals into `event.publish` calls on the local socket:
+
+| Adapter | Source | Events |
+|---------|--------|--------|
+| D-Bus (zbus) | system bus | `desktop.notify`, `login.prepare_sleep` |
+| inotify | filesystem | `fs.change.*` |
+| audio | PulseAudio/PipeWire (when present) | volume / device changes |
+
+Set `THE_MACHINE_DISABLE_DBUS=1` to skip the D-Bus adapter (e.g. initramfs without a system bus). The adapter connects via **zbus** and registers match rules for `org.freedesktop.Notifications.Notify` and `org.freedesktop.login1.Manager.PrepareForSleep`; it does not shell out to `dbus-monitor`.
+
+---
+
 ## See Also
 
 - [State Store](./state-store.md) — for the underlying storage and subscriptions
