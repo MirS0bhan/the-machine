@@ -1,9 +1,9 @@
 //! UI Runtime - declarative renderer for the UI State Tree (AUIL) with ASL styling.
 
-mod asl;
-mod auil;
 mod a11y;
+mod asl;
 mod atspi;
+mod auil;
 mod components;
 mod dnd;
 mod focus;
@@ -82,7 +82,10 @@ impl Theme {
                 spacing.insert(k.clone(), serde_json::json!(v));
             }
         }
-        spacing.insert("min-target".into(), serde_json::json!(tokens::space::MIN_TARGET));
+        spacing.insert(
+            "min-target".into(),
+            serde_json::json!(tokens::space::MIN_TARGET),
+        );
         let mut rounding = HashMap::new();
         if let Some(radius) = doc.scales.get("radius") {
             for (k, v) in radius {
@@ -141,7 +144,10 @@ impl Theme {
                 spacing.insert(k.clone(), serde_json::json!(v));
             }
         }
-        spacing.insert("min-target".into(), serde_json::json!(tokens::space::MIN_TARGET));
+        spacing.insert(
+            "min-target".into(),
+            serde_json::json!(tokens::space::MIN_TARGET),
+        );
         let mut rounding = HashMap::new();
         if let Some(radius) = doc.scales.get("radius") {
             for (k, v) in radius {
@@ -369,10 +375,9 @@ async fn handle_request(
                 .and_then(|p| p.get("preserve_hint").and_then(|v| v.as_bool()))
                 .unwrap_or(true);
             match clear_workspace(tree, preserve_hint, true).await {
-                Ok(removed) => success_response(
-                    &id,
-                    serde_json::json!({ "ok": true, "removed": removed }),
-                ),
+                Ok(removed) => {
+                    success_response(&id, serde_json::json!({ "ok": true, "removed": removed }))
+                }
                 Err(e) => error_response(&id, "E_CLEAR_FAILED", &e),
             }
         }
@@ -455,15 +460,12 @@ async fn handle_request(
             if matches!(event.as_str(), "click" | "press") {
                 let snapshot = {
                     let mut t = tree.lock().await;
-                    if t.get(&nid)
-                        .is_some_and(|n| focus::is_interactive(&n.kind))
-                    {
+                    if t.get(&nid).is_some_and(|n| focus::is_interactive(&n.kind)) {
                         t.set_focused(Some(nid.clone()));
                     }
                     if let Some(node) = t.get_mut(&nid) {
                         if node.kind == "button" {
-                            node.props
-                                .insert("pressed".into(), serde_json::json!(true));
+                            node.props.insert("pressed".into(), serde_json::json!(true));
                         }
                         if node.kind == "toggle" {
                             let on = node
@@ -471,8 +473,7 @@ async fn handle_request(
                                 .get("checked")
                                 .and_then(|v| v.as_bool())
                                 .unwrap_or(false);
-                            node.props
-                                .insert("checked".into(), serde_json::json!(!on));
+                            node.props.insert("checked".into(), serde_json::json!(!on));
                         }
                         if node.kind == "slider" {
                             if let Some(geo) = event_payload.get("geometry") {
@@ -482,10 +483,9 @@ async fn handle_request(
                                     .and_then(|v| v.as_u64())
                                     .unwrap_or(1)
                                     .max(1) as f64;
-                                let px = event_payload
-                                    .get("x")
-                                    .and_then(|v| v.as_i64())
-                                    .unwrap_or(0) as f64;
+                                let px =
+                                    event_payload.get("x").and_then(|v| v.as_i64()).unwrap_or(0)
+                                        as f64;
                                 let tnorm = ((px - gx) / gw).clamp(0.0, 1.0);
                                 let min = node
                                     .props
@@ -499,8 +499,7 @@ async fn handle_request(
                                     .unwrap_or(100.0)
                                     .max(min + f64::EPSILON);
                                 let value = min + tnorm * (max - min);
-                                node.props
-                                    .insert("value".into(), serde_json::json!(value));
+                                node.props.insert("value".into(), serde_json::json!(value));
                             }
                         }
                         if node.kind == "chart" {
@@ -519,8 +518,7 @@ async fn handle_request(
                                 .and_then(|a| a.get(idx))
                                 .map(|v| v.to_string())
                                 .unwrap_or_else(|| data.to_string());
-                            node.props
-                                .insert("tooltip".into(), serde_json::json!(tip));
+                            node.props.insert("tooltip".into(), serde_json::json!(tip));
                         }
                         if node.kind == "media" {
                             let playing = node
@@ -615,14 +613,8 @@ async fn handle_request(
 
             // Hover / drag move.
             if event == "move" || event == "drag" {
-                let x = event_payload
-                    .get("x")
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0) as i32;
-                let y = event_payload
-                    .get("y")
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0) as i32;
+                let x = event_payload.get("x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                let y = event_payload.get("y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
                 let dragging = {
                     let mut t = tree.lock().await;
                     if let Some(ref mut drag) = t.drag {
@@ -648,8 +640,7 @@ async fn handle_request(
                     }
                     if let Some(node) = t.get_mut(&nid) {
                         if focus::is_interactive(&node.kind) {
-                            node.props
-                                .insert("hovered".into(), serde_json::json!(true));
+                            node.props.insert("hovered".into(), serde_json::json!(true));
                         }
                     }
                     renderer::serialize_subtree(&t, t.root_id())
@@ -750,9 +741,7 @@ async fn handle_request(
                     .get("key")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
-                let text = event_payload
-                    .get("text")
-                    .and_then(|v| v.as_str());
+                let text = event_payload.get("text").and_then(|v| v.as_str());
                 let mods = input_edit::KeyMods {
                     shift: event_payload
                         .get("shift")
@@ -792,7 +781,10 @@ async fn handle_request(
                 }
 
                 // Desktop chords → Machine-native AUIL/MCP actions (not OS window manager).
-                if (mods.alt && key == "Tab") || key == "Super_L" || key == "Super" || key == "Meta_L"
+                if (mods.alt && key == "Tab")
+                    || key == "Super_L"
+                    || key == "Super"
+                    || key == "Meta_L"
                 {
                     let next = {
                         let mut t = tree.lock().await;
@@ -943,11 +935,11 @@ async fn handle_request(
                                     .map(|a| a.len())
                                     .unwrap_or(1)
                                     .max(1);
-                                let cur = node
-                                    .props
-                                    .get("selected_index")
-                                    .and_then(|v| v.as_u64())
-                                    .unwrap_or(0) as usize;
+                                let cur =
+                                    node.props
+                                        .get("selected_index")
+                                        .and_then(|v| v.as_u64())
+                                        .unwrap_or(0) as usize;
                                 let next = if key.contains("Up") {
                                     cur.saturating_sub(1)
                                 } else {
@@ -1058,8 +1050,7 @@ async fn handle_request(
                     };
                     let is_button = {
                         let t = tree.lock().await;
-                        t.get(&focus_id)
-                            .is_some_and(|n| n.kind == "button")
+                        t.get(&focus_id).is_some_and(|n| n.kind == "button")
                     };
                     if is_button {
                         nid = focus_id;
@@ -1067,8 +1058,7 @@ async fn handle_request(
                         let snapshot = {
                             let mut t = tree.lock().await;
                             if let Some(node) = t.get_mut(&nid) {
-                                node.props
-                                    .insert("pressed".into(), serde_json::json!(true));
+                                node.props.insert("pressed".into(), serde_json::json!(true));
                             }
                             renderer::serialize_subtree(&t, t.root_id())
                         };
@@ -1153,18 +1143,40 @@ async fn handle_request(
                                     .and_then(|v| v.as_str())
                                     .unwrap_or("")
                                     .to_string();
-                                Some(current)
+                                let caret = node
+                                    .props
+                                    .get("caret")
+                                    .and_then(|v| v.as_u64())
+                                    .map(|n| n as usize)
+                                    .unwrap_or(current.len());
+                                let sel = node
+                                    .props
+                                    .get("sel_anchor")
+                                    .and_then(|v| v.as_u64())
+                                    .map(|n| n as usize);
+                                let clip = if let Some(a) = sel {
+                                    if a != caret {
+                                        let (s, e) = (a.min(caret), a.max(caret));
+                                        current.get(s..e).unwrap_or(&current).to_string()
+                                    } else {
+                                        current.clone()
+                                    }
+                                } else {
+                                    current.clone()
+                                };
+                                Some((current, clip, caret, sel))
                             } else {
                                 None
                             }
                         } else {
                             None
                         };
-                        if let Some(current) = edited {
+                        if let Some((current, clip, caret, sel)) = edited {
                             match key_l.as_str() {
                                 "a" => {
                                     if let Some(node) = t.get_mut(&focus_id) {
-                                        node.props.insert("sel_anchor".into(), serde_json::json!(0));
+                                        node.props
+                                            .insert("sel_anchor".into(), serde_json::json!(0));
                                         node.props.insert(
                                             "sel_end".into(),
                                             serde_json::json!(current.len()),
@@ -1196,9 +1208,14 @@ async fn handle_request(
                                             .to_string();
                                         node.props
                                             .insert("last_text".into(), serde_json::json!(current));
-                                        node.props.insert("text".into(), serde_json::json!(prev.clone()));
-                                        node.props.insert("value".into(), serde_json::json!(prev.clone()));
-                                        node.props.insert("caret".into(), serde_json::json!(prev.len()));
+                                        node.props
+                                            .insert("text".into(), serde_json::json!(prev.clone()));
+                                        node.props.insert(
+                                            "value".into(),
+                                            serde_json::json!(prev.clone()),
+                                        );
+                                        node.props
+                                            .insert("caret".into(), serde_json::json!(prev.len()));
                                     }
                                     t.revision += 1;
                                     let snapshot = renderer::serialize_subtree(&t, t.root_id());
@@ -1216,7 +1233,7 @@ async fn handle_request(
                                     drop(t);
                                     let _ = mcp_call(
                                         "clipboard.set",
-                                        serde_json::json!({ "text": current }),
+                                        serde_json::json!({ "text": clip }),
                                     )
                                     .await;
                                     return success_response(
@@ -1228,21 +1245,43 @@ async fn handle_request(
                                     );
                                 }
                                 "x" => {
+                                    let remaining = if let Some(a) = sel {
+                                        if a != caret {
+                                            let (s, e) = (a.min(caret), a.max(caret));
+                                            format!(
+                                                "{}{}",
+                                                current.get(..s).unwrap_or(""),
+                                                current.get(e..).unwrap_or("")
+                                            )
+                                        } else {
+                                            String::new()
+                                        }
+                                    } else {
+                                        String::new()
+                                    };
                                     if let Some(node) = t.get_mut(&focus_id) {
-                                        node.props
-                                            .insert("text".into(), serde_json::json!(""));
-                                        node.props
-                                            .insert("value".into(), serde_json::json!(""));
-                                        node.props
-                                            .insert("caret".into(), serde_json::json!(0));
+                                        node.props.insert(
+                                            "text".into(),
+                                            serde_json::json!(remaining.clone()),
+                                        );
+                                        node.props.insert(
+                                            "value".into(),
+                                            serde_json::json!(remaining.clone()),
+                                        );
+                                        node.props.insert(
+                                            "caret".into(),
+                                            serde_json::json!(sel
+                                                .unwrap_or(0)
+                                                .min(remaining.len())),
+                                        );
+                                        node.props.remove("sel_anchor");
                                     }
                                     t.revision += 1;
-                                    let snapshot =
-                                        renderer::serialize_subtree(&t, t.root_id());
+                                    let snapshot = renderer::serialize_subtree(&t, t.root_id());
                                     drop(t);
                                     let _ = mcp_call(
                                         "clipboard.set",
-                                        serde_json::json!({ "text": current }),
+                                        serde_json::json!({ "text": clip }),
                                     )
                                     .await;
                                     let _ = renderer::sync_tree_to_compositor(&snapshot).await;
@@ -1286,14 +1325,11 @@ async fn handle_request(
                                             "value".into(),
                                             serde_json::json!(buf.text.clone()),
                                         );
-                                        node.props.insert(
-                                            "caret".into(),
-                                            serde_json::json!(buf.caret),
-                                        );
+                                        node.props
+                                            .insert("caret".into(), serde_json::json!(buf.caret));
                                     }
                                     t.revision += 1;
-                                    let snapshot =
-                                        renderer::serialize_subtree(&t, t.root_id());
+                                    let snapshot = renderer::serialize_subtree(&t, t.root_id());
                                     drop(t);
                                     let _ = renderer::sync_tree_to_compositor(&snapshot).await;
                                     return success_response(
@@ -1350,8 +1386,7 @@ async fn handle_request(
                                             );
                                         }
                                         t.revision += 1;
-                                        let snapshot =
-                                            renderer::serialize_subtree(&t, t.root_id());
+                                        let snapshot = renderer::serialize_subtree(&t, t.root_id());
                                         Some((composed, snapshot))
                                     } else {
                                         None
@@ -1407,10 +1442,8 @@ async fn handle_request(
                         let mut buf = input_edit::TextBuffer::from_props(&current, caret);
                         if input_edit::apply_key(&mut buf, key, text, &mods) {
                             if let Some(node) = t.get_mut(&focus_id) {
-                                node.props.insert(
-                                    "last_text".into(),
-                                    serde_json::json!(current),
-                                );
+                                node.props
+                                    .insert("last_text".into(), serde_json::json!(current));
                                 node.props
                                     .insert("text".into(), serde_json::json!(buf.text.clone()));
                                 node.props
@@ -1455,15 +1488,14 @@ async fn handle_request(
                     .unwrap_or(serde_json::Value::Null);
                 let b = node.map(|n| n.bindings.clone()).unwrap_or_default();
                 let chat_text = if event == "press" || event == "click" {
-                    t.get("ui.chat_input")
-                        .and_then(|n| {
-                            n.props
-                                .get("text")
-                                .or_else(|| n.props.get("value"))
-                                .and_then(|v| v.as_str())
-                                .filter(|s| !s.is_empty())
-                                .map(|s| s.to_string())
-                        })
+                    t.get("ui.chat_input").and_then(|n| {
+                        n.props
+                            .get("text")
+                            .or_else(|| n.props.get("value"))
+                            .and_then(|v| v.as_str())
+                            .filter(|s| !s.is_empty())
+                            .map(|s| s.to_string())
+                    })
                 } else {
                     None
                 };
@@ -1563,10 +1595,7 @@ async fn handle_request(
         "ui.i18n.status" => success_response(&id, i18n::status()),
         "ui.i18n.t" => {
             let params = params.unwrap_or(serde_json::Value::Null);
-            let key = params
-                .get("key")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let key = params.get("key").and_then(|v| v.as_str()).unwrap_or("");
             if key.is_empty() {
                 error_response(&id, "E_INVALID", "key required")
             } else {
@@ -1582,10 +1611,7 @@ async fn handle_request(
         }
         "ui.i18n.load" => {
             let params = params.unwrap_or(serde_json::Value::Null);
-            let locale = params
-                .get("locale")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let locale = params.get("locale").and_then(|v| v.as_str()).unwrap_or("");
             if locale.is_empty() {
                 error_response(&id, "E_INVALID", "locale required")
             } else {
@@ -1595,18 +1621,13 @@ async fn handle_request(
                 }
             }
         }
-        "ui.components.list" => {
-            success_response(
-                &id,
-                serde_json::json!({ "components": components::catalog() }),
-            )
-        }
+        "ui.components.list" => success_response(
+            &id,
+            serde_json::json!({ "components": components::catalog() }),
+        ),
         "ui.focus.get" => {
             let t = tree.lock().await;
-            success_response(
-                &id,
-                serde_json::json!({ "focused": t.focused() }),
-            )
+            success_response(&id, serde_json::json!({ "focused": t.focused() }))
         }
         "ui.focus.set" => {
             let params = params.unwrap_or(serde_json::Value::Null);
@@ -2310,8 +2331,12 @@ mod tests {
             .and_then(|v| v.as_array())
             .cloned()
             .unwrap_or_default();
-        assert!(removed.iter().any(|v| v.as_str() == Some("ui.agent_button")));
-        assert!(!removed.iter().any(|v| v.as_str() == Some("ui.workspace_hint")));
+        assert!(removed
+            .iter()
+            .any(|v| v.as_str() == Some("ui.agent_button")));
+        assert!(!removed
+            .iter()
+            .any(|v| v.as_str() == Some("ui.workspace_hint")));
     }
 
     #[tokio::test]
@@ -2429,9 +2454,6 @@ mod tests {
             "props": {}
         }))
         .unwrap();
-        assert_eq!(
-            n.props.get("label").and_then(|v| v.as_str()),
-            Some("t1")
-        );
+        assert_eq!(n.props.get("label").and_then(|v| v.as_str()), Some("t1"));
     }
 }

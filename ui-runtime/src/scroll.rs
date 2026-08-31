@@ -12,10 +12,7 @@ pub struct ScrollState {
 impl ScrollState {
     #[allow(dead_code)]
     pub fn from_props(props: &Value, viewport_h: u32, content_h: u32) -> Self {
-        let offset_y = props
-            .get("scroll_y")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0) as i32;
+        let offset_y = props.get("scroll_y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
         let mut s = ScrollState {
             offset_y,
             content_h,
@@ -68,10 +65,7 @@ fn apply_wheel_scaled(
         .get("content_h")
         .and_then(|v| v.as_u64())
         .unwrap_or(viewport_h as u64) as u32;
-    let offset_y = props
-        .get("scroll_y")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0) as i32;
+    let offset_y = props.get("scroll_y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
     let mut state = ScrollState {
         offset_y,
         content_h,

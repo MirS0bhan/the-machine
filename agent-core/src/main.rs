@@ -354,7 +354,10 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
     let mut payload = payload;
     if let serde_json::Value::Object(ref mut map) = payload {
         if !map.contains_key("prior_log") {
-            map.insert("prior_log".into(), serde_json::json!(prior_chat_log.clone()));
+            map.insert(
+                "prior_log".into(),
+                serde_json::json!(prior_chat_log.clone()),
+            );
         }
     }
 
@@ -393,8 +396,7 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
             match cmd {
                 "chat.undo" => planner::chat_undo_plan(&prior_chat_log),
                 "chat.regenerate" => {
-                    let (_without_last, last_user) =
-                        planner::split_last_user_turn(&prior_chat_log);
+                    let (_without_last, last_user) = planner::split_last_user_turn(&prior_chat_log);
                     let prompt = if last_user.is_empty() {
                         text.clone()
                     } else {
@@ -550,25 +552,29 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
         let items = planner::network_interface_items(&iface_result);
         for step in planner::network_status_patch_plan(&items) {
             let r = mcp_call(&step.action, step.params.clone()).await;
-            results.push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
+            results
+                .push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
         }
     }
     if let Some(pr) = power_result {
         for step in planner::power_status_patch_plan(&pr) {
             let r = mcp_call(&step.action, step.params.clone()).await;
-            results.push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
+            results
+                .push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
         }
     }
     if let Some(wr) = wifi_result {
         for step in planner::wifi_status_patch_plan(&wr) {
             let r = mcp_call(&step.action, step.params.clone()).await;
-            results.push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
+            results
+                .push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
         }
     }
     if let Some(dr) = display_result {
         for step in planner::display_modes_patch_plan(&dr) {
             let r = mcp_call(&step.action, step.params.clone()).await;
-            results.push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
+            results
+                .push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
         }
     }
 
@@ -610,7 +616,8 @@ async fn resolve_action_plan(
     if planner::uses_heuristic_plan(&classification.intent) {
         return planner::build_plan_heuristic(&classification.intent, payload, text);
     }
-    let allow_cloud = !privacy_tag && !local_only && (routing == "cloud" || classification.requires_cloud);
+    let allow_cloud =
+        !privacy_tag && !local_only && (routing == "cloud" || classification.requires_cloud);
     if allow_cloud {
         let _ = refresh_cloud_router(state).await;
         let cloud_plan = {
@@ -764,10 +771,7 @@ async fn resolve_chat_reply(
     if let Some(reply) = llm::complete_chat(text).await {
         return (reply, "local".into());
     }
-    (
-        planner::heuristic_chat_reply(text),
-        "heuristic".into(),
-    )
+    (planner::heuristic_chat_reply(text), "heuristic".into())
 }
 
 /// Reload cloud API key from env/secret file; returns true if a router is available.
@@ -815,12 +819,18 @@ mod tests {
         let resp = handle_request("agent.status".into(), None, &state).await;
         assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
         let result = resp.result.expect("result");
-        assert_eq!(result.get("status").and_then(|v| v.as_str()), Some("running"));
+        assert_eq!(
+            result.get("status").and_then(|v| v.as_str()),
+            Some("running")
+        );
         assert_eq!(
             result.get("local_model").and_then(|v| v.as_str()),
             Some("unavailable")
         );
-        assert_eq!(result.get("wakes_processed").and_then(|v| v.as_u64()), Some(0));
+        assert_eq!(
+            result.get("wakes_processed").and_then(|v| v.as_u64()),
+            Some(0)
+        );
     }
 
     #[tokio::test]
@@ -875,10 +885,7 @@ mod tests {
         let resp = handle_request("agent.cloud.status".into(), None, &state).await;
         assert!(resp.error.is_none());
         let result = resp.result.expect("result");
-        assert_eq!(
-            result.get("enabled").and_then(|v| v.as_bool()),
-            Some(false)
-        );
+        assert_eq!(result.get("enabled").and_then(|v| v.as_bool()), Some(false));
         assert_eq!(
             result.get("local_only_mode").and_then(|v| v.as_bool()),
             Some(true)

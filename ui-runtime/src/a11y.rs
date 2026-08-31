@@ -66,10 +66,7 @@ fn serialize_node(tree: &UiTree, id: &str) -> Value {
         .get("disabled")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
-    let checked = node
-        .props
-        .get("checked")
-        .and_then(|v| v.as_bool());
+    let checked = node.props.get("checked").and_then(|v| v.as_bool());
     let value = node.props.get("value").cloned();
     let children: Vec<Value> = node
         .children

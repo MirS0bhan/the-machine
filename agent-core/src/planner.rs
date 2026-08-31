@@ -246,13 +246,31 @@ pub fn build_plan_heuristic(
         "desktop.spawn" => desktop_spawn_plan(text),
         "desktop.clear" => desktop_clear_workspace_plan(),
         "desktop.system" => desktop_system_plan(text),
-        "chat.undo" => chat_undo_plan(payload.get("prior_log").and_then(|v| v.as_str()).unwrap_or("")),
+        "chat.undo" => chat_undo_plan(
+            payload
+                .get("prior_log")
+                .and_then(|v| v.as_str())
+                .unwrap_or(""),
+        ),
         "chat.regenerate" => chat_regenerate_plan(
-            payload.get("prior_log").and_then(|v| v.as_str()).unwrap_or(""),
+            payload
+                .get("prior_log")
+                .and_then(|v| v.as_str())
+                .unwrap_or(""),
             text,
         ),
-        "chat.pin" => chat_pin_plan(payload.get("prior_log").and_then(|v| v.as_str()).unwrap_or("")),
-        "chat.export" => chat_export_plan(payload.get("prior_log").and_then(|v| v.as_str()).unwrap_or("")),
+        "chat.pin" => chat_pin_plan(
+            payload
+                .get("prior_log")
+                .and_then(|v| v.as_str())
+                .unwrap_or(""),
+        ),
+        "chat.export" => chat_export_plan(
+            payload
+                .get("prior_log")
+                .and_then(|v| v.as_str())
+                .unwrap_or(""),
+        ),
         "chat.suggestions" => chat_suggestions_plan(),
         "desktop.tour" => desktop_tour_plan(),
         "chat.message" => chat_message_plan(text, &heuristic_chat_reply(text), ""),
@@ -320,7 +338,9 @@ print(json.dumps({"result": result}))
                 "ops": [{ "path": format!("task.lambdas.{}", name), "value": { "status": "registered" } }]
             }),
         },
-        activity_plan(&format!("Registered {name} and placed control in workspace")),
+        activity_plan(&format!(
+            "Registered {name} and placed control in workspace"
+        )),
     ]
 }
 
@@ -467,7 +487,8 @@ pub fn desktop_status_plan(text: &str) -> Vec<PlanStep> {
     } else {
         items.push("Ask in chat for network or power details".to_string());
     }
-    let items_json: Vec<serde_json::Value> = items.into_iter().map(serde_json::Value::from).collect();
+    let items_json: Vec<serde_json::Value> =
+        items.into_iter().map(serde_json::Value::from).collect();
     let mut steps = vec![
         PlanStep {
             action: "ui.patch".into(),
@@ -1384,35 +1405,34 @@ pub fn network_interface_items(result: &serde_json::Value) -> Vec<String> {
 
 /// Patch workspace with live network interface rows after net.list_interfaces.
 pub fn network_status_patch_plan(items: &[String]) -> Vec<PlanStep> {
-    let items_json: Vec<serde_json::Value> = items.iter().cloned().map(serde_json::Value::from).collect();
-    vec![
-        PlanStep {
-            action: "ui.patch".into(),
-            params: serde_json::json!({
-                "ops": [
-                    {
-                        "op": "replace",
+    let items_json: Vec<serde_json::Value> =
+        items.iter().cloned().map(serde_json::Value::from).collect();
+    vec![PlanStep {
+        action: "ui.patch".into(),
+        params: serde_json::json!({
+            "ops": [
+                {
+                    "op": "replace",
+                    "id": "ui.status_panel",
+                    "node": {
                         "id": "ui.status_panel",
-                        "node": {
-                            "id": "ui.status_panel",
-                            "type": "list",
-                            "props": {
-                                "label": "Network interfaces",
-                                "items": items_json
-                            },
-                            "children": [],
-                            "bindings": [{ "type": "mcp", "target": "net.list_interfaces" }]
-                        }
-                    },
-                    {
-                        "op": "update",
-                        "id": "ui.activity",
-                        "props": { "text": format!("Network: {} interface(s)", items.len()) }
+                        "type": "list",
+                        "props": {
+                            "label": "Network interfaces",
+                            "items": items_json
+                        },
+                        "children": [],
+                        "bindings": [{ "type": "mcp", "target": "net.list_interfaces" }]
                     }
-                ]
-            }),
-        },
-    ]
+                },
+                {
+                    "op": "update",
+                    "id": "ui.activity",
+                    "props": { "text": format!("Network: {} interface(s)", items.len()) }
+                }
+            ]
+        }),
+    }]
 }
 
 /// Extra MCP steps inferred from conversational text (merged into chat turns).
@@ -1464,16 +1484,20 @@ mod tests {
         let plan = build_plan_heuristic("boot.greet", &serde_json::json!({}), "");
         assert!(plan.len() >= 2);
         assert_eq!(plan[0].action, "ui.patch");
-        let ops = plan[0].params.get("ops").and_then(|v| v.as_array()).unwrap();
-        assert!(ops.iter().any(|op| {
-            op.get("id").and_then(|v| v.as_str()) == Some("ui.chat_log")
-        }));
-        assert!(ops.iter().any(|op| {
-            op.get("id").and_then(|v| v.as_str()) == Some("ui.status_line")
-        }));
-        assert!(ops.iter().any(|op| {
-            op.get("id").and_then(|v| v.as_str()) == Some("ui.activity")
-        }));
+        let ops = plan[0]
+            .params
+            .get("ops")
+            .and_then(|v| v.as_array())
+            .unwrap();
+        assert!(ops
+            .iter()
+            .any(|op| { op.get("id").and_then(|v| v.as_str()) == Some("ui.chat_log") }));
+        assert!(ops
+            .iter()
+            .any(|op| { op.get("id").and_then(|v| v.as_str()) == Some("ui.status_line") }));
+        assert!(ops
+            .iter()
+            .any(|op| { op.get("id").and_then(|v| v.as_str()) == Some("ui.activity") }));
     }
 
     #[test]
@@ -1527,7 +1551,11 @@ mod tests {
     #[test]
     fn desktop_spawn_toggle_from_chat_text() {
         let plan = desktop_spawn_plan("add a toggle");
-        let ops = plan[0].params.get("ops").and_then(|v| v.as_array()).unwrap();
+        let ops = plan[0]
+            .params
+            .get("ops")
+            .and_then(|v| v.as_array())
+            .unwrap();
         let node = ops[0].get("node").unwrap();
         assert_eq!(node.get("type").and_then(|v| v.as_str()), Some("toggle"));
     }
@@ -1535,7 +1563,11 @@ mod tests {
     #[test]
     fn desktop_spawn_slider_from_chat_text() {
         let plan = desktop_spawn_plan("add a slider");
-        let ops = plan[0].params.get("ops").and_then(|v| v.as_array()).unwrap();
+        let ops = plan[0]
+            .params
+            .get("ops")
+            .and_then(|v| v.as_array())
+            .unwrap();
         let node = ops[0].get("node").unwrap();
         assert_eq!(node.get("type").and_then(|v| v.as_str()), Some("slider"));
     }
@@ -1543,7 +1575,11 @@ mod tests {
     #[test]
     fn desktop_spawn_grid_has_two_buttons() {
         let plan = desktop_spawn_plan("lay out a grid of actions");
-        let ops = plan[0].params.get("ops").and_then(|v| v.as_array()).unwrap();
+        let ops = plan[0]
+            .params
+            .get("ops")
+            .and_then(|v| v.as_array())
+            .unwrap();
         assert!(ops.iter().any(|op| {
             op.get("node")
                 .and_then(|n| n.get("type"))
@@ -1589,7 +1625,11 @@ mod tests {
     fn desktop_spawn_places_mcp_bound_button() {
         let plan = desktop_spawn_plan("add a button for status");
         assert!(plan.iter().any(|s| s.action == "ui.patch"));
-        let ops = plan[0].params.get("ops").and_then(|v| v.as_array()).unwrap();
+        let ops = plan[0]
+            .params
+            .get("ops")
+            .and_then(|v| v.as_array())
+            .unwrap();
         let node = ops[0].get("node").unwrap();
         assert_eq!(node.get("type").and_then(|v| v.as_str()), Some("button"));
         let target = node
@@ -1651,7 +1691,11 @@ mod tests {
             ("add a button", "button"),
         ] {
             let plan = desktop_spawn_plan(msg);
-            let ops = plan[0].params.get("ops").and_then(|v| v.as_array()).unwrap();
+            let ops = plan[0]
+                .params
+                .get("ops")
+                .and_then(|v| v.as_array())
+                .unwrap();
             assert!(
                 ops.iter().any(|op| {
                     op.get("node")
@@ -1671,7 +1715,11 @@ mod tests {
             "net.list_interfaces"
         );
         let plan = desktop_spawn_plan("create a button bind to power.get_profile");
-        let ops = plan[0].params.get("ops").and_then(|v| v.as_array()).unwrap();
+        let ops = plan[0]
+            .params
+            .get("ops")
+            .and_then(|v| v.as_array())
+            .unwrap();
         let target = ops[0]
             .get("node")
             .and_then(|n| n.get("bindings"))
@@ -1734,11 +1782,23 @@ mod tests {
     #[test]
     fn chat_commands_detected() {
         assert_eq!(chat_command_from_text("please undo"), Some("chat.undo"));
-        assert_eq!(chat_command_from_text("export the chat"), Some("chat.export"));
+        assert_eq!(
+            chat_command_from_text("export the chat"),
+            Some("chat.export")
+        );
         assert_eq!(chat_command_from_text("take a tour"), Some("desktop.tour"));
-        assert_eq!(desktop_intent_from_text("clear the workspace"), Some("desktop.clear"));
-        assert_eq!(desktop_intent_from_text("show battery"), Some("desktop.system"));
-        assert_eq!(desktop_intent_from_text("show a menu"), Some("desktop.spawn"));
+        assert_eq!(
+            desktop_intent_from_text("clear the workspace"),
+            Some("desktop.clear")
+        );
+        assert_eq!(
+            desktop_intent_from_text("show battery"),
+            Some("desktop.system")
+        );
+        assert_eq!(
+            desktop_intent_from_text("show a menu"),
+            Some("desktop.spawn")
+        );
     }
 
     #[test]

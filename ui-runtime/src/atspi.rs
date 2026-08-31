@@ -131,11 +131,7 @@ pub async fn try_start(tree: Arc<tokio::sync::Mutex<UiTree>>) -> bool {
         tree: tree.clone(),
         snapshot,
     };
-    match Builder::session()
-        .and_then(|b| {
-            b.name("org.themachine.A11y")
-                .map_err(Into::into)
-        }) {
+    match Builder::session().and_then(|b| b.name("org.themachine.A11y").map_err(Into::into)) {
         Ok(builder) => match builder.serve_at("/org/themachine/A11y", root) {
             Ok(builder) => match builder.build().await {
                 Ok(conn) => {

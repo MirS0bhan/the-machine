@@ -146,12 +146,33 @@ fn builtin_catalog(locale: &str) -> HashMap<String, String> {
     };
     // Named locales with small builtin catalogs; unknown locales keep English fallback.
     let extra: &[(&str, &[(&str, &str)])] = &[
-        ("fr", &[("app.welcome", "Bon retour"), ("chat.send", "Envoyer")]),
-        ("de", &[("app.welcome", "Willkommen zurück"), ("chat.send", "Senden")]),
-        ("es", &[("app.welcome", "Bienvenido de nuevo"), ("chat.send", "Enviar")]),
+        (
+            "fr",
+            &[("app.welcome", "Bon retour"), ("chat.send", "Envoyer")],
+        ),
+        (
+            "de",
+            &[
+                ("app.welcome", "Willkommen zurück"),
+                ("chat.send", "Senden"),
+            ],
+        ),
+        (
+            "es",
+            &[
+                ("app.welcome", "Bienvenido de nuevo"),
+                ("chat.send", "Enviar"),
+            ],
+        ),
         ("he", &[("app.welcome", "ברוך שובך"), ("chat.send", "שלח")]),
-        ("ur", &[("app.welcome", "خوش آمدید"), ("chat.send", "بھیجیں")]),
-        ("ja", &[("app.welcome", "おかえりなさい"), ("chat.send", "送信")]),
+        (
+            "ur",
+            &[("app.welcome", "خوش آمدید"), ("chat.send", "بھیجیں")],
+        ),
+        (
+            "ja",
+            &[("app.welcome", "おかえりなさい"), ("chat.send", "送信")],
+        ),
         ("zh", &[("app.welcome", "欢迎回来"), ("chat.send", "发送")]),
     ];
     let mut map: HashMap<String, String> = pairs

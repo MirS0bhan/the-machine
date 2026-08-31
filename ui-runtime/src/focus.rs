@@ -6,7 +6,16 @@ use crate::UiTree;
 pub fn is_interactive(kind: &str) -> bool {
     matches!(
         kind,
-        "button" | "field" | "input" | "toggle" | "slider" | "list" | "dialog" | "media" | "chart" | "grid"
+        "button"
+            | "field"
+            | "input"
+            | "toggle"
+            | "slider"
+            | "list"
+            | "dialog"
+            | "media"
+            | "chart"
+            | "grid"
     )
 }
 

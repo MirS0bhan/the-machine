@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| agentic desktop shell + loop | cursor/agentic-desktop-ac5e | — | landed on main (`43dedce`); still open until proven | 2026-08-31 | AD1 code on main (multi-turn chat; chrome/workspace; desktop.status/spawn); keep open until e2e/boot proves agentic loop |
+| agentic desktop shell + loop | cursor/scenarios-all-now-ac5e | — | catalog 1000 NOW after code verification | 2026-08-31 | Spawn all 12 primitives; workspace.clear; chat Enter/clear/undo; system-daemon from chat; Machine-native equivalents for XWayland/IME buses |
 | docs close G13 in gap-analysis | cursor/autonomous-machine-maintenance-4565 | #207 | pr-open | 2026-08-30 | Mark G13 fully closed (#157, #159, #168) |
 | verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | #189–#192 | merged | 2026-08-30 | Landed on main (also #193 tree repair) |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
@@ -18,6 +18,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-31 | gap | 1000 agentic-desktop scenarios → NOW with boot-path verification | feature branch `cursor/scenarios-all-now-ac5e` |
 | 2026-08-31 | gap | agentic desktop (chat append, shell chrome, actionable workspace) | landed on main (`43dedce`); still open until proven |
 | 2026-08-31 | gap | chat.message real LLM reply (cloud/local/heuristic) | merged to main (`1fa3810`) |
 | 2026-08-31 | audit | Master Engineering Prompt compliance (inventory/MCP/env/G17 honesty) | merged (#215) |

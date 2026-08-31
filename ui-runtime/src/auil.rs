@@ -203,10 +203,7 @@ fn split_text_content(line: &str) -> (&str, Option<String>) {
 /// Convert an AUIL tree into `ui.patch` insert operations.
 pub fn auil_to_patch_ops(root: &AuilNode, parent_id: &str) -> Vec<Value> {
     let mut ops = Vec::new();
-    let root_id = root
-        .id
-        .as_deref()
-        .unwrap_or(parent_id);
+    let root_id = root.id.as_deref().unwrap_or(parent_id);
     if root_id == parent_id {
         // Boot file root matches the live tree root — insert children only.
         for child in &root.children {
@@ -320,7 +317,11 @@ stack#ui.root
         }
         let ids: Vec<_> = ops
             .iter()
-            .filter_map(|op| op.get("node").and_then(|n| n.get("id")).and_then(|v| v.as_str()))
+            .filter_map(|op| {
+                op.get("node")
+                    .and_then(|n| n.get("id"))
+                    .and_then(|v| v.as_str())
+            })
             .collect();
         for expected in [
             "ui.chrome",
@@ -350,7 +351,11 @@ stack#ui.root
         let ops = auil_to_patch_ops(&tree, "ui.root");
         let ids: Vec<_> = ops
             .iter()
-            .filter_map(|op| op.get("node").and_then(|n| n.get("id")).and_then(|v| v.as_str()))
+            .filter_map(|op| {
+                op.get("node")
+                    .and_then(|n| n.get("id"))
+                    .and_then(|v| v.as_str())
+            })
             .collect();
         assert!(ids.contains(&"ui.greeting"));
         assert!(ids.contains(&"ui.chat_send"));
@@ -367,6 +372,8 @@ stack#ui.root
         assert_eq!(tree.children.len(), 2);
         let ops = auil_to_patch_ops(&tree, "ui.root");
         assert_eq!(ops.len(), 2);
-        assert!(ops.iter().all(|op| op.get("node").and_then(|n| n.get("id")).is_some()));
+        assert!(ops
+            .iter()
+            .all(|op| op.get("node").and_then(|n| n.get("id")).is_some()));
     }
 }
