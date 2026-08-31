@@ -180,15 +180,17 @@ mod tests {
     #[tokio::test]
     async fn localmodel_health_reports_stub_backend_without_gguf() {
         let state = test_state(false);
-        let resp = handle_request(
-            mcp_request(1, "localmodel.health", json!({})),
-            state,
-        )
-        .await;
+        let resp = handle_request(mcp_request(1, "localmodel.health", json!({})), state).await;
         assert!(resp.get("error").is_none());
         let result = resp.get("result").expect("result");
-        assert_eq!(result.get("model_path").and_then(|v| v.as_str()), Some("/models/test.gguf"));
-        assert_eq!(result.get("gguf_loaded").and_then(|v| v.as_bool()), Some(false));
+        assert_eq!(
+            result.get("model_path").and_then(|v| v.as_str()),
+            Some("/models/test.gguf")
+        );
+        assert_eq!(
+            result.get("gguf_loaded").and_then(|v| v.as_bool()),
+            Some(false)
+        );
         assert_eq!(result.get("status").and_then(|v| v.as_str()), Some("stub"));
         assert!(result.get("backend").is_some());
     }
@@ -196,14 +198,13 @@ mod tests {
     #[tokio::test]
     async fn localmodel_health_reports_ready_when_gguf_loaded() {
         let state = test_state(true);
-        let resp = handle_request(
-            mcp_request(2, "localmodel.health", json!({})),
-            state,
-        )
-        .await;
+        let resp = handle_request(mcp_request(2, "localmodel.health", json!({})), state).await;
         assert!(resp.get("error").is_none());
         let result = resp.get("result").expect("result");
-        assert_eq!(result.get("gguf_loaded").and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(
+            result.get("gguf_loaded").and_then(|v| v.as_bool()),
+            Some(true)
+        );
         assert_eq!(result.get("status").and_then(|v| v.as_str()), Some("ready"));
     }
 
@@ -221,7 +222,11 @@ mod tests {
         .await;
         assert!(resp.get("error").is_none());
         let result = resp.get("result").expect("result");
-        assert!(result.get("text").and_then(|v| v.as_str()).unwrap_or("").contains("hello"));
+        assert!(result
+            .get("text")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .contains("hello"));
         assert_eq!(
             result.get("privacy_tag").and_then(|v| v.as_str()),
             Some("none")
@@ -246,7 +251,10 @@ mod tests {
         assert!(result.get("confidence").and_then(|v| v.as_f64()).is_some());
         assert!(result.get("complexity").and_then(|v| v.as_str()).is_some());
         assert!(result.get("routing").and_then(|v| v.as_str()).is_some());
-        assert!(result.get("requires_cloud").and_then(|v| v.as_bool()).is_some());
+        assert!(result
+            .get("requires_cloud")
+            .and_then(|v| v.as_bool())
+            .is_some());
         assert_eq!(
             result.get("privacy_tag").and_then(|v| v.as_str()),
             Some("none")
@@ -289,11 +297,7 @@ mod tests {
     #[tokio::test]
     async fn unknown_method_returns_not_found() {
         let state = test_state(false);
-        let resp = handle_request(
-            mcp_request(7, "localmodel.nope", json!({})),
-            state,
-        )
-        .await;
+        let resp = handle_request(mcp_request(7, "localmodel.nope", json!({})), state).await;
         assert_eq!(
             resp.get("error")
                 .and_then(|e| e.get("code"))

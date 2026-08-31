@@ -54,10 +54,7 @@ pub fn is_draggable(props: &std::collections::HashMap<String, Value>) -> bool {
         .get("draggable")
         .and_then(|v| v.as_bool())
         .unwrap_or(false)
-        || props
-            .get("drag")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false)
+        || props.get("drag").and_then(|v| v.as_bool()).unwrap_or(false)
 }
 
 #[cfg(test)]

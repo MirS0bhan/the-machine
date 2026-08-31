@@ -804,7 +804,10 @@ mod tests {
             Some("healthy")
         );
         assert_eq!(result.get("functions").and_then(|v| v.as_u64()), Some(0));
-        assert_eq!(result.get("active_leases").and_then(|v| v.as_u64()), Some(0));
+        assert_eq!(
+            result.get("active_leases").and_then(|v| v.as_u64()),
+            Some(0)
+        );
     }
 
     #[tokio::test]
@@ -824,7 +827,10 @@ mod tests {
         let (_dir, entry) = lambda_test_dir();
         let state = test_state();
         let reg = handle_request(
-            req("lambda.register", Some(sample_manifest("test.echo", &entry))),
+            req(
+                "lambda.register",
+                Some(sample_manifest("test.echo", &entry)),
+            ),
             state.clone(),
         )
         .await;

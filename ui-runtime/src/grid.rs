@@ -136,8 +136,7 @@ pub fn plan(
 impl GridPlan {
     pub fn origin_of(&self, cell: &GridCell, origin_x: i32, origin_y: i32) -> (i32, i32) {
         let col = if self.rtl {
-            self.cols
-                .saturating_sub(cell.col + cell.col_span)
+            self.cols.saturating_sub(cell.col + cell.col_span)
         } else {
             cell.col
         };
@@ -150,8 +149,7 @@ impl GridPlan {
     }
 
     pub fn size_of(&self, cell: &GridCell, child_w: u32, child_h: u32) -> (u32, u32) {
-        let w = self.cell_w * cell.col_span
-            + self.gap * cell.col_span.saturating_sub(1);
+        let w = self.cell_w * cell.col_span + self.gap * cell.col_span.saturating_sub(1);
         let mut h = 0u32;
         for dr in 0..cell.row_span {
             h += self

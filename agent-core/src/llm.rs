@@ -196,7 +196,11 @@ pub fn sanitize_plan(plan: Vec<PlanStep>) -> Vec<PlanStep> {
             let kept: Vec<serde_json::Value> = ops
                 .into_iter()
                 .filter(|op| {
-                    match op.get("node").and_then(|n| n.get("type")).and_then(|v| v.as_str()) {
+                    match op
+                        .get("node")
+                        .and_then(|n| n.get("type"))
+                        .and_then(|v| v.as_str())
+                    {
                         Some(kind) => {
                             crate::desktop::PRIMITIVES.contains(&kind) || kind == "container"
                         }

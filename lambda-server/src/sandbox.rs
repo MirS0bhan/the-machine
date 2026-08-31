@@ -572,7 +572,12 @@ pub fn run_sandboxed(input: &SandboxInput) -> SandboxOutput {
         }
     };
     let argv: Vec<CString> = std::iter::once(entry_c)
-        .chain(input.args.iter().filter_map(|s| CString::new(s.as_str()).ok()))
+        .chain(
+            input
+                .args
+                .iter()
+                .filter_map(|s| CString::new(s.as_str()).ok()),
+        )
         .collect();
     let mut argv_ptrs: Vec<*const libc::c_char> = argv.iter().map(|c| c.as_ptr()).collect();
     argv_ptrs.push(std::ptr::null());

@@ -90,14 +90,8 @@ fn layout_node(
     }
 
     if matches!(kind, "stack" | "container") {
-        let dir = props
-            .get("dir")
-            .and_then(|v| v.as_str())
-            .unwrap_or("v");
-        let rtl = props
-            .get("rtl")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false)
+        let dir = props.get("dir").and_then(|v| v.as_str()).unwrap_or("v");
+        let rtl = props.get("rtl").and_then(|v| v.as_bool()).unwrap_or(false)
             || dir == "rtl"
             || props
                 .get("writing_mode")
@@ -123,10 +117,7 @@ fn layout_node(
             let (w, h) = measure_leaf(child, avail_w);
             // Skip collapsed placeholders (e.g. empty chat_log caption pre-fill).
             if w == 0 && h == 0 {
-                let child_kind = child
-                    .get("type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let child_kind = child.get("type").and_then(|v| v.as_str()).unwrap_or("");
                 if !matches!(child_kind, "stack" | "container" | "grid") {
                     continue;
                 }
@@ -206,10 +197,7 @@ fn layout_grid(
         .and_then(|v| v.as_u64())
         .unwrap_or(2) as u32;
     let gap = gap_px(props);
-    let rtl = props
-        .get("rtl")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false)
+    let rtl = props.get("rtl").and_then(|v| v.as_bool()).unwrap_or(false)
         || props
             .get("dir")
             .and_then(|v| v.as_str())
@@ -265,10 +253,7 @@ fn measure_leaf(node: &Value, avail_w: u32) -> (u32, u32) {
     let kind = node.get("type").and_then(|v| v.as_str()).unwrap_or("text");
     let id = node.get("id").and_then(|v| v.as_str()).unwrap_or("");
     let props = node.get("props").cloned().unwrap_or(json!({}));
-    let role = props
-        .get("role")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let role = props.get("role").and_then(|v| v.as_str()).unwrap_or("");
 
     match kind {
         "text" => {
@@ -335,18 +320,9 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let text = crate::i18n::resolve_label(
-        props
-            .get("text")
-            .and_then(|v| v.as_str())
-            .unwrap_or(""),
-    );
-    let label_prop = crate::i18n::resolve_label(
-        props
-            .get("label")
-            .and_then(|v| v.as_str())
-            .unwrap_or(""),
-    );
+    let text = crate::i18n::resolve_label(props.get("text").and_then(|v| v.as_str()).unwrap_or(""));
+    let label_prop =
+        crate::i18n::resolve_label(props.get("label").and_then(|v| v.as_str()).unwrap_or(""));
     let placeholder = crate::i18n::resolve_label(
         props
             .get("placeholder")
@@ -504,18 +480,12 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
     let value_min = props.get("min").and_then(|v| v.as_f64()).unwrap_or(0.0);
-    let value_max = props
-        .get("max")
-        .and_then(|v| v.as_f64())
-        .unwrap_or(100.0);
+    let value_max = props.get("max").and_then(|v| v.as_f64()).unwrap_or(100.0);
     let value = props
         .get("value")
         .and_then(|v| v.as_f64())
         .unwrap_or(value_min);
-    let scroll_y = props
-        .get("scroll_y")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0) as i32;
+    let scroll_y = props.get("scroll_y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
     let items: Vec<String> = props
         .get("items")
         .or_else(|| props.get("data"))
@@ -531,14 +501,13 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
                 .collect()
         })
         .unwrap_or_default();
-    let caret = props
-        .get("caret")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(if matches!(kind.as_str(), "field" | "input") {
+    let caret = props.get("caret").and_then(|v| v.as_i64()).unwrap_or(
+        if matches!(kind.as_str(), "field" | "input") {
             text.len() as i64
         } else {
             -1
-        });
+        },
+    );
     let placeholder_active =
         matches!(kind.as_str(), "field" | "input") && text.is_empty() && !placeholder.is_empty();
     let src = props

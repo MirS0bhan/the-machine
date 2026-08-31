@@ -171,12 +171,7 @@ fn fit_within(w: u32, h: u32, max_w: u32, max_h: u32) -> (u32, u32) {
 }
 
 /// Blit an RGB24 frame into BGRA framebuffer coordinates.
-pub fn blit_rgb_frame(
-    px: &mut crate::pixel::PixelBackend,
-    x: i32,
-    y: i32,
-    frame: &DecodedFrame,
-) {
+pub fn blit_rgb_frame(px: &mut crate::pixel::PixelBackend, x: i32, y: i32, frame: &DecodedFrame) {
     let mut bgra = Vec::with_capacity(frame.rgb.len() / 3 * 4);
     for chunk in frame.rgb.chunks_exact(3) {
         bgra.push(chunk[2]); // B

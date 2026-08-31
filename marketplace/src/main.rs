@@ -267,14 +267,19 @@ mod tests {
             .and_then(|r| r.get("bundles"))
             .and_then(|b| b.as_array())
             .expect("bundles array");
-        assert!(bundles.iter().any(|b| b.get("id").and_then(|v| v.as_str()) == Some("calc-pack-v1")));
+        assert!(bundles
+            .iter()
+            .any(|b| b.get("id").and_then(|v| v.as_str()) == Some("calc-pack-v1")));
     }
 
     #[tokio::test]
     async fn install_without_confirm_requires_confirmation() {
         let state = test_state().await;
         let resp = handle_request(
-            req("marketplace.install", json!({ "bundle_id": "calc-pack-v1" })),
+            req(
+                "marketplace.install",
+                json!({ "bundle_id": "calc-pack-v1" }),
+            ),
             state,
         )
         .await;

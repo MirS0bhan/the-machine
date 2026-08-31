@@ -106,7 +106,10 @@ mod tests {
             doc.tokens.get("accent.default").map(String::as_str),
             Some("#9C7CF2")
         );
-        assert_eq!(doc.scales.get("radius").and_then(|s| s.get("md")), Some(&10));
+        assert_eq!(
+            doc.scales.get("radius").and_then(|s| s.get("md")),
+            Some(&10)
+        );
         assert_eq!(
             resolve_ref(&doc, "token:text.primary"),
             Some(json!("#F7F8FC"))

@@ -348,7 +348,9 @@ fn media_src_for(text: &str) -> String {
             || token.starts_with("file://")
             || token.starts_with('/')
         {
-            return token.trim_matches(|c: char| c == '"' || c == '\'').to_string();
+            return token
+                .trim_matches(|c: char| c == '"' || c == '\'')
+                .to_string();
         }
     }
     String::new()
@@ -406,7 +408,9 @@ pub fn respawn_plan(text: &str, existing_id: &str) -> Vec<PlanStep> {
             action: "ui.patch".into(),
             params: json!({ "ops": ops }),
         },
-        activity_plan(&format!("Replaced {existing_id} with {surface} ({primitive})")),
+        activity_plan(&format!(
+            "Replaced {existing_id} with {surface} ({primitive})"
+        )),
     ]
 }
 
@@ -439,7 +443,8 @@ pub fn replace_workspace_plan(text: &str, seq: u64) -> Vec<PlanStep> {
 pub fn bind_target_from_text(text: &str) -> Option<String> {
     let mut best: Option<String> = None;
     for raw in text.split(|c: char| c.is_whitespace() || c == ',' || c == ';') {
-        let token = raw.trim_matches(|c: char| !(c.is_alphanumeric() || c == '.' || c == '_' || c == '-'));
+        let token =
+            raw.trim_matches(|c: char| !(c.is_alphanumeric() || c == '.' || c == '_' || c == '-'));
         if token.len() < 3 || !token.contains('.') {
             continue;
         }
@@ -450,7 +455,10 @@ pub fn bind_target_from_text(text: &str) -> Option<String> {
         if segments.len() < 2 || segments.iter().any(|s| s.is_empty()) {
             continue;
         }
-        if !segments[0].chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+        if !segments[0]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        {
             continue;
         }
         if best.as_ref().map(|b| token.len() > b.len()).unwrap_or(true) {
@@ -676,9 +684,17 @@ fn step_for(method: &str, step: usize, text: &str) -> PlanStep {
 /// Which system-daemon domain a request is about.
 pub fn system_domain(text: &str) -> Option<&'static str> {
     let t = text.to_lowercase();
-    if t.contains("display") || t.contains("monitor mode") || t.contains("resolution") || t.contains("brightness") {
+    if t.contains("display")
+        || t.contains("monitor mode")
+        || t.contains("resolution")
+        || t.contains("brightness")
+    {
         Some("display")
-    } else if t.contains("net") || t.contains("interface") || t.contains("wifi") || t.contains("ethernet") {
+    } else if t.contains("net")
+        || t.contains("interface")
+        || t.contains("wifi")
+        || t.contains("ethernet")
+    {
         Some("net")
     } else if t.contains("audio") || t.contains("sound") || t.contains("volume") {
         Some("audio")
@@ -801,7 +817,9 @@ pub fn system_plan(text: &str) -> Vec<PlanStep> {
                 }]
             }),
         },
-        activity_plan(&format!("Read {domain} via {read}; mutation requires confirmation")),
+        activity_plan(&format!(
+            "Read {domain} via {read}; mutation requires confirmation"
+        )),
     ]
 }
 
@@ -963,7 +981,10 @@ mod tests {
     use super::*;
 
     fn node_kind(plan: &[PlanStep]) -> String {
-        let patch = plan.iter().find(|s| s.action == "ui.patch").expect("ui.patch");
+        let patch = plan
+            .iter()
+            .find(|s| s.action == "ui.patch")
+            .expect("ui.patch");
         patch.params["ops"][0]["node"]["type"]
             .as_str()
             .unwrap_or("")
@@ -993,11 +1014,13 @@ mod tests {
     fn spawn_ids_are_unique_per_sequence() {
         let a = spawn_plan("spawn a button", 1);
         let b = spawn_plan("spawn a button", 2);
-        let id_a = a.iter().find(|s| s.action == "ui.patch").unwrap().params["ops"][0]["node"]["id"]
+        let id_a = a.iter().find(|s| s.action == "ui.patch").unwrap().params["ops"][0]["node"]
+            ["id"]
             .as_str()
             .unwrap()
             .to_string();
-        let id_b = b.iter().find(|s| s.action == "ui.patch").unwrap().params["ops"][0]["node"]["id"]
+        let id_b = b.iter().find(|s| s.action == "ui.patch").unwrap().params["ops"][0]["node"]
+            ["id"]
             .as_str()
             .unwrap()
             .to_string();
@@ -1042,7 +1065,8 @@ mod tests {
     #[test]
     fn respawn_reuses_existing_id() {
         let plan = respawn_plan("a toggle", "ui.agent_button");
-        let id = plan.iter().find(|s| s.action == "ui.patch").unwrap().params["ops"][0]["node"]["id"]
+        let id = plan.iter().find(|s| s.action == "ui.patch").unwrap().params["ops"][0]["node"]
+            ["id"]
             .as_str()
             .unwrap()
             .to_string();
@@ -1096,7 +1120,10 @@ mod tests {
     #[test]
     fn multi_step_plan_emits_requested_step_count() {
         let plan = multi_step_plan("agent.status", 5, "plan involving agent.status");
-        assert_eq!(plan.iter().filter(|s| s.action == "agent.status").count(), 5);
+        assert_eq!(
+            plan.iter().filter(|s| s.action == "agent.status").count(),
+            5
+        );
         assert!(plan.iter().any(|s| s.action == "ui.patch"));
     }
 
@@ -1105,8 +1132,7 @@ mod tests {
         for method in PLANNABLE {
             let plan = multi_step_plan(method, 2, "probe");
             assert!(
-                plan.iter().filter(|s| s.action == method).count() >= 2
-                    || method == "ui.patch",
+                plan.iter().filter(|s| s.action == method).count() >= 2 || method == "ui.patch",
                 "method {method}"
             );
         }
@@ -1128,7 +1154,10 @@ mod tests {
 
     #[test]
     fn iface_parsing_handles_explicit_and_bare_names() {
-        assert_eq!(iface_from_text("variant 4 (iface=eth0)").as_deref(), Some("eth0"));
+        assert_eq!(
+            iface_from_text("variant 4 (iface=eth0)").as_deref(),
+            Some("eth0")
+        );
         assert_eq!(iface_from_text("bring up wlan0").as_deref(), Some("wlan0"));
         assert!(iface_from_text("no interface here").is_none());
     }

@@ -110,7 +110,11 @@ pub fn export_transcript(turns: &[ChatTurn]) -> String {
             "[{}] #{} ({}){}",
             turn.at,
             turn.n,
-            if turn.route.is_empty() { "unknown" } else { &turn.route },
+            if turn.route.is_empty() {
+                "unknown"
+            } else {
+                &turn.route
+            },
             if turn.pinned { " pinned" } else { "" }
         ));
         if !turn.user.is_empty() {
@@ -126,7 +130,10 @@ pub fn export_transcript(turns: &[ChatTurn]) -> String {
 
 /// Suggested next prompts shown in `#ui.suggestions`.
 pub fn suggestions(turns: &[ChatTurn]) -> Vec<String> {
-    let last = turns.last().map(|t| t.user.to_lowercase()).unwrap_or_default();
+    let last = turns
+        .last()
+        .map(|t| t.user.to_lowercase())
+        .unwrap_or_default();
     if last.contains("status") {
         vec![
             "Spawn a chart of the last plan".into(),
@@ -479,7 +486,10 @@ mod tests {
 
     #[test]
     fn skill_mentions_detected() {
-        assert_eq!(skill_mention("@calculator 2+2").as_deref(), Some("calculator"));
+        assert_eq!(
+            skill_mention("@calculator 2+2").as_deref(),
+            Some("calculator")
+        );
         assert!(skill_mention("plain text").is_none());
     }
 

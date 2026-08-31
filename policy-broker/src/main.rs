@@ -477,10 +477,7 @@ mod tests {
         let resp = handle_request("policy.hold_status".into(), None, &id, &state).await;
         assert!(resp.error.is_none());
         let result = resp.result.expect("result");
-        assert_eq!(
-            result.get("status").and_then(|v| v.as_str()),
-            Some("Clear")
-        );
+        assert_eq!(result.get("status").and_then(|v| v.as_str()), Some("Clear"));
         assert_eq!(
             result.get("pending_confirmations").and_then(|v| v.as_u64()),
             Some(0)
@@ -530,10 +527,7 @@ mod tests {
         .await;
         assert!(resp.error.is_none());
         let result = resp.result.expect("result");
-        assert_eq!(
-            result.get("allowed").and_then(|v| v.as_bool()),
-            Some(true)
-        );
+        assert_eq!(result.get("allowed").and_then(|v| v.as_bool()), Some(true));
         assert_eq!(
             result.get("decision").and_then(|v| v.as_str()),
             Some("ALLOW")

@@ -243,10 +243,7 @@ fn split_text_content(line: &str) -> (&str, Option<String>) {
 /// Convert an AUIL tree into `ui.patch` insert operations.
 pub fn auil_to_patch_ops(root: &AuilNode, parent_id: &str) -> Vec<Value> {
     let mut ops = Vec::new();
-    let root_id = root
-        .id
-        .as_deref()
-        .unwrap_or(parent_id);
+    let root_id = root.id.as_deref().unwrap_or(parent_id);
     if root_id == parent_id {
         // Boot file root matches the live tree root — insert children only.
         for child in &root.children {
@@ -360,7 +357,11 @@ stack#ui.root
         }
         let ids: Vec<_> = ops
             .iter()
-            .filter_map(|op| op.get("node").and_then(|n| n.get("id")).and_then(|v| v.as_str()))
+            .filter_map(|op| {
+                op.get("node")
+                    .and_then(|n| n.get("id"))
+                    .and_then(|v| v.as_str())
+            })
             .collect();
         for expected in [
             "ui.chrome",
@@ -390,7 +391,11 @@ stack#ui.root
         let ops = auil_to_patch_ops(&tree, "ui.root");
         let ids: Vec<_> = ops
             .iter()
-            .filter_map(|op| op.get("node").and_then(|n| n.get("id")).and_then(|v| v.as_str()))
+            .filter_map(|op| {
+                op.get("node")
+                    .and_then(|n| n.get("id"))
+                    .and_then(|v| v.as_str())
+            })
             .collect();
         assert!(ids.contains(&"ui.greeting"));
         assert!(ids.contains(&"ui.chat_send"));
@@ -405,16 +410,25 @@ stack#ui.root
         let tree = parse_auil(src).unwrap();
         let field = &tree.children[0];
         assert_eq!(field.id.as_deref(), Some("ui.chat_input"));
-        assert_eq!(field.props.get("input-mode").map(String::as_str), Some("hybrid"));
+        assert_eq!(
+            field.props.get("input-mode").map(String::as_str),
+            Some("hybrid")
+        );
         assert_eq!(
             field.props.get("placeholder").map(String::as_str),
             Some("Ask or say what you need")
         );
-        assert_eq!(field.props.get("aria-label").map(String::as_str), Some("Chat"));
+        assert_eq!(
+            field.props.get("aria-label").map(String::as_str),
+            Some("Chat")
+        );
         assert_eq!(field.text.as_deref(), Some(""));
 
         let list = &tree.children[1];
-        assert_eq!(list.props.get("label").map(String::as_str), Some("Suggestions"));
+        assert_eq!(
+            list.props.get("label").map(String::as_str),
+            Some("Suggestions")
+        );
         assert_eq!(list.props.get("height").map(String::as_str), Some("96"));
         assert_eq!(
             list.props.get("on:activate").map(String::as_str),
@@ -436,9 +450,18 @@ stack#ui.root
                 .cloned()
                 .unwrap_or_else(|| panic!("missing {id}"))
         };
-        assert_eq!(find("ui.chat_input")["node"]["props"]["placeholder"], "i18n:chat.placeholder");
-        assert_eq!(find("ui.chat_send")["node"]["props"]["label"], "i18n:chat.send");
-        assert_eq!(find("ui.greeting")["node"]["props"]["text"], "i18n:app.welcome");
+        assert_eq!(
+            find("ui.chat_input")["node"]["props"]["placeholder"],
+            "i18n:chat.placeholder"
+        );
+        assert_eq!(
+            find("ui.chat_send")["node"]["props"]["label"],
+            "i18n:chat.send"
+        );
+        assert_eq!(
+            find("ui.greeting")["node"]["props"]["text"],
+            "i18n:app.welcome"
+        );
         assert_eq!(find("ui.suggestions")["node"]["type"], "list");
         assert_eq!(find("ui.activity")["node"]["props"]["live"], "polite");
         assert_eq!(
@@ -457,6 +480,8 @@ stack#ui.root
         assert_eq!(tree.children.len(), 2);
         let ops = auil_to_patch_ops(&tree, "ui.root");
         assert_eq!(ops.len(), 2);
-        assert!(ops.iter().all(|op| op.get("node").and_then(|n| n.get("id")).is_some()));
+        assert!(ops
+            .iter()
+            .all(|op| op.get("node").and_then(|n| n.get("id")).is_some()));
     }
 }

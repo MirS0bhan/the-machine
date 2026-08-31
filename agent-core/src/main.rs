@@ -382,7 +382,10 @@ async fn handle_request(
             tokio::spawn(async move {
                 regenerate_turn(state, n, &regen_text).await;
             });
-            success_response(&id, serde_json::json!({ "ok": true, "n": n, "queued": true }))
+            success_response(
+                &id,
+                serde_json::json!({ "ok": true, "n": n, "queued": true }),
+            )
         }
         "agent.chat.regenerate" => {
             let params = params.unwrap_or(serde_json::Value::Null);
@@ -405,7 +408,10 @@ async fn handle_request(
             tokio::spawn(async move {
                 regenerate_turn(state, n, &user_text).await;
             });
-            success_response(&id, serde_json::json!({ "ok": true, "n": n, "queued": true }))
+            success_response(
+                &id,
+                serde_json::json!({ "ok": true, "n": n, "queued": true }),
+            )
         }
         "agent.tour.next" => {
             let step = load_u64("task.tour_step").await.unwrap_or(0) as usize;
@@ -507,8 +513,10 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
         payload = serde_json::json!({});
     }
     if let Some(obj) = payload.as_object_mut() {
-        obj.entry("spawn_seq").or_insert(serde_json::json!(spawn_seq));
-        obj.entry("tour_step").or_insert(serde_json::json!(tour_step));
+        obj.entry("spawn_seq")
+            .or_insert(serde_json::json!(spawn_seq));
+        obj.entry("tour_step")
+            .or_insert(serde_json::json!(tour_step));
     }
     let payload = payload;
 
@@ -775,9 +783,7 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
 /// Re-greeting an already-greeted session appends nothing new, so a second
 /// `boot.system.ready` cannot duplicate the welcome or wipe history.
 fn boot_greet_with_memory(prior: &[chat::ChatTurn]) -> Vec<planner::PlanStep> {
-    let already_greeted = prior
-        .iter()
-        .any(|t| t.assistant == planner::BOOT_WELCOME);
+    let already_greeted = prior.iter().any(|t| t.assistant == planner::BOOT_WELCOME);
     let turns = if already_greeted {
         prior.to_vec()
     } else {
@@ -824,10 +830,12 @@ fn fail_soft_message(failures: &[String]) -> String {
     };
     let hint = if unique.iter().any(|f| f.starts_with("ui.")) {
         " UI may be stale — retry or ask again."
-    } else if unique
-        .iter()
-        .any(|f| f.starts_with("power.") || f.starts_with("display.") || f.starts_with("net.") || f.starts_with("audio."))
-    {
+    } else if unique.iter().any(|f| {
+        f.starts_with("power.")
+            || f.starts_with("display.")
+            || f.starts_with("net.")
+            || f.starts_with("audio.")
+    }) {
         " Privileged system change was not applied (policy or broker unavailable)."
     } else {
         " Nothing was applied for those steps."
@@ -887,7 +895,8 @@ async fn resolve_action_plan(
     if planner::uses_heuristic_plan(&classification.intent) {
         return planner::build_plan_heuristic(&classification.intent, payload, text);
     }
-    let allow_cloud = !privacy_tag && !local_only && (routing == "cloud" || classification.requires_cloud);
+    let allow_cloud =
+        !privacy_tag && !local_only && (routing == "cloud" || classification.requires_cloud);
     if allow_cloud {
         let _ = refresh_cloud_router(state).await;
         let cloud_plan = {
@@ -1041,10 +1050,7 @@ async fn resolve_chat_reply(
     if let Some(reply) = llm::complete_chat(text).await {
         return (reply, "local".into());
     }
-    (
-        planner::heuristic_chat_reply(text),
-        "heuristic".into(),
-    )
+    (planner::heuristic_chat_reply(text), "heuristic".into())
 }
 
 /// Reload cloud API key from env/secret file; returns true if a router is available.
@@ -1092,12 +1098,18 @@ mod tests {
         let resp = handle_request("agent.status".into(), None, &state).await;
         assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
         let result = resp.result.expect("result");
-        assert_eq!(result.get("status").and_then(|v| v.as_str()), Some("running"));
+        assert_eq!(
+            result.get("status").and_then(|v| v.as_str()),
+            Some("running")
+        );
         assert_eq!(
             result.get("local_model").and_then(|v| v.as_str()),
             Some("unavailable")
         );
-        assert_eq!(result.get("wakes_processed").and_then(|v| v.as_u64()), Some(0));
+        assert_eq!(
+            result.get("wakes_processed").and_then(|v| v.as_u64()),
+            Some(0)
+        );
     }
 
     #[tokio::test]
@@ -1152,10 +1164,7 @@ mod tests {
         let resp = handle_request("agent.cloud.status".into(), None, &state).await;
         assert!(resp.error.is_none());
         let result = resp.result.expect("result");
-        assert_eq!(
-            result.get("enabled").and_then(|v| v.as_bool()),
-            Some(false)
-        );
+        assert_eq!(result.get("enabled").and_then(|v| v.as_bool()), Some(false));
         assert_eq!(
             result.get("local_only_mode").and_then(|v| v.as_bool()),
             Some(true)

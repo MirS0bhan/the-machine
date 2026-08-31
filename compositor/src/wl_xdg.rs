@@ -10,9 +10,7 @@ use wayland_protocols::xdg::shell::server::{
     xdg_toplevel::{self, XdgToplevel},
     xdg_wm_base::{self, XdgWmBase},
 };
-use wayland_server::{
-    protocol::wl_surface::WlSurface, Display, DisplayHandle, GlobalDispatch,
-};
+use wayland_server::{protocol::wl_surface::WlSurface, Display, DisplayHandle, GlobalDispatch};
 
 use crate::wl_session::CompositorState;
 
@@ -114,8 +112,7 @@ impl wayland_server::Dispatch<XdgSurface, XdgSurfaceData> for CompositorState {
             xdg_surface::Request::AckConfigure { serial } => {
                 *data.last_ack.lock().unwrap() = Some(serial);
             }
-            xdg_surface::Request::SetWindowGeometry { .. }
-            | xdg_surface::Request::Destroy => {}
+            xdg_surface::Request::SetWindowGeometry { .. } | xdg_surface::Request::Destroy => {}
             _ => {}
         }
     }

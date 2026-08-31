@@ -34,15 +34,13 @@ impl ImeState {
             return ImeOutput::Pass;
         }
 
-        let ch = text
-            .and_then(|t| t.chars().next())
-            .or_else(|| {
-                if key.len() == 1 {
-                    key.chars().next()
-                } else {
-                    None
-                }
-            });
+        let ch = text.and_then(|t| t.chars().next()).or_else(|| {
+            if key.len() == 1 {
+                key.chars().next()
+            } else {
+                None
+            }
+        });
 
         if let Some(dead) = self.pending.clone() {
             // Multi_key: first char selects compose dead, second char completes.
@@ -179,7 +177,10 @@ mod tests {
     fn multi_key_apostrophe_e() {
         let mut ime = ImeState::default();
         assert!(matches!(ime.feed("Multi_key", None), ImeOutput::Pending));
-        assert!(matches!(ime.feed("apostrophe", Some("'")), ImeOutput::Pending));
+        assert!(matches!(
+            ime.feed("apostrophe", Some("'")),
+            ImeOutput::Pending
+        ));
         match ime.feed("e", Some("e")) {
             ImeOutput::Commit(s) => assert_eq!(s, "é"),
             other => panic!("expected commit, got {other:?}"),

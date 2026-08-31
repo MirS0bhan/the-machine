@@ -358,7 +358,8 @@ fn paint_media(px: &mut PixelBackend, s: &Surface, bg: [u8; 3], fg: [u8; 3], rad
     );
     let mut painted_frame = false;
     if !s.src.is_empty() {
-        if let Some(frame) = video::decode_first_frame(&s.src, w.saturating_sub(8), h.saturating_sub(8))
+        if let Some(frame) =
+            video::decode_first_frame(&s.src, w.saturating_sub(8), h.saturating_sub(8))
         {
             let fx = s.geometry.x + ((w as i32 - frame.width as i32) / 2).max(0);
             let fy = s.geometry.y + ((h as i32 - frame.height as i32) / 2).max(0);
@@ -372,8 +373,20 @@ fn paint_media(px: &mut PixelBackend, s: &Surface, bg: [u8; 3], fg: [u8; 3], rad
         let cy = s.geometry.y + h as i32 / 2;
         let tri = (h.min(w) / 6).max(10) as i32;
         px.fill_rect(cx - tri / 2, cy - tri, 4, (tri * 2) as u32, fg);
-        px.fill_rect(cx - tri / 2, cy - tri / 2, (tri as u32).saturating_add(8), 4, fg);
-        px.fill_rect(cx + 2, cy - tri / 3, (tri as u32) / 2, (tri as u32) * 2 / 3, fg);
+        px.fill_rect(
+            cx - tri / 2,
+            cy - tri / 2,
+            (tri as u32).saturating_add(8),
+            4,
+            fg,
+        );
+        px.fill_rect(
+            cx + 2,
+            cy - tri / 3,
+            (tri as u32) / 2,
+            (tri as u32) * 2 / 3,
+            fg,
+        );
     }
     if !s.label.is_empty() {
         let font_px = text::resolve_px(s.font_px, s.font_scale);
@@ -427,7 +440,10 @@ fn paint_chart(px: &mut PixelBackend, s: &Surface, bg: [u8; 3], fg: [u8; 3], rad
     let max_v = values.iter().cloned().fold(1.0_f64, f64::max).max(1.0);
     let n = values.len() as u32;
     let gap = 6u32;
-    let bar_w = axis_w.saturating_sub(gap * n.saturating_sub(1)).saturating_div(n).max(4);
+    let bar_w = axis_w
+        .saturating_sub(gap * n.saturating_sub(1))
+        .saturating_div(n)
+        .max(4);
     for (i, v) in values.iter().enumerate() {
         let t = (*v / max_v).clamp(0.05, 1.0);
         let bh = ((axis_h as f64) * t) as u32;

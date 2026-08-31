@@ -349,7 +349,9 @@ print(json.dumps({"result": result}))
                 "ops": [{ "path": format!("task.lambdas.{}", name), "value": { "status": "registered" } }]
             }),
         },
-        activity_plan(&format!("Registered {name} and placed control in workspace")),
+        activity_plan(&format!(
+            "Registered {name} and placed control in workspace"
+        )),
     ]
 }
 
@@ -687,16 +689,20 @@ mod tests {
         let plan = build_plan_heuristic("boot.greet", &serde_json::json!({}), "");
         assert!(plan.len() >= 2);
         assert_eq!(plan[0].action, "ui.patch");
-        let ops = plan[0].params.get("ops").and_then(|v| v.as_array()).unwrap();
-        assert!(ops.iter().any(|op| {
-            op.get("id").and_then(|v| v.as_str()) == Some("ui.chat_log")
-        }));
-        assert!(ops.iter().any(|op| {
-            op.get("id").and_then(|v| v.as_str()) == Some("ui.status_line")
-        }));
-        assert!(ops.iter().any(|op| {
-            op.get("id").and_then(|v| v.as_str()) == Some("ui.activity")
-        }));
+        let ops = plan[0]
+            .params
+            .get("ops")
+            .and_then(|v| v.as_array())
+            .unwrap();
+        assert!(ops
+            .iter()
+            .any(|op| { op.get("id").and_then(|v| v.as_str()) == Some("ui.chat_log") }));
+        assert!(ops
+            .iter()
+            .any(|op| { op.get("id").and_then(|v| v.as_str()) == Some("ui.status_line") }));
+        assert!(ops
+            .iter()
+            .any(|op| { op.get("id").and_then(|v| v.as_str()) == Some("ui.activity") }));
     }
 
     #[test]
@@ -751,7 +757,11 @@ mod tests {
     fn desktop_spawn_places_mcp_bound_button() {
         let plan = desktop_spawn_plan("add a button for status");
         assert!(plan.iter().any(|s| s.action == "ui.patch"));
-        let ops = plan[0].params.get("ops").and_then(|v| v.as_array()).unwrap();
+        let ops = plan[0]
+            .params
+            .get("ops")
+            .and_then(|v| v.as_array())
+            .unwrap();
         let node = ops[0].get("node").unwrap();
         assert_eq!(node.get("type").and_then(|v| v.as_str()), Some("button"));
         let target = node
