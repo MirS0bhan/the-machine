@@ -2,7 +2,7 @@
 
 **Purpose:** Keep design-system / component docs honest about what the Rust boot path implements today versus the normative target language.
 **Authoritative for boot reality:** this file + `01-maturity-vs-toolkits.md`. Chapters 01–07 of the design system remain the **normative target**.
-**Last audited:** after G17/AT-SPI/IME/video landing.
+**Last audited:** after G17/AT-SPI/IME/video landing + inventory/MCP/env hygiene pass.
 
 ---
 
@@ -57,6 +57,8 @@ These are **expected**; do not “fix” design docs by deleting them — keep 0
 ---
 
 ## Boot MCP surface (canonical)
+
+Mirrored in `docs/reference/component-inventory.yaml` (`mcp_services`) and `mcp-bus` default registration.
 
 ### ui-runtime
 

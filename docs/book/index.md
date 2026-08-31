@@ -138,7 +138,7 @@ system auditable: every action the agent takes is a logged MCP call.
 | L5 | UI Engine Demo | **Implemented** | Terminal `AbstractRenderer`, `demo.auil`, input loop, tests |
 | L3 | MCP Bus | **Implemented** | Dynamic intent registry, policy middleware, leases |
 | L0 | System Daemon | **Implemented** | evdev input + mock kernel ops |
-| L5 | Wayland Compositor | **Partial** | Framebuffer present loop; full wlroots (G16) planned |
+| L5 | Wayland Compositor | **Partial** | Framebuffer / DRM present; Wayland SHM + xdg-shell (G17 in #215). wlroots/XWayland are non-goals. |
 | L3.7 | Fallback Shell | **Implemented** | Rust console recovery mode |
 
 The architecture specs are carried forward in their chapters with live implementation

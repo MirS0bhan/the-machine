@@ -375,6 +375,7 @@ The UI Runtime communicates with the compositor using the Wayland protocol:
 | `ui.a11y.tree` | AT-SPI-shaped accessibility tree export |
 | `ui.atspi.status` | D-Bus bridge status (`org.themachine.A11y`) |
 | `ui.i18n.status` / `ui.i18n.t` / `ui.i18n.load` | Locale catalogs + string lookup |
+| `ui.components.list` | Registered component / widget catalog |
 
 Historical names `ui.get_tree` / `ui.get_node` are **not** registered; use `ui.tree` / `ui.get`.
 

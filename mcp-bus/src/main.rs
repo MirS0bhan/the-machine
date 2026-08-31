@@ -117,6 +117,7 @@ async fn main() -> anyhow::Result<()> {
 
         for m in [
             "agent.status",
+            "agent.cloud.status",
             "agent.interrupt",
             "agent.local_only_mode",
             "agent.skills.list",
@@ -141,6 +142,7 @@ async fn main() -> anyhow::Result<()> {
 
         for m in [
             "policy.check",
+            "policy.register",
             "policy.grant",
             "policy.revoke",
             "policy.audit",

@@ -63,7 +63,7 @@ _None — all P0/P1 gaps from the expansion campaign are closed._
 
 | ID | Gap | Component | Priority |
 |----|-----|-----------|----------|
-| — | _(G17 xdg-shell closed via wayland-protocols `xdg_wm_base` v5; wlroots/XWayland remain non-goals)_ | compositor | — |
+| G17 | xdg-shell via wayland-protocols `xdg_wm_base` v5 (implementation in #215; **mark closed only after merge**). wlroots/XWayland remain non-goals. | compositor | P3 |
 
 ---
 

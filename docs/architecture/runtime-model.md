@@ -76,4 +76,4 @@ Rust binaries ship in the initramfs for boot. Python servers remain the referenc
 
 ## Remaining Work
 
-See [Gap Analysis](./gap-analysis.md) and [Expansion Proposal](./expansion-proposal.md). Platform polish items (G12–G14) remain where noted; G17 xdg-shell is closed on the wayland-protocols path (no wlroots/XWayland). Critical path gaps G1/G6/G16 and G7 are closed.
+See [Gap Analysis](./gap-analysis.md) and [Expansion Proposal](./expansion-proposal.md). Platform polish items (G12–G14) remain where noted; G17 xdg-shell lands via wayland-protocols in #215 (no wlroots/XWayland) — mark closed in gap-analysis only after merge. Critical path gaps G1/G6/G16 and G7 are closed.

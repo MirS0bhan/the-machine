@@ -18,7 +18,8 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-31 | gap | G17 xdg-shell + AT-SPI + IME/locale + video decode | pr-open |
+| 2026-08-31 | audit | Master Engineering Prompt compliance (inventory/MCP/env/G17 honesty) | pr-open (#215) |
+| 2026-08-31 | gap | G17 xdg-shell + AT-SPI + IME/locale + video decode | pr-open (#215) |
 | 2026-08-30 | docs | close G13 in gap-analysis.md (fully merged: #157, #159, #168) | pr-open (#207) |
 | 2026-08-30 | audit | marketplace.install Python integration test | merged to main (#208) |
 | 2026-08-30 | audit | localmodel.health Python integration test | merged to main (#209) |
@@ -70,7 +71,7 @@ until the PR is merged to `main`.
 Rotate when completing a row. Prefer top item not in cooldown.
 
 G13 is now fully closed (all sub-items merged: #148, #157, #159, #168) — do not pick it up again.
-G17 xdg-shell is closed via `xdg_wm_base` v5 (wayland-protocols; not wlroots) — do not re-open for wlroots unless product direction changes.
+G17 xdg-shell implementation is in #215 (`xdg_wm_base` v5 via wayland-protocols; not wlroots) — **do not mark gap-analysis closed until that PR merges**. Do not re-open for wlroots unless product direction changes.
 
 1. **audit** — `localmodel.embed` or `event.register_handler` Python integration test
 2. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
