@@ -214,7 +214,11 @@ fn measure_leaf(node: &Value, avail_w: u32) -> (u32, u32) {
             let w = (label.len() as u32 * 12 + 48).clamp(space::MIN_TARGET, 200);
             (w, space::MIN_TARGET.max(48))
         }
-        "icon" => (24, 24),
+        "icon" => {
+            let (w, h) = crate::widgets::measure("icon", &props, avail_w);
+            (w, h)
+        }
+        "toggle" | "slider" | "list" | "dialog" => crate::widgets::measure(kind, &props, avail_w),
         _ => (240, 48),
     }
 }
@@ -339,6 +343,18 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
                     label_prop.to_string()
                 },
                 v,
+            )
+        }
+        "toggle" | "slider" | "dialog" | "list" | "icon" => {
+            let chrome = crate::widgets::style(&kind, &id, &props);
+            (
+                chrome.bg,
+                chrome.fg,
+                chrome.border,
+                chrome.radius,
+                chrome.font_scale,
+                chrome.label,
+                chrome.variant,
             )
         }
         _ => (

@@ -17,6 +17,19 @@ const REL_X: u16 = 0x00;
 const REL_Y: u16 = 0x01;
 const ABS_X: u16 = 0x00;
 const ABS_Y: u16 = 0x01;
+const KEY_LEFTSHIFT: u16 = 42;
+const KEY_RIGHTSHIFT: u16 = 54;
+const KEY_LEFTCTRL: u16 = 29;
+const KEY_RIGHTCTRL: u16 = 97;
+const KEY_LEFTALT: u16 = 56;
+const KEY_RIGHTALT: u16 = 100;
+const KEY_BACKSPACE: u16 = 14;
+const KEY_TAB: u16 = 15;
+const KEY_ENTER: u16 = 28;
+const KEY_ESC: u16 = 1;
+const KEY_DELETE: u16 = 111;
+const KEY_LEFT: u16 = 105;
+const KEY_RIGHT: u16 = 106;
 
 #[repr(C)]
 struct InputEvent {
@@ -90,6 +103,9 @@ fn run_evdev_loop(devices: Vec<PathBuf>, secret: [u8; 32]) {
     let mut x: i32 = 640;
     let mut y: i32 = 360;
     let mut seq: u64 = 0;
+    let mut shift = false;
+    let mut ctrl = false;
+    let mut alt = false;
     let mut files: Vec<File> = devices
         .iter()
         .filter_map(|p| OpenOptions::new().read(true).open(p).ok())
@@ -110,7 +126,16 @@ fn run_evdev_loop(devices: Vec<PathBuf>, secret: [u8; 32]) {
                 std::slice::from_raw_parts_mut(&mut ev as *mut InputEvent as *mut u8, size)
             };
             match file.read_exact(buf) {
-                Ok(()) => dispatch_event(&ev, &verifier, &mut x, &mut y, &mut seq),
+                Ok(()) => dispatch_event(
+                    &ev,
+                    &verifier,
+                    &mut x,
+                    &mut y,
+                    &mut seq,
+                    &mut shift,
+                    &mut ctrl,
+                    &mut alt,
+                ),
                 Err(_) => continue,
             }
         }
@@ -124,6 +149,9 @@ fn dispatch_event(
     x: &mut i32,
     y: &mut i32,
     seq: &mut u64,
+    shift: &mut bool,
+    ctrl: &mut bool,
+    alt: &mut bool,
 ) {
     match ev.type_ {
         EV_REL => match ev.code {
@@ -146,8 +174,101 @@ fn dispatch_event(
                 rt.block_on(forward_pointer(*x, *y, "click", Some(marker)));
             }
         }
+        EV_KEY => {
+            match ev.code {
+                KEY_LEFTSHIFT | KEY_RIGHTSHIFT => *shift = ev.value != 0,
+                KEY_LEFTCTRL | KEY_RIGHTCTRL => *ctrl = ev.value != 0,
+                KEY_LEFTALT | KEY_RIGHTALT => *alt = ev.value != 0,
+                _ if ev.value == 1 || ev.value == 2 => {
+                    if let Some((key, text)) = map_keycode(ev.code, *shift) {
+                        let rt = tokio::runtime::Builder::new_current_thread()
+                            .enable_all()
+                            .build();
+                        if let Ok(rt) = rt {
+                            rt.block_on(forward_key(key, text, *shift, *ctrl, *alt));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
         _ => {}
     }
+}
+
+fn map_keycode(code: u16, shift: bool) -> Option<(String, Option<String>)> {
+    match code {
+        KEY_BACKSPACE => Some(("BackSpace".into(), None)),
+        KEY_TAB => Some(("Tab".into(), None)),
+        KEY_ENTER => Some(("Enter".into(), None)),
+        KEY_ESC => Some(("Escape".into(), None)),
+        KEY_DELETE => Some(("Delete".into(), None)),
+        KEY_LEFT => Some(("ArrowLeft".into(), None)),
+        KEY_RIGHT => Some(("ArrowRight".into(), None)),
+        // Letter keys (US QWERTY scancodes 16–25, 30–38, 44–50).
+        16..=25 | 30..=38 | 44..=50 => {
+            const ROW1: &[u8] = b"qwertyuiop";
+            const ROW2: &[u8] = b"asdfghjkl";
+            const ROW3: &[u8] = b"zxcvbnm";
+            let ch = if (16..=25).contains(&code) {
+                ROW1[(code - 16) as usize] as char
+            } else if (30..=38).contains(&code) {
+                ROW2[(code - 30) as usize] as char
+            } else {
+                ROW3[(code - 44) as usize] as char
+            };
+            let ch = if shift {
+                ch.to_ascii_uppercase()
+            } else {
+                ch
+            };
+            Some((ch.to_string(), Some(ch.to_string())))
+        }
+        57 => Some((" ".into(), Some(" ".into()))), // space
+        2..=10 => {
+            let digit = (b'0' + (code - 1) as u8) as char;
+            let shifted = b")!@#$%^&*"[((code - 2) as usize).min(8)] as char;
+            let ch = if shift { shifted } else { digit };
+            Some((ch.to_string(), Some(ch.to_string())))
+        }
+        11 => {
+            let ch = if shift { ')' } else { '0' };
+            Some((ch.to_string(), Some(ch.to_string())))
+        }
+        _ => None,
+    }
+}
+
+async fn forward_key(key: String, text: Option<String>, shift: bool, ctrl: bool, alt: bool) {
+    let params = json!({
+        "event": "key",
+        "key": key,
+        "text": text,
+        "shift": shift,
+        "ctrl": ctrl,
+        "alt": alt,
+    });
+    let hit = bus_call("compositor.input", params.clone()).await;
+    let widget = hit
+        .as_ref()
+        .and_then(|h| h.get("widget_id"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("ui.chat_input");
+    let _ = bus_call(
+        "ui.event",
+        json!({
+            "id": widget,
+            "event": "key",
+            "payload": {
+                "key": key,
+                "text": text,
+                "shift": shift,
+                "ctrl": ctrl,
+                "alt": alt,
+            },
+        }),
+    )
+    .await;
 }
 
 async fn forward_pointer(

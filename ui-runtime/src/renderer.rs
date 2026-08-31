@@ -34,11 +34,7 @@ pub async fn sync_tree_to_compositor(root: &Value) -> usize {
         if node.kind == "text" && node.label.is_empty() {
             continue;
         }
-        let _ = bus_call(
-            "compositor.surface",
-            surface_create_params(node),
-        )
-        .await;
+        ensure_surface(node).await;
         count += 1;
     }
     let _ = bus_call(
@@ -50,8 +46,22 @@ pub async fn sync_tree_to_compositor(root: &Value) -> usize {
 }
 
 fn surface_create_params(node: &LaidOutNode) -> Value {
+    let font_px = match node.font_scale {
+        4 => 20,
+        3 => 13,
+        2 => 14,
+        1 => 12,
+        _ => 14,
+    };
+    let font_weight = if node.role == "title" || node.id == "ui.greeting" {
+        "bold"
+    } else if node.kind == "button" {
+        "medium"
+    } else {
+        "regular"
+    };
     let mut params = json!({
-        "action": "create",
+        "action": "update",
         "id": format!("surface.{}", node.id),
         "geometry": {
             "x": node.x,
@@ -64,6 +74,9 @@ fn surface_create_params(node: &LaidOutNode) -> Value {
         "variant": node.variant,
         "radius": node.radius,
         "font_scale": node.font_scale,
+        "font_px": font_px,
+        "font_weight": font_weight,
+        "font_family": "default",
         "bg": node.bg.to_array(),
         "fg": node.fg.to_array(),
     });
@@ -73,7 +86,6 @@ fn surface_create_params(node: &LaidOutNode) -> Value {
             .unwrap()
             .insert("border".into(), json!(border.to_array()));
     }
-    // Focus ring for the primary input.
     if node.id == "ui.chat_input" {
         params.as_object_mut().unwrap().insert(
             "border".into(),
@@ -81,6 +93,23 @@ fn surface_create_params(node: &LaidOutNode) -> Value {
         );
     }
     params
+}
+
+async fn ensure_surface(node: &LaidOutNode) {
+    let mut create = surface_create_params(node);
+    create
+        .as_object_mut()
+        .unwrap()
+        .insert("action".into(), json!("create"));
+    let updated = bus_call("compositor.surface", surface_create_params(node)).await;
+    let ok = updated
+        .as_ref()
+        .and_then(|v| v.get("ok"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if !ok {
+        let _ = bus_call("compositor.surface", create).await;
+    }
 }
 
 async fn bus_call(method: &str, params: Value) -> Option<Value> {

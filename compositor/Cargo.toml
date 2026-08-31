@@ -2,6 +2,7 @@
 name = "compositor"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
 common = { path = "../common" }
@@ -15,6 +16,8 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 libc = { workspace = true }
 wayland-server = "0.31"
+harfbuzz_rs = { version = "2.0.1", default-features = false }
+freetype-rs = "0.38"
 
 [[bin]]
 name = "compositor"

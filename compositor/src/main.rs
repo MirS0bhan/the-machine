@@ -2,10 +2,12 @@
 
 mod bitmap_font;
 mod chrome;
+mod clip;
 mod drm;
 mod env;
 mod model;
 mod pixel;
+mod text;
 mod wayland_backend;
 mod wl_globals;
 mod wl_session;
@@ -27,6 +29,18 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     info!("Starting Compositor");
+    if std::env::var("THE_MACHINE_FONT_DIR").is_err() {
+        for candidate in [
+            "/etc/the-machine/fonts",
+            "/the-machine/fonts",
+            "/workspace/assets/fonts",
+        ] {
+            if std::path::Path::new(candidate).join("Inter-Regular.ttf").exists() {
+                std::env::set_var("THE_MACHINE_FONT_DIR", candidate);
+                break;
+            }
+        }
+    }
     std::env::set_var("WAYLAND_DISPLAY", crate::env::wayland_display_name());
     let pixels: SharedPixel = Arc::new(Mutex::new(PixelBackend::open()));
     let wayland: Arc<Option<wayland_backend::WaylandSession>> =
@@ -140,19 +154,21 @@ fn paint_surface(px: &mut PixelBackend, s: &Surface) {
     }
 
     if !s.label.is_empty() {
-        let scale = s.font_scale.max(1);
+        let font_px = text::resolve_px(s.font_px, s.font_scale);
+        let weight = text::FontWeight::parse(&s.font_weight);
+        let family = text::FontFamily::parse(&s.font_family);
         let pad_x = if draw_plate { 16i32 } else { 0 };
-        let glyph_h = 7i32 * scale as i32;
-        let pad_y = ((h as i32 - glyph_h) / 2).max(0);
-        bitmap_font::draw_text_scaled(
+        let (_, text_h) = text::measure_text(&s.label, font_px, weight, family);
+        let pad_y = ((h as i32 - text_h as i32) / 2).max(0);
+        text::draw_text(
             px,
             s.geometry.x + pad_x,
             s.geometry.y + pad_y,
             &s.label,
-            fg[0],
-            fg[1],
-            fg[2],
-            scale,
+            fg,
+            font_px,
+            weight,
+            family,
         );
     }
 }
@@ -267,6 +283,7 @@ async fn handle_request(
                     "pixels": true,
                     "confirmation_active": c.confirmation_active,
                     "backend": pixels.lock().await.backend_name(),
+                    "text": text::backend_name(),
                 }),
             )
         }
@@ -295,6 +312,7 @@ async fn handle_request(
                     "pixels": true,
                     "confirmation_active": c.confirmation_active,
                     "backend": backend,
+                    "text": text::backend_name(),
                     "wayland_session": wayland_session,
                 }),
             )
@@ -337,6 +355,9 @@ async fn handle_surface(
                 border: None,
                 radius: 0,
                 font_scale: 2,
+                font_px: 0,
+                font_weight: "regular".into(),
+                font_family: "default".into(),
                 variant: String::new(),
             });
             s.id = sid.clone();
@@ -360,6 +381,15 @@ async fn handle_surface(
             }
             if let Some(fs) = params.get("font_scale").and_then(|v| v.as_u64()) {
                 s.font_scale = fs as u32;
+            }
+            if let Some(fp) = params.get("font_px").and_then(|v| v.as_u64()) {
+                s.font_px = fp as u32;
+            }
+            if let Some(fw) = params.get("font_weight").and_then(|v| v.as_str()) {
+                s.font_weight = fw.to_string();
+            }
+            if let Some(ff) = params.get("font_family").and_then(|v| v.as_str()) {
+                s.font_family = ff.to_string();
             }
             s.bg = parse_rgb(params.get("bg")).or(s.bg);
             s.fg = parse_rgb(params.get("fg")).or(s.fg);
@@ -407,6 +437,59 @@ async fn handle_surface(
                 error_response(id, "E_NOT_FOUND", "surface not found")
             }
         }
+        "update" => {
+            let sid = params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let mut c = comp.lock().await;
+            if let Some(s) = c.surfaces.get_mut(&sid) {
+                if let Some(g) = params.get("geometry") {
+                    if let Ok(geo) = serde_json::from_value::<Geometry>(g.clone()) {
+                        s.geometry = geo;
+                    }
+                }
+                if let Some(label) = params.get("label").and_then(|v| v.as_str()) {
+                    s.label = label.to_string();
+                }
+                if let Some(kind) = params.get("kind").and_then(|v| v.as_str()) {
+                    s.kind = kind.to_string();
+                }
+                if let Some(v) = params.get("variant").and_then(|v| v.as_str()) {
+                    s.variant = v.to_string();
+                }
+                if let Some(r) = params.get("radius").and_then(|v| v.as_u64()) {
+                    s.radius = r as u32;
+                }
+                if let Some(fs) = params.get("font_scale").and_then(|v| v.as_u64()) {
+                    s.font_scale = fs as u32;
+                }
+                if let Some(fp) = params.get("font_px").and_then(|v| v.as_u64()) {
+                    s.font_px = fp as u32;
+                }
+                if let Some(fw) = params.get("font_weight").and_then(|v| v.as_str()) {
+                    s.font_weight = fw.to_string();
+                }
+                if let Some(ff) = params.get("font_family").and_then(|v| v.as_str()) {
+                    s.font_family = ff.to_string();
+                }
+                if let Some(bg) = parse_rgb(params.get("bg")) {
+                    s.bg = Some(bg);
+                }
+                if let Some(fg) = parse_rgb(params.get("fg")) {
+                    s.fg = Some(fg);
+                }
+                if let Some(border) = parse_rgb(params.get("border")) {
+                    s.border = Some(border);
+                }
+                drop(c);
+                paint_frame(comp, pixels).await;
+                success_response(id, serde_json::json!({ "id": sid, "ok": true, "updated": true }))
+            } else {
+                error_response(id, "E_NOT_FOUND", "surface not found")
+            }
+        }
         _ => error_response(id, "E_INVALID", "unknown surface action"),
     }
 }
@@ -446,6 +529,33 @@ async fn handle_input(
     comp: &Arc<Mutex<Compositor>>,
     id: &Uuid,
 ) -> McpMessage {
+    let event = params
+        .get("event")
+        .and_then(|v| v.as_str())
+        .unwrap_or("click");
+    if event == "key" {
+        let c = comp.lock().await;
+        let focused = c.focused.clone().or_else(|| {
+            c.surfaces
+                .iter()
+                .find(|(_, s)| s.focused)
+                .map(|(id, _)| id.clone())
+        });
+        let widget_id = focused
+            .as_ref()
+            .map(|sid| sid.strip_prefix("surface.").unwrap_or(sid).to_string());
+        return success_response(
+            id,
+            serde_json::json!({
+                "surface": focused,
+                "widget_id": widget_id,
+                "handled": focused.is_some(),
+                "event": "key",
+                "key": params.get("key"),
+                "text": params.get("text"),
+            }),
+        );
+    }
     let x = params.get("x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
     let y = params.get("y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
     let require_provenance = params
@@ -458,10 +568,19 @@ async fn handle_input(
             serde_json::json!({ "handled": false, "reason": "provenance_required" }),
         );
     }
-    let c = comp.lock().await;
+    let mut c = comp.lock().await;
     match c.pick(x, y) {
         Some(sid) => {
             let widget_id = sid.strip_prefix("surface.").unwrap_or(&sid).to_string();
+            if event == "click" || event == "press" {
+                for s in c.surfaces.values_mut() {
+                    s.focused = false;
+                }
+                if let Some(s) = c.surfaces.get_mut(&sid) {
+                    s.focused = true;
+                }
+                c.focused = Some(sid.clone());
+            }
             success_response(
                 id,
                 serde_json::json!({
@@ -545,6 +664,9 @@ mod tests {
         Arc<Option<wayland_backend::WaylandSession>>,
     ) {
         std::env::set_var("THE_MACHINE_COMPOSITOR_BACKEND", "memory");
+        if std::env::var("THE_MACHINE_FONT_DIR").is_err() {
+            std::env::set_var("THE_MACHINE_FONT_DIR", "/workspace/assets/fonts");
+        }
         (
             Arc::new(Mutex::new(Compositor::new())),
             Arc::new(Mutex::new(PixelBackend::open())),
@@ -663,6 +785,8 @@ mod tests {
                 "bg": [11, 12, 19],
                 "fg": [247, 248, 252],
                 "font_scale": 4,
+                "font_px": 20,
+                "font_weight": "bold",
                 "radius": 0
             }),
             serde_json::json!({
@@ -676,7 +800,9 @@ mod tests {
                 "fg": [130, 134, 156],
                 "border": [59, 62, 82],
                 "radius": 10,
-                "font_scale": 3
+                "font_scale": 3,
+                "font_px": 14,
+                "font_weight": "regular"
             }),
             serde_json::json!({
                 "action": "create",
@@ -688,7 +814,9 @@ mod tests {
                 "bg": [156, 124, 242],
                 "fg": [18, 19, 28],
                 "radius": 10,
-                "font_scale": 3
+                "font_scale": 3,
+                "font_px": 13,
+                "font_weight": "medium"
             }),
         ];
         for w in widgets {
@@ -711,6 +839,11 @@ mod tests {
         )
         .await;
         assert!(present.error.is_none());
+        let result = present.result.expect("present");
+        assert_eq!(
+            result.get("text").and_then(|v| v.as_str()),
+            Some("harfbuzz+freetype")
+        );
         assert!(std::path::Path::new(dump).exists());
         let bytes = std::fs::read(dump).expect("ppm");
         assert!(bytes.starts_with(b"P6"));

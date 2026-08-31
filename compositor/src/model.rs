@@ -47,9 +47,18 @@ pub struct Surface {
     /// Corner radius in px (`radius.md` = 10 for controls).
     #[serde(default)]
     pub radius: u32,
-    /// Bitmap font pixel scale (2 = body, 3 = label, 4 = title).
+    /// Bitmap font pixel scale (legacy). Prefer `font_px`.
     #[serde(default = "default_font_scale")]
     pub font_scale: u32,
+    /// Explicit pixel size from design-system type scale (title-2=20, body=14, …).
+    #[serde(default)]
+    pub font_px: u32,
+    /// `regular` | `medium` | `bold`
+    #[serde(default = "default_font_weight")]
+    pub font_weight: String,
+    /// `default` (Inter) | `numeric` (JetBrains Mono)
+    #[serde(default = "default_font_family")]
+    pub font_family: String,
     /// Visual variant (`primary`, `field`, …).
     #[serde(default)]
     pub variant: String,
@@ -61,6 +70,14 @@ fn default_one() -> f32 {
 
 fn default_font_scale() -> u32 {
     2
+}
+
+fn default_font_weight() -> String {
+    "regular".into()
+}
+
+fn default_font_family() -> String {
+    "default".into()
 }
 
 pub struct Compositor {

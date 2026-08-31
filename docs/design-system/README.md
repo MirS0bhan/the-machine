@@ -52,6 +52,7 @@ If `ui-engine/docs/spec.md` is the grammar of a language, this folder is its dic
 | `05-ui-ux-patterns/` | Navigation and layout, feedback and status, forms and data entry, agent presence and conversation, empty/loading/error states, and multitasking/surfaces — how the primitives and components combine into actual screens |
 | `06-glossary.md` | Every term used across this document set, defined once |
 | `07-governance/` | How a token, mixin, component, or primitive is proposed, reviewed, versioned, and deprecated |
+| `08-ui-framework/` | Maturity vs WinForms/Compose/GTK/Qt and the implementation roadmap for the Rust boot path |
 
 ## Reading order
 
@@ -59,6 +60,7 @@ If `ui-engine/docs/spec.md` is the grammar of a language, this folder is its dic
 - **Composing a screen (agent or human designer):** start with `01-hig/01-design-principles.md`, then whichever pattern in `05-ui-ux-patterns/` matches the task, pulling components from `03-widgets-and-types/02-component-library.md` as needed.
 - **Wiring a new intent or handler:** `04-events/01-event-model.md` then `04-events/03-intent-routing.md`.
 - **Auditing for accessibility or content quality:** `01-hig/02-accessibility.md` and `01-hig/03-content-and-voice.md`.
+- **Comparing toolkit maturity / planning boot-path work:** `08-ui-framework/`.
 - **Designing for a screen size, locale, or input modality you haven't touched before:** `01-hig/04-inclusive-and-adaptive-design.md`, then `03-widgets-and-types/04-composition-and-responsive-layout.md`.
 - **Proposing a new token, mixin, or component:** `07-governance/01-contribution-and-review.md`.
 
