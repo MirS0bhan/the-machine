@@ -18,7 +18,10 @@ pub fn parse_auil(source: &str) -> Result<AuilNode, String> {
     let lines: Vec<(usize, &str)> = source
         .lines()
         .enumerate()
-        .filter(|(_, l)| !l.trim().is_empty())
+        .filter(|(_, l)| {
+            let t = l.trim();
+            !t.is_empty() && !t.starts_with('#')
+        })
         .map(|(i, l)| (i + 1, l))
         .collect();
     if lines.is_empty() {
@@ -273,6 +276,18 @@ fn flatten_node(node: &AuilNode, anchor: &str, ops: &mut Vec<Value>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn skips_hash_comment_lines() {
+        let src = r#"# Boot layout comment
+stack#ui.root
+  text#ui.greeting "Hi"
+"#;
+        let tree = parse_auil(src).unwrap();
+        assert_eq!(tree.id.as_deref(), Some("ui.root"));
+        assert_eq!(tree.children.len(), 1);
+        assert_eq!(tree.children[0].id.as_deref(), Some("ui.greeting"));
+    }
 
     #[test]
     fn boot_auil_does_not_insert_root_under_itself() {
