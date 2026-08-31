@@ -25,6 +25,12 @@ pub struct Surface {
     pub z_order: i32,
     #[serde(default = "default_one")]
     pub opacity: f32,
+    /// Motion target opacity (present-loop lerps `opacity` toward this).
+    #[serde(default = "default_one")]
+    pub opacity_target: f32,
+    /// Motion duration hint in ms (snappy≈120, gentle≈280).
+    #[serde(default = "default_motion_ms")]
+    pub motion_ms: u32,
     #[serde(default)]
     pub blurred: bool,
     #[serde(default)]
@@ -107,6 +113,10 @@ fn default_font_family() -> String {
 
 fn default_caret() -> i64 {
     -1
+}
+
+fn default_motion_ms() -> u32 {
+    120
 }
 
 pub struct Compositor {

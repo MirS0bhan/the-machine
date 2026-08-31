@@ -163,7 +163,13 @@ async fn handle_request(
             success_response(id, status)
         }
         "clipboard.get" => {
-            success_response(id, serde_json::json!({ "text": clipboard::get() }))
+            success_response(
+                id,
+                serde_json::json!({
+                    "text": clipboard::get(),
+                    "backend": clipboard::backend_name(),
+                }),
+            )
         }
         "clipboard.set" => {
             let text = params

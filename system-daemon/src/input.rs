@@ -5,9 +5,13 @@ use serde_json::json;
 use std::fs::{File, OpenOptions};
 use std::io::Read;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tokio::io::AsyncWriteExt;
 use tracing::{info, warn};
 use uuid::Uuid;
+
+static POINTER_BTN_DOWN: AtomicBool = AtomicBool::new(false);
+static LAST_MOVE_MS: AtomicU64 = AtomicU64::new(0);
 
 const EV_KEY: u16 = 0x01;
 const EV_REL: u16 = 0x02;
@@ -183,6 +187,7 @@ fn dispatch_event(
         },
         EV_KEY if ev.code == BTN_LEFT => {
             if ev.value == 1 {
+                POINTER_BTN_DOWN.store(true, Ordering::Relaxed);
                 *seq += 1;
                 let marker = verifier.generate_marker(ev.time.tv_sec as u64, 13, 0, *seq);
                 let rt = tokio::runtime::Builder::new_current_thread()
@@ -194,6 +199,7 @@ fn dispatch_event(
                     rt.block_on(forward_pointer(*x, *y, "click", Some(marker)));
                 }
             } else if ev.value == 0 {
+                POINTER_BTN_DOWN.store(false, Ordering::Relaxed);
                 let rt = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build();
@@ -289,23 +295,26 @@ async fn forward_wheel(x: i32, y: i32, delta_y: i32) {
 }
 
 fn forward_move_throttled(x: i32, y: i32) {
-    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
-    static LAST_MS: AtomicU64 = AtomicU64::new(0);
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0);
-    let prev = LAST_MS.load(Ordering::Relaxed);
+    let prev = LAST_MOVE_MS.load(Ordering::Relaxed);
     if now.saturating_sub(prev) < 32 {
         return;
     }
-    LAST_MS.store(now, Ordering::Relaxed);
+    LAST_MOVE_MS.store(now, Ordering::Relaxed);
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build();
     if let Ok(rt) = rt {
-        rt.block_on(forward_pointer(x, y, "move", None));
+        let event = if POINTER_BTN_DOWN.load(Ordering::Relaxed) {
+            "drag"
+        } else {
+            "move"
+        };
+        rt.block_on(forward_pointer(x, y, event, None));
     }
 }
 

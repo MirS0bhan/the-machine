@@ -4,23 +4,23 @@ Legend for The Machine column: **F** full · **P** partial in Rust boot path · 
 
 | Capability | WinForms | Compose | GTK | Qt | The Machine (boot) | Evidence |
 |---|---|---|---|---|---|---|
-| Widget catalog | F | F | F | F | **P** | Painted: `text`/`field`/`button`/`toggle`/`slider`/`list`/`dialog`/`icon` (geometric) (+ confirmation). `media`/`chart` unpainted |
-| Layout | F | F | F | F | **P** | `layout.rs` stack v/h + gap + center; `grid` is a tag alias, not a grid algorithm |
-| Styling / themes | F | F | F | F | **P** | Dark tokens in `tokens.rs`/`chrome.rs`; `ui.theme.*`; ASL subset (`token`/`scale` only) |
-| Text / fonts | F | F | F | F | **P→F** | HarfRust + FreeType; Inter + JetBrains Mono; bitmap fallback if faces missing |
-| Input events | F | F | F | F | **P** | press/click/release/move(hover)/wheel/key via system-daemon → compositor → ui.event |
-| Focus | F | F | F | F | **P** | Tab order + `compositor.focus` sync; Enter activates button; Escape dismisses soft dialog |
-| Accessibility | F | F | F | F | **S** | Roles/labels in HIG; no AT-SPI bridge |
-| Animation | P–F | F | F | F | **S** | Motion curves in ASL docs; no present-loop tweens |
-| Drawing / canvas | F | F | F | F | **P** | Rounded rects + glyphs + clip + geometric icons; no paths/images/charts |
-| Data binding | F | F | P–F | F | **P** | Patch + mcp bindings; field edit; slider click→value |
-| Dialogs / modals | F | F | F | F | **P** | Confirmation exclusivity (`e4`); soft `dialog` + scrim + Escape |
-| Scrolling | F | F | F | F | **P** | List wheel + `scroll_y` + clip; no scrollbar chrome |
-| Text editing | F | F | F | F | **P** | Caret prop + painted caret; no selection range / IME |
-| Clipboard | F | F | F | F | **P** | In-memory `clipboard.get`/`set`; Ctrl-C/V/X on fields |
-| DnD | F | F | F | F | **—** | Event vocab only |
-| i18n / RTL / IME | F | F | F | F | **—** | HarfRust shaping only |
-| Windowing | F | F | F | F | **P** | Flat z-order + damage; partial Wayland SHM; no xdg-shell (G17) |
+| Widget catalog | F | F | F | F | **P** | Painted: text/field/button/toggle/slider/list/dialog/icon/media/chart (+ confirmation) |
+| Layout | F | F | F | F | **P** | Stack v/h + gap/center; **real grid** (`cols`/`col_span`/`rtl`) in `grid.rs` |
+| Styling / themes | F | F | F | F | **P** | Dark tokens; `ui.theme.*`; ASL token/scale subset |
+| Text / fonts | F | F | F | F | **P→F** | HarfRust + FreeType; Inter + JetBrains Mono |
+| Input events | F | F | F | F | **P** | press/click/release/move/drag/wheel/key |
+| Focus | F | F | F | F | **P** | Tab + Enter; dialog focus trap; compositor focus sync |
+| Accessibility | F | F | F | F | **P** | `ui.a11y.tree` MCP export (no AT-SPI D-Bus yet) |
+| Animation | P–F | F | F | F | **P** | Present-loop opacity tweens (snappy/gentle/reduced) |
+| Drawing / canvas | F | F | F | F | **P** | Rounded rects + glyphs + clip + media/chart procedural paint |
+| Data binding | F | F | P–F | F | **P** | Patch + mcp bindings; field edit; slider; DnD→change |
+| Dialogs / modals | F | F | F | F | **P** | Confirmation e4; soft dialog + scrim + Escape + focus trap |
+| Scrolling | F | F | F | F | **P** | List wheel + clip |
+| Text editing | F | F | F | F | **P** | Caret paint; no IME/selection |
+| Clipboard | F | F | F | F | **P** | Memory + wl-copy/xclip/xsel best-effort |
+| DnD | F | F | F | F | **P** | `draggable` + drag/drop events |
+| i18n / RTL / IME | F | F | F | F | **P** | RTL layout mirror; no locale catalogs / IME |
+| Windowing | F | F | F | F | **P** | Flat z-order + damage; Wayland SHM; **xdg-shell absent (G17)** |
 
 ## What "framework-complete" means here
 
@@ -32,7 +32,7 @@ A toolkit-level Machine UI runtime can:
 4. Expose an accessibility tree derived from primitive roles.
 5. Keep confirmation chrome broker-owned and unforgeable.
 
-Items 1–3 are P0/P1 (+ follow-on honesty pass). Items 4–5 stay P2 / policy-broker owned respectively.
+Items 1–4 are substantially P0–P2 on the boot spine. Item 5 stays policy-broker owned. Remaining depth: AT-SPI D-Bus, IME, xdg-shell, video decode, full ASL mixins.
 
 ## Docs vs code honesty rule
 

@@ -19,18 +19,28 @@ Concrete modules for closing toolkit gaps on the AUIL → MCP → compositor spi
 |---|---|---|
 | ASL subset | `ui-runtime/src/asl.rs` — tokens/scales used by boot | landed |
 | Scroll + clip | `clip.rs`, `scroll.rs`, list paint | landed |
-| Widgets | toggle/slider/list/dialog; geometric `icon`; media/chart deferred | landed (icons geometric only) |
+| Widgets | toggle/slider/list/dialog; geometric `icon` | landed |
 | Dialog | scrim + soft exclusivity; Escape dismiss | landed |
-| Clipboard | `clipboard.get`/`set`; Ctrl-C/V/X | landed (in-memory) |
+| Clipboard | `clipboard.get`/`set`; Ctrl-C/V/X | landed |
 | Damage | Dirty-rect present | landed |
-| Hover | pointer `move` → `hovered` prop + press chrome | landed (follow-on) |
-| Caret paint | focused field caret glyph | landed (follow-on) |
-| Slider input | click x → `value` | landed (follow-on) |
-| MCP registry | `ui.auil.*` + focus/theme on mcp-bus | landed (follow-on) |
+| Hover / caret / slider click / `ui.auil.*` | follow-on honesty pass | landed |
 
 ## P2 — Parity areas
 
-Motion runtime, canvas/chart/media bitmaps, real grid algorithm, AT-SPI a11y tree, DnD, i18n/RTL/IME, OS clipboard, xdg-shell app hosting (G17), full component registry port from `ui-engine/components.py`, focus trap for dialogs.
+| Item | Module / API | Status |
+|---|---|---|
+| Real grid | `ui-runtime/src/grid.rs` + layout `cols`/`col_span`/`rtl` | landed |
+| Media / chart paint | compositor `paint_media` / `paint_chart` | landed (procedural; no video decode) |
+| Motion runtime | opacity tween in present-loop; snappy/gentle/reduced | landed (opacity only) |
+| A11y tree | `ui.a11y.tree` AT-SPI-shaped MCP export | landed (no AT-SPI D-Bus yet) |
+| DnD | `draggable` + drag/drop → `change` | landed |
+| RTL | `dir=rtl` / `rtl=true` on stack & grid | landed (layout mirror) |
+| OS clipboard | wl-copy/xclip/xsel best-effort + memory | landed |
+| Dialog focus trap | Tab scoped to dialog subtree | landed |
+| Component registry | `ui.components.list` subset | landed (names/status; not full recipe expand) |
+| xdg-shell (G17) | third-party Wayland clients | **absent** — `compositor.status.xdg_shell="absent"` |
+| IME / full i18n catalogs | locale + input method | deferred |
+| AT-SPI D-Bus bridge | system a11y bus | deferred (MCP tree is the interim) |
 
 ## Explicit non-goals (near term)
 

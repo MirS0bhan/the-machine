@@ -81,6 +81,22 @@ async fn main() -> anyhow::Result<()> {
 
 async fn present_loop(comp: Arc<Mutex<Compositor>>, pixels: SharedPixel) {
     loop {
+        {
+            let mut c = comp.lock().await;
+            let dt = crate::env::frame_ms() as f32;
+            let mut dirty = false;
+            for s in c.surfaces.values_mut() {
+                if (s.opacity - s.opacity_target).abs() > 0.01 {
+                    let dur = s.motion_ms.max(1) as f32;
+                    let step = (dt / dur).clamp(0.01, 1.0);
+                    s.opacity = s.opacity + (s.opacity_target - s.opacity) * step;
+                    dirty = true;
+                }
+            }
+            if dirty {
+                c.damage.mark_full();
+            }
+        }
         paint_frame(&comp, &pixels).await;
         tokio::time::sleep(std::time::Duration::from_millis(crate::env::frame_ms())).await;
     }
@@ -170,6 +186,8 @@ fn paint_surface(px: &mut PixelBackend, s: &Surface) {
             "slider" => chrome::SURFACE_SUNKEN,
             "list" => chrome::SURFACE_CARD,
             "dialog" => chrome::SURFACE_OVERLAY,
+            "media" => chrome::SURFACE_SUNKEN,
+            "chart" => chrome::SURFACE_CARD,
             _ => {
                 let (r, g, b) = hash_color(&s.id);
                 [r, g, b]
@@ -177,12 +195,15 @@ fn paint_surface(px: &mut PixelBackend, s: &Surface) {
         }
     };
 
+    let bg = blend_opacity(bg, chrome::SURFACE_CANVAS, s.opacity);
     let fg = s.fg.unwrap_or(match s.kind.as_str() {
         "button" if s.variant == "primary" || s.confirmation => chrome::TEXT_ON_ACCENT,
         "toggle" if s.checked => chrome::TEXT_ON_ACCENT,
         "field" | "input" => chrome::TEXT_TERTIARY,
+        "chart" => chrome::ACCENT_DEFAULT,
         _ => chrome::TEXT_PRIMARY,
     });
+    let fg = blend_opacity(fg, chrome::SURFACE_CANVAS, s.opacity.max(0.35));
 
     match s.kind.as_str() {
         "toggle" => {
@@ -199,6 +220,14 @@ fn paint_surface(px: &mut PixelBackend, s: &Surface) {
         }
         "icon" => {
             paint_icon(px, s, bg, fg);
+            return;
+        }
+        "media" => {
+            paint_media(px, s, bg, fg, radius);
+            return;
+        }
+        "chart" => {
+            paint_chart(px, s, bg, fg, radius);
             return;
         }
         _ => {}
@@ -310,6 +339,111 @@ fn paint_icon(px: &mut PixelBackend, s: &Surface, bg: [u8; 3], fg: [u8; 3]) {
                 fg,
             );
         }
+    }
+}
+
+fn blend_opacity(color: [u8; 3], canvas: [u8; 3], opacity: f32) -> [u8; 3] {
+    let o = opacity.clamp(0.0, 1.0);
+    [
+        (canvas[0] as f32 * (1.0 - o) + color[0] as f32 * o) as u8,
+        (canvas[1] as f32 * (1.0 - o) + color[1] as f32 * o) as u8,
+        (canvas[2] as f32 * (1.0 - o) + color[2] as f32 * o) as u8,
+    ]
+}
+
+fn paint_media(px: &mut PixelBackend, s: &Surface, bg: [u8; 3], fg: [u8; 3], radius: u32) {
+    let w = s.geometry.width.max(1);
+    let h = s.geometry.height.max(1);
+    px.fill_rounded_rect(s.geometry.x, s.geometry.y, w, h, radius, bg);
+    px.stroke_rounded_rect(
+        s.geometry.x,
+        s.geometry.y,
+        w,
+        h,
+        radius,
+        s.border.unwrap_or(chrome::BORDER_DEFAULT),
+    );
+    // Play triangle (axis-aligned stand-in: rectangle + chevron bars).
+    let cx = s.geometry.x + w as i32 / 2;
+    let cy = s.geometry.y + h as i32 / 2;
+    let tri = (h.min(w) / 6).max(10) as i32;
+    px.fill_rect(cx - tri / 2, cy - tri, 4, (tri * 2) as u32, fg);
+    px.fill_rect(cx - tri / 2, cy - tri / 2, (tri as u32).saturating_add(8), 4, fg);
+    px.fill_rect(cx + 2, cy - tri / 3, (tri as u32) / 2, (tri as u32) * 2 / 3, fg);
+    if !s.label.is_empty() {
+        let font_px = text::resolve_px(s.font_px, s.font_scale);
+        let weight = text::FontWeight::parse(&s.font_weight);
+        let family = text::FontFamily::parse(&s.font_family);
+        text::draw_text(
+            px,
+            s.geometry.x + 12,
+            s.geometry.y + h as i32 - font_px as i32 - 12,
+            &s.label,
+            chrome::TEXT_PRIMARY,
+            font_px,
+            weight,
+            family,
+        );
+    }
+}
+
+fn paint_chart(px: &mut PixelBackend, s: &Surface, bg: [u8; 3], fg: [u8; 3], radius: u32) {
+    let w = s.geometry.width.max(1);
+    let h = s.geometry.height.max(1);
+    px.fill_rounded_rect(s.geometry.x, s.geometry.y, w, h, radius, bg);
+    px.stroke_rounded_rect(
+        s.geometry.x,
+        s.geometry.y,
+        w,
+        h,
+        radius,
+        s.border.unwrap_or(chrome::BORDER_DEFAULT),
+    );
+    // Axes
+    let pad = 16i32;
+    let ox = s.geometry.x + pad;
+    let oy = s.geometry.y + h as i32 - pad;
+    let axis_w = w.saturating_sub(32);
+    let axis_h = h.saturating_sub(32);
+    px.fill_rect(ox, oy, axis_w, 2, chrome::BORDER_DEFAULT);
+    px.fill_rect(ox, s.geometry.y + pad, 2, axis_h, chrome::BORDER_DEFAULT);
+    // Bars from items (numeric strings) or evenly spaced placeholders.
+    let values: Vec<f64> = if !s.items.is_empty() {
+        s.items
+            .iter()
+            .filter_map(|v| v.parse::<f64>().ok())
+            .collect()
+    } else {
+        vec![0.3, 0.6, 0.45, 0.8, 0.55]
+    };
+    if values.is_empty() {
+        return;
+    }
+    let max_v = values.iter().cloned().fold(1.0_f64, f64::max).max(1.0);
+    let n = values.len() as u32;
+    let gap = 6u32;
+    let bar_w = axis_w.saturating_sub(gap * n.saturating_sub(1)).saturating_div(n).max(4);
+    for (i, v) in values.iter().enumerate() {
+        let t = (*v / max_v).clamp(0.05, 1.0);
+        let bh = ((axis_h as f64) * t) as u32;
+        let bx = ox + (i as i32) * (bar_w + gap) as i32;
+        let by = oy - bh as i32;
+        px.fill_rounded_rect(bx, by, bar_w, bh, 3, fg);
+    }
+    if !s.label.is_empty() {
+        let font_px = text::resolve_px(s.font_px, s.font_scale);
+        let weight = text::FontWeight::parse(&s.font_weight);
+        let family = text::FontFamily::parse(&s.font_family);
+        text::draw_text(
+            px,
+            s.geometry.x + 12,
+            s.geometry.y + 8,
+            &s.label,
+            chrome::TEXT_SECONDARY,
+            font_px,
+            weight,
+            family,
+        );
     }
 }
 
@@ -592,6 +726,8 @@ async fn handle_request(
                     "backend": backend,
                     "text": text::backend_name(),
                     "wayland_session": wayland_session,
+                    "xdg_shell": "absent",
+                    "motion": "present-loop-opacity",
                 }),
             )
         }
@@ -623,6 +759,8 @@ async fn handle_surface(
                 geometry: Geometry::default(),
                 z_order: 0,
                 opacity: 1.0,
+                opacity_target: 1.0,
+                motion_ms: 120,
                 blurred: false,
                 kind: "window".into(),
                 focused: false,
@@ -811,6 +949,15 @@ fn apply_surface_fields(s: &mut Surface, params: &serde_json::Value) {
     }
     if let Some(p) = params.get("placeholder_active").and_then(|v| v.as_bool()) {
         s.placeholder_active = p;
+    }
+    if let Some(o) = params.get("opacity").and_then(|v| v.as_f64()) {
+        s.opacity = o as f32;
+    }
+    if let Some(o) = params.get("opacity_target").and_then(|v| v.as_f64()) {
+        s.opacity_target = o as f32;
+    }
+    if let Some(m) = params.get("motion_ms").and_then(|v| v.as_u64()) {
+        s.motion_ms = m as u32;
     }
     if let Some(bg) = parse_rgb(params.get("bg")) {
         s.bg = Some(bg);

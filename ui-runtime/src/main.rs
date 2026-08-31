@@ -2,9 +2,14 @@
 
 mod asl;
 mod auil;
+mod a11y;
+mod components;
+mod dnd;
 mod focus;
+mod grid;
 mod input_edit;
 mod layout;
+mod motion;
 mod renderer;
 mod scroll;
 mod tokens;
@@ -111,6 +116,7 @@ pub(crate) struct UiTree {
     dirty: HashSet<String>,
     /// Currently focused interactive node id.
     focused: Option<String>,
+    drag: Option<dnd::DragSession>,
 }
 
 impl UiTree {
@@ -134,6 +140,7 @@ impl UiTree {
             revision: 1,
             dirty: HashSet::new(),
             focused: None,
+            drag: None,
         }
     }
 
@@ -412,25 +419,106 @@ async fn handle_request(
                             }
                         }
                     }
+                    // Begin drag outside the get_mut borrow.
+                    let start_drag = t.get(&nid).and_then(|node| {
+                        if dnd::is_draggable(&node.props) {
+                            let x = event_payload
+                                .get("x")
+                                .and_then(|v| v.as_i64())
+                                .unwrap_or(0) as i32;
+                            let y = event_payload
+                                .get("y")
+                                .and_then(|v| v.as_i64())
+                                .unwrap_or(0) as i32;
+                            let payload = serde_json::json!({
+                                "id": nid,
+                                "label": node.props.get("label").cloned().unwrap_or(serde_json::Value::Null),
+                            });
+                            Some(dnd::DragSession::begin(&nid, x, y, payload))
+                        } else {
+                            None
+                        }
+                    });
+                    if let Some(session) = start_drag {
+                        t.drag = Some(session);
+                    }
                     t.revision += 1;
                     renderer::serialize_subtree(&t, t.root_id())
                 };
                 let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                // Kick opacity tween on the pressed surface.
+                let _ = mcp_call(
+                    "compositor.surface",
+                    serde_json::json!({
+                        "action": "update",
+                        "id": format!("surface.{nid}"),
+                        "opacity": 0.85,
+                        "opacity_target": 1.0,
+                        "motion_ms": motion::SNAPPY.duration_ms,
+                    }),
+                )
+                .await;
             }
             if event == "release" {
-                let snapshot = {
+                let drop = {
                     let mut t = tree.lock().await;
                     if let Some(node) = t.get_mut(&nid) {
                         node.props
                             .insert("pressed".into(), serde_json::json!(false));
                     }
-                    renderer::serialize_subtree(&t, t.root_id())
+                    let ended = t.drag.take().map(|d| d.end_payload(Some(&nid)));
+                    let snapshot = renderer::serialize_subtree(&t, t.root_id());
+                    (ended, snapshot)
                 };
-                let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                let _ = renderer::sync_tree_to_compositor(&drop.1).await;
+                if let Some(payload) = drop.0 {
+                    // Fire change bindings on drop target if any.
+                    let bindings = {
+                        let t = tree.lock().await;
+                        t.get(&nid).map(|n| n.bindings.clone()).unwrap_or_default()
+                    };
+                    let mut results = Vec::new();
+                    for b in &bindings {
+                        let r = execute_binding(b, "change", &payload).await;
+                        results.push(serde_json::json!({ "target": b.target, "result": r }));
+                    }
+                    return success_response(
+                        &id,
+                        serde_json::json!({
+                            "handled": 1,
+                            "action": "drop",
+                            "payload": payload,
+                            "results": results,
+                        }),
+                    );
+                }
             }
 
-            // Hover: set hovered on the node under the pointer; clear others.
-            if event == "move" {
+            // Hover / drag move.
+            if event == "move" || event == "drag" {
+                let x = event_payload
+                    .get("x")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0) as i32;
+                let y = event_payload
+                    .get("y")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0) as i32;
+                let dragging = {
+                    let mut t = tree.lock().await;
+                    if let Some(ref mut drag) = t.drag {
+                        drag.move_to(x, y);
+                        Some(drag.end_payload(Some(&nid)))
+                    } else {
+                        None
+                    }
+                };
+                if let Some(payload) = dragging {
+                    return success_response(
+                        &id,
+                        serde_json::json!({ "handled": 1, "action": "drag", "payload": payload }),
+                    );
+                }
                 let snapshot = {
                     let mut t = tree.lock().await;
                     for node in t.nodes.values_mut() {
@@ -923,7 +1011,20 @@ async fn handle_request(
                     "asl_parser": "rust-subset",
                     "focused": t.focused(),
                     "text_stack": "harfrust",
+                    "a11y": "mcp-tree",
+                    "motion": "snappy|gentle|reduced",
+                    "components": components::catalog().len(),
                 }),
+            )
+        }
+        "ui.a11y.tree" => {
+            let t = tree.lock().await;
+            success_response(&id, a11y::serialize_tree(&t))
+        }
+        "ui.components.list" => {
+            success_response(
+                &id,
+                serde_json::json!({ "components": components::catalog() }),
             )
         }
         "ui.focus.get" => {
