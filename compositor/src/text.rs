@@ -9,6 +9,16 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
+/// Workspace `assets/fonts` directory (relative to the compositor crate).
+pub fn workspace_font_dir() -> Option<PathBuf> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../assets/fonts");
+    if dir.join("Inter-Regular.ttf").exists() {
+        dir.canonicalize().ok()
+    } else {
+        None
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FontWeight {
     Regular,
@@ -213,7 +223,9 @@ fn face_candidates() -> Vec<(FontFamily, FontWeight, Vec<String>)> {
         roots.push(dir);
     }
     roots.push("/etc/the-machine/fonts".into());
-    roots.push("/workspace/assets/fonts".into());
+    if let Some(dir) = workspace_font_dir() {
+        roots.push(dir.display().to_string());
+    }
     if let Ok(cwd) = std::env::current_dir() {
         roots.push(cwd.join("assets/fonts").display().to_string());
     }
@@ -407,7 +419,11 @@ mod tests {
 
     #[test]
     fn harfrust_shapes_and_rasterizes_inter() {
-        std::env::set_var("THE_MACHINE_FONT_DIR", "/workspace/assets/fonts");
+        let font_dir = workspace_font_dir().expect("workspace assets/fonts");
+        std::env::set_var(
+            "THE_MACHINE_FONT_DIR",
+            font_dir.display().to_string(),
+        );
         std::env::set_var("THE_MACHINE_COMPOSITOR_BACKEND", "memory");
         let (w, h) = measure_text("Welcome back", 20, FontWeight::Bold, FontFamily::Default);
         assert!(w > 40, "width={w}");

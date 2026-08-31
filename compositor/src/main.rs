@@ -31,14 +31,14 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting Compositor");
     if std::env::var("THE_MACHINE_FONT_DIR").is_err() {
-        for candidate in [
-            "/etc/the-machine/fonts",
-            "/the-machine/fonts",
-            "/workspace/assets/fonts",
-        ] {
-            if std::path::Path::new(candidate).join("Inter-Regular.ttf").exists() {
-                std::env::set_var("THE_MACHINE_FONT_DIR", candidate);
-                break;
+        if let Some(dir) = text::workspace_font_dir() {
+            std::env::set_var("THE_MACHINE_FONT_DIR", dir);
+        } else {
+            for candidate in ["/etc/the-machine/fonts", "/the-machine/fonts"] {
+                if std::path::Path::new(candidate).join("Inter-Regular.ttf").exists() {
+                    std::env::set_var("THE_MACHINE_FONT_DIR", candidate);
+                    break;
+                }
             }
         }
     }
@@ -1015,7 +1015,11 @@ mod tests {
     ) {
         std::env::set_var("THE_MACHINE_COMPOSITOR_BACKEND", "memory");
         if std::env::var("THE_MACHINE_FONT_DIR").is_err() {
-            std::env::set_var("THE_MACHINE_FONT_DIR", "/workspace/assets/fonts");
+            let font_dir = text::workspace_font_dir().expect("workspace assets/fonts");
+            std::env::set_var(
+                "THE_MACHINE_FONT_DIR",
+                font_dir.display().to_string(),
+            );
         }
         (
             Arc::new(Mutex::new(Compositor::new())),
