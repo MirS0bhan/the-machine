@@ -357,62 +357,41 @@ The UI Runtime communicates with the compositor using the Wayland protocol:
 
 ## MCP Interface
 
-### Methods
+> **Boot path (today):** the Rust `ui-runtime` daemon. Canonical honesty audit: `docs/design-system/08-ui-framework/03-docs-code-honesty.md`.
 
-#### `ui.patch(ops: PatchOp[]) → {revision: u64}`
+### Methods (Rust boot)
 
-Apply a batch of patch operations.
+| Method | Purpose |
+|---|---|
+| `ui.patch` | Apply patch ops; sync surfaces |
+| `ui.get` | Get one node (omit `id` → root) |
+| `ui.tree` | Serialize subtree snapshot |
+| `ui.bind` | Attach mcp/state binding to a node |
+| `ui.event` | Pointer/key/wheel → local feedback + bindings |
+| `ui.status` | Revision, focus, parser/text_stack flags |
+| `ui.focus.get` / `ui.focus.set` / `ui.focus.next` | Tree focus + compositor focus sync |
+| `ui.theme.get` / `ui.theme.set` | Theme token bag |
+| `ui.auil.parse` / `ui.auil.load` | Parse AUIL source → patch ops / load into tree |
 
-**Parameters:**
-- `ops` — array of patch operations
+Historical names `ui.get_tree` / `ui.get_node` are **not** registered; use `ui.tree` / `ui.get`.
 
-**Returns:**
-- `revision` — the new State Store revision
+### AUIL kinds (boot)
 
-**Example:**
+Painted interaction kinds: `text`, `field`/`input`, `button`, `toggle`, `slider`, `list`, `dialog`, `icon` (geometric). Layout: `stack`/`container`; `grid` is a stack alias. `media`/`chart` are grammar stubs (unpainted). The PascalCase NodeKind table above is a historical/target sketch — boot tags are lowercase AUIL primitives.
+
+### Example — `ui.patch`
+
 ```json
-// Request
 {"method": "ui.patch", "params": {"ops": [
   {"op": "~", "id": "ui.root.title", "props": {"text": "Welcome"}}
 ]}}
-
-// Response
-{"result": {"revision": 42}}
 ```
 
-#### `ui.get_tree() → UiNode`
+### Example — `ui.tree` / `ui.get`
 
-Get the current UI tree.
-
-**Returns:**
-- The root UI node
-
-**Example:**
 ```json
-// Request
-{"method": "ui.get_tree"}
-
-// Response
-{"result": {"kind": "container", "children": [...]}}
-```
-
-#### `ui.get_node(id: string) → UiNode`
-
-Get a specific node from the UI tree.
-
-**Parameters:**
-- `id` — the node ID
-
-**Returns:**
-- The node with the given ID
-
-**Example:**
-```json
-// Request
-{"method": "ui.get_node", "params": {"id": "ui.root.controls.play"}}
-
-// Response
-{"result": {"kind": "button", "props": {"label": "Play"}}}
+{"method": "ui.tree", "params": {}}
+{"method": "ui.get", "params": {"id": "ui.chat_send"}}
 ```
 
 ---
@@ -443,3 +422,4 @@ Get a specific node from the UI tree.
 - [Compositor](./compositor.md) — for rendering and input routing
 - [Agent Core](./agent-core.md) — for UI patch generation
 - [MCP Bus](./mcp-bus.md) — for event bindings
+- [UI framework maturity](../design-system/08-ui-framework/) — boot vs toolkit gap analysis

@@ -96,6 +96,19 @@ pub fn style(kind: &str, id: &str, props: &Value) -> WidgetChrome {
             label,
             variant: "dialog".into(),
         },
+        "icon" => WidgetChrome {
+            bg: tokens::dark::SURFACE_RAISED,
+            fg: tokens::dark::TEXT_PRIMARY,
+            border: None,
+            radius: tokens::radius::SM,
+            font_scale: 1,
+            label: String::new(),
+            variant: if variant.is_empty() {
+                "default".into()
+            } else {
+                variant
+            },
+        },
         _ => WidgetChrome {
             bg: tokens::dark::SURFACE_CARD,
             fg: tokens::dark::TEXT_PRIMARY,

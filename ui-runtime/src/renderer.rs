@@ -124,6 +124,8 @@ fn surface_create_params(node: &LaidOutNode) -> Value {
         "value_max": node.value_max,
         "scroll_y": node.scroll_y,
         "items": node.items,
+        "caret": node.caret,
+        "placeholder_active": node.placeholder_active,
     });
     if let Some(border) = node.border {
         params
@@ -217,6 +219,8 @@ mod tests {
             value_max: 100.0,
             scroll_y: 0,
             items: vec![],
+            caret: -1,
+            placeholder_active: false,
         };
         let p = surface_create_params(&node);
         assert_eq!(p.get("kind").and_then(|v| v.as_str()), Some("button"));

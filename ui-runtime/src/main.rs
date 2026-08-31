@@ -382,6 +382,35 @@ async fn handle_request(
                             node.props
                                 .insert("checked".into(), serde_json::json!(!on));
                         }
+                        if node.kind == "slider" {
+                            if let Some(geo) = event_payload.get("geometry") {
+                                let gx = geo.get("x").and_then(|v| v.as_i64()).unwrap_or(0) as f64;
+                                let gw = geo
+                                    .get("width")
+                                    .and_then(|v| v.as_u64())
+                                    .unwrap_or(1)
+                                    .max(1) as f64;
+                                let px = event_payload
+                                    .get("x")
+                                    .and_then(|v| v.as_i64())
+                                    .unwrap_or(0) as f64;
+                                let tnorm = ((px - gx) / gw).clamp(0.0, 1.0);
+                                let min = node
+                                    .props
+                                    .get("min")
+                                    .and_then(|v| v.as_f64())
+                                    .unwrap_or(0.0);
+                                let max = node
+                                    .props
+                                    .get("max")
+                                    .and_then(|v| v.as_f64())
+                                    .unwrap_or(100.0)
+                                    .max(min + f64::EPSILON);
+                                let value = min + tnorm * (max - min);
+                                node.props
+                                    .insert("value".into(), serde_json::json!(value));
+                            }
+                        }
                     }
                     t.revision += 1;
                     renderer::serialize_subtree(&t, t.root_id())
@@ -398,6 +427,31 @@ async fn handle_request(
                     renderer::serialize_subtree(&t, t.root_id())
                 };
                 let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+            }
+
+            // Hover: set hovered on the node under the pointer; clear others.
+            if event == "move" {
+                let snapshot = {
+                    let mut t = tree.lock().await;
+                    for node in t.nodes.values_mut() {
+                        if node.props.get("hovered").and_then(|v| v.as_bool()) == Some(true) {
+                            node.props
+                                .insert("hovered".into(), serde_json::json!(false));
+                        }
+                    }
+                    if let Some(node) = t.get_mut(&nid) {
+                        if focus::is_interactive(&node.kind) {
+                            node.props
+                                .insert("hovered".into(), serde_json::json!(true));
+                        }
+                    }
+                    renderer::serialize_subtree(&t, t.root_id())
+                };
+                let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                return success_response(
+                    &id,
+                    serde_json::json!({ "handled": 1, "action": "hover" }),
+                );
             }
 
             // Wheel → scroll focused list / overflow container.
@@ -461,13 +515,63 @@ async fn handle_request(
                         .unwrap_or(false),
                 };
                 if key == "Tab" {
-                    let mut t = tree.lock().await;
-                    let next = focus::next_focus(&t, t.focused(), mods.shift);
-                    t.set_focused(next.clone());
+                    let next = {
+                        let mut t = tree.lock().await;
+                        let next = focus::next_focus(&t, t.focused(), mods.shift);
+                        t.set_focused(next.clone());
+                        next
+                    };
+                    if let Some(ref sid) = next {
+                        let _ = mcp_call(
+                            "compositor.focus",
+                            serde_json::json!({ "id": format!("surface.{sid}") }),
+                        )
+                        .await;
+                    }
                     return success_response(
                         &id,
                         serde_json::json!({ "handled": 1, "focused": next, "action": "tab" }),
                     );
+                }
+
+                // Escape dismisses a soft dialog (not confirmation/e4).
+                if key == "Escape" {
+                    let dismissed = {
+                        let mut t = tree.lock().await;
+                        let dialog_id = t
+                            .nodes
+                            .iter()
+                            .find(|(_, n)| n.kind == "dialog")
+                            .map(|(id, _)| id.clone());
+                        if let Some(did) = dialog_id.clone() {
+                            t.detach(&did);
+                            remove_subtree(&mut t, &did);
+                            t.revision += 1;
+                            let snapshot = renderer::serialize_subtree(&t, t.root_id());
+                            Some((did, snapshot))
+                        } else {
+                            None
+                        }
+                    };
+                    if let Some((did, snapshot)) = dismissed {
+                        let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                        let _ = mcp_call(
+                            "compositor.surface",
+                            serde_json::json!({
+                                "action": "destroy",
+                                "id": format!("surface.{did}"),
+                            }),
+                        )
+                        .await;
+                        return success_response(
+                            &id,
+                            serde_json::json!({
+                                "handled": 1,
+                                "action": "dialog.dismiss",
+                                "id": did,
+                            }),
+                        );
+                    }
                 }
 
                 // Enter / Return activates the focused button (same as press).

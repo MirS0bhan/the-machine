@@ -197,6 +197,10 @@ fn paint_surface(px: &mut PixelBackend, s: &Surface) {
             paint_list(px, s, bg, fg, radius);
             return;
         }
+        "icon" => {
+            paint_icon(px, s, bg, fg);
+            return;
+        }
         _ => {}
     }
 
@@ -232,16 +236,80 @@ fn paint_surface(px: &mut PixelBackend, s: &Surface) {
         let pad_x = if draw_plate { 16i32 } else { 0 };
         let (_, text_h) = text::measure_text(&s.label, font_px, weight, family);
         let pad_y = ((h as i32 - text_h as i32) / 2).max(0);
-        text::draw_text(
-            px,
+        let text_x = s.geometry.x + pad_x;
+        let text_y = s.geometry.y + pad_y;
+        text::draw_text(px, text_x, text_y, &s.label, fg, font_px, weight, family);
+        // Caret for focused fields.
+        if s.focused && matches!(s.kind.as_str(), "field" | "input") && s.caret >= 0 {
+            let (cx, cy, ch) = if s.placeholder_active || s.label.is_empty() {
+                (text_x, text_y, text_h.max(font_px))
+            } else {
+                let caret = (s.caret as usize).min(s.label.len());
+                let prefix = &s.label[..caret];
+                let (prefix_w, _) = text::measure_text(prefix, font_px, weight, family);
+                (text_x + prefix_w as i32, text_y, text_h.max(font_px))
+            };
+            px.fill_rect(cx, cy, 2, ch, chrome::BORDER_FOCUS);
+        }
+    } else if s.focused && matches!(s.kind.as_str(), "field" | "input") {
+        // Empty field: caret at padding origin.
+        let font_px = text::resolve_px(s.font_px, s.font_scale);
+        let pad_x = 16i32;
+        let pad_y = ((h as i32 - font_px as i32) / 2).max(0);
+        px.fill_rect(
             s.geometry.x + pad_x,
             s.geometry.y + pad_y,
-            &s.label,
-            fg,
+            2,
             font_px,
-            weight,
-            family,
+            chrome::BORDER_FOCUS,
         );
+    }
+}
+
+fn paint_icon(px: &mut PixelBackend, s: &Surface, bg: [u8; 3], fg: [u8; 3]) {
+    let w = s.geometry.width.max(1);
+    let h = s.geometry.height.max(1);
+    let size = w.min(h);
+    let x = s.geometry.x + ((w as i32 - size as i32) / 2).max(0);
+    let y = s.geometry.y + ((h as i32 - size as i32) / 2).max(0);
+    // Soft plate behind glyph.
+    px.fill_rounded_rect(x, y, size, size, chrome::RADIUS_SM, bg);
+    let inset = (size / 5).max(2) as i32;
+    let gw = size.saturating_sub((inset * 2) as u32).max(4);
+    let gh = gw;
+    let gx = x + inset;
+    let gy = y + inset;
+    match s.variant.as_str() {
+        "check" => {
+            // Simple check: two thick segments.
+            px.fill_rect(gx, gy + gh as i32 / 2, gw / 3, 3, fg);
+            px.fill_rect(
+                gx + gw as i32 / 4,
+                gy + gh as i32 / 2,
+                3,
+                gh / 2,
+                fg,
+            );
+        }
+        "close" | "x" => {
+            // Approximate X with two bars (axis-aligned stand-in).
+            px.fill_rect(gx, gy, gw, 3, fg);
+            px.fill_rect(gx, gy + gh as i32 - 3, gw, 3, fg);
+            px.fill_rect(gx + gw as i32 / 2 - 1, gy, 3, gh, fg);
+        }
+        _ => {
+            // Default: bordered diamond-ish square.
+            px.stroke_rounded_rect(gx, gy, gw, gh, 2, fg);
+            let inner = (gw / 3).max(2);
+            px.fill_rounded_rect(
+                gx + (gw as i32 - inner as i32) / 2,
+                gy + (gh as i32 - inner as i32) / 2,
+                inner,
+                inner,
+                1,
+                fg,
+            );
+        }
     }
 }
 
@@ -567,6 +635,8 @@ async fn handle_surface(
                 value_max: 100.0,
                 scroll_y: 0,
                 items: vec![],
+                caret: -1,
+                placeholder_active: false,
                 bg: None,
                 fg: None,
                 border: None,
@@ -736,6 +806,12 @@ fn apply_surface_fields(s: &mut Surface, params: &serde_json::Value) {
             .filter_map(|v| v.as_str().map(|s| s.to_string()))
             .collect();
     }
+    if let Some(c) = params.get("caret").and_then(|v| v.as_i64()) {
+        s.caret = c;
+    }
+    if let Some(p) = params.get("placeholder_active").and_then(|v| v.as_bool()) {
+        s.placeholder_active = p;
+    }
     if let Some(bg) = parse_rgb(params.get("bg")) {
         s.bg = Some(bg);
     }
@@ -846,6 +922,11 @@ async fn handle_input(
                 }
                 c.damage.mark_full();
             }
+            let (geometry, kind) = c
+                .surfaces
+                .get(&sid)
+                .map(|s| (Some(s.geometry.clone()), Some(s.kind.clone())))
+                .unwrap_or((None, None));
             success_response(
                 id,
                 serde_json::json!({
@@ -855,6 +936,8 @@ async fn handle_input(
                     "confirmation_only": c.confirmation_active,
                     "event": event,
                     "delta_y": params.get("delta_y"),
+                    "geometry": geometry,
+                    "kind": kind,
                 }),
             )
         }

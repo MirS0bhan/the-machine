@@ -2,7 +2,7 @@
 
 **Layer:** L5  
 **Type:** Deterministic, non-LLM  
-**Technology:** Rust compositor — DRM/KMS, framebuffer, and `wayland-server`  
+**Technology:** Rust compositor — DRM/KMS, framebuffer, memory backend, optional `wayland-server` SHM session  
 **Language:** Rust  
 **Dependencies:** System Daemon (for input events)  
 
@@ -14,73 +14,57 @@ The compositor paints the agent UI to real pixels and optionally exposes a Wayla
 
 With `THE_MACHINE_COMPOSITOR_BACKEND=wayland` or `THE_MACHINE_WL_DISPLAY_BIND=1`, the compositor binds `wl_display` and registers `wl_compositor`, `wl_output`, `wl_seat`, and `wl_shm`. Surface commits blit SHM buffers into the pixel backend.
 
-A future wlroots `xdg-shell` path for third-party Wayland clients is optional (gap G17 in the architecture checklist).
+A future wlroots `xdg-shell` path for third-party Wayland clients is optional (gap G17). **Today there is no wlroots embedding, no XWayland, and no GPU blur shaders** — see Boot path vs target below.
 
 ---
 
-## Architecture
+## Boot path vs target
+
+| Capability | Today (Rust) | Target / deferred |
+|---|---|---|
+| Pixel backends | DRM / framebuffer / memory | — |
+| Surface model | Flat MCP `compositor.surface` map + z-order | Per-node `wl_surface` for every AUIL node |
+| Text | HarfRust + FreeType (Inter / JetBrains Mono) | — |
+| Damage | Dirty-rect tracker + partial clear | vblank-synced scheduling |
+| Confirmation exclusivity | `compositor.confirmation.set_active` (MCP) | Wayland confirmation-surface protocol XML |
+| Soft dialog exclusivity | `dialog_active` + scrim paint | Full focus trap / elev=e3 policy |
+| Blur | `blurred` boolean stored; **not painted** | GPU vibrancy shaders |
+| XWayland / xdg-shell | absent (G17) | Optional legacy / app hosting |
+
+Honesty audit: `docs/design-system/08-ui-framework/03-docs-code-honesty.md`.
+
+---
+
+## Architecture (boot)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Wayland Compositor (wlroots-based)                              │
+│  Compositor (software pixel path + optional Wayland SHM)         │
 │                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │  Input Forwarding                                          │ │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │ │
-│  │  │ Receive     │  │ Route to    │  │ Deliver to          │ │ │
-│  │  │ from System │  │ target      │  │ target              │ │ │
-│  │  │ Daemon      │  │ surface     │  │ surface             │ │ │
-│  │  └─────────────┘  └─────────────┘  └─────────────────────┘ │ │
-│  └─────────────────────────────────────────────────────────────┘ │
-│                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │  Confirmation Surface                                       │ │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │ │
-│  │  │ Protocol    │  │ Reserved    │  │ Exclusive           │ │ │
-│  │  │ Extension   │  │ Role        │  │ Input               │ │ │
-│  │  │             │  │ (only       │  │ Focus               │ │ │
-│  │  │             │  │  Broker may │  │                     │ │ │
-│  │  │             │  │  bind)      │  │                     │ │ │
-│  │  └─────────────┘  └─────────────┘  └─────────────────────┘ │ │
-│  └─────────────────────────────────────────────────────────────┘ │
-│                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │  Damage Tracking & Compositing                             │ │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │ │
-│  │  │ Damage      │  │ Re-draw     │  │ Frame Scheduling    │ │ │
-│  │  │ Regions     │  │ Affected    │  │ (vblank sync)       │ │ │
-│  │  │             │  │ Surfaces    │  │                     │ │ │
-│  │  └─────────────┘  └─────────────┘  └─────────────────────┘ │ │
-│  └─────────────────────────────────────────────────────────────┘ │
-│                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │  Vibrancy / Blur                                           │ │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │ │
-│  │  │ Blur        │  │ GPU        │  │ Composite           │ │ │
-│  │  │ Region      │  │ Compute    │  │ Overlays            │ │ │
-│  │  │ Management  │  │ (shaders)  │  │                     │ │ │
-│  │  └─────────────┘  └─────────────┘  └─────────────────────┘ │ │
-│  └─────────────────────────────────────────────────────────────┘ │
-│                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │  XWayland                                                   │ │
-│  │  ┌─────────────────────────────────────────────────────────┐ │ │
-│  │  │  X server compatibility (for legacy apps)               │ │ │
-│  │  └─────────────────────────────────────────────────────────┘ │ │
-│  └─────────────────────────────────────────────────────────────┘ │
+│  Input (from system-daemon) → hit-test / focus → ui.event         │
+│  Confirmation / dialog exclusivity (MCP flags, not wlroots)       │
+│  Damage tracking → paint kinds (text/field/button/toggle/…)       │
+│  HarfRust text · rounded chrome · DRM/fb/memory present           │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+The older “wlroots-based + XWayland + GPU blur” diagram described the **long-term** compositor story. It is **not** what boots today.
 
 ---
 
 ## Design Goals
 
-1. **Don't reinvent a compositor** — wlroots already solves compositing well
-2. **XWayland is the escape hatch, not the target** — legacy apps are supported but not prioritized
-3. **Exactly one protocol addition** — the confirmation-surface role
-4. **No opinion about AUIL/ASL** — it renders whatever the UI Runtime provides
+1. **Grow the AUIL→MCP→pixels spine** — do not replace first-party UI with GTK embedding
+2. **xdg-shell / XWayland are escape hatches** — optional (G17), not required for SessionGreeting
+3. **Confirmation exclusivity is broker-owned** — MCP `confirmation.set_active`, not agent-forgeable chrome
+4. **No opinion about AUIL/ASL grammar** — it paints whatever the UI Runtime provides
 
 ---
+
+## MCP methods (boot)
+
+`compositor.surface`, `compositor.focus`, `compositor.input`, `compositor.present`,  
+`compositor.list`, `compositor.status`, `compositor.blur`, `compositor.confirmation.set_active`
 
 ## Input Forwarding
 

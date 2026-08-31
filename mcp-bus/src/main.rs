@@ -168,6 +168,8 @@ async fn main() -> anyhow::Result<()> {
             "ui.focus.next",
             "ui.theme.get",
             "ui.theme.set",
+            "ui.auil.parse",
+            "ui.auil.load",
         ] {
             reg.register(m, "ui-runtime", true).unwrap();
         }
