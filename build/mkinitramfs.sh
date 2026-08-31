@@ -73,6 +73,11 @@ mkdir -p "${STAGE}/etc/the-machine" "${STAGE}/run/the-machine/secrets"
 if [[ -f "${ROOT}/build/boot.auil" ]]; then
   cp "${ROOT}/build/boot.auil" "${STAGE}/etc/the-machine/boot.auil"
 fi
+if [[ -d "${ROOT}/assets/fonts" ]]; then
+  mkdir -p "${STAGE}/etc/the-machine/fonts" "${STAGE}/the-machine/fonts"
+  cp "${ROOT}/assets/fonts/"*.ttf "${STAGE}/etc/the-machine/fonts/" 2>/dev/null || true
+  cp "${ROOT}/assets/fonts/"*.ttf "${STAGE}/the-machine/fonts/" 2>/dev/null || true
+fi
 
 # Boot logging + PID 1 init script.
 install -m 0644 "${ROOT}/build/boot-log-lib.sh" "${STAGE}/boot-log-lib.sh"

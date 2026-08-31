@@ -1,7 +1,13 @@
 //! UI Runtime - declarative renderer for the UI State Tree (AUIL) with ASL styling.
 
+mod asl;
 mod auil;
+mod focus;
+mod input_edit;
+mod layout;
 mod renderer;
+mod tokens;
+mod widgets;
 
 use common::*;
 use std::collections::{HashMap, HashSet};
@@ -51,12 +57,59 @@ struct Theme {
     typography: HashMap<String, serde_json::Value>,
 }
 
+impl Theme {
+    /// Boot-default dark theme from `docs/design-system/02-style/` (via ASL subset).
+    fn design_system_dark() -> Self {
+        let doc = asl::parse_asl(asl::design_system_dark_asl());
+        let mut colors = HashMap::new();
+        for (k, v) in &doc.tokens {
+            colors.insert(k.clone(), serde_json::json!(v));
+        }
+        let mut spacing = HashMap::new();
+        if let Some(space) = doc.scales.get("space") {
+            for (k, v) in space {
+                spacing.insert(k.clone(), serde_json::json!(v));
+            }
+        }
+        spacing.insert("min-target".into(), serde_json::json!(tokens::space::MIN_TARGET));
+        let mut rounding = HashMap::new();
+        if let Some(radius) = doc.scales.get("radius") {
+            for (k, v) in radius {
+                rounding.insert(k.clone(), serde_json::json!(v));
+            }
+        }
+        let mut typography = HashMap::new();
+        for (k, v) in [
+            ("title-2", tokens::type_size::TITLE_2),
+            ("body", tokens::type_size::BODY),
+            ("caption", tokens::type_size::CAPTION),
+            ("label", tokens::type_size::LABEL),
+            ("family.default", 0),
+        ] {
+            if k.starts_with("family") {
+                typography.insert(k.into(), serde_json::json!("Inter"));
+            } else {
+                typography.insert(k.into(), serde_json::json!(v));
+            }
+        }
+        typography.insert("family.numeric".into(), serde_json::json!("JetBrains Mono"));
+        Theme {
+            colors,
+            spacing,
+            rounding,
+            typography,
+        }
+    }
+}
+
 pub(crate) struct UiTree {
     nodes: HashMap<String, UiNode>,
     root_id: String,
     theme: Theme,
     revision: u64,
     dirty: HashSet<String>,
+    /// Currently focused interactive node id.
+    focused: Option<String>,
 }
 
 impl UiTree {
@@ -76,14 +129,27 @@ impl UiTree {
         UiTree {
             nodes,
             root_id: "ui.root".to_string(),
-            theme: Theme::default(),
+            theme: Theme::design_system_dark(),
             revision: 1,
             dirty: HashSet::new(),
+            focused: None,
         }
     }
 
     pub(crate) fn get(&self, id: &str) -> Option<&UiNode> {
         self.nodes.get(id)
+    }
+
+    pub(crate) fn root_id(&self) -> &str {
+        &self.root_id
+    }
+
+    pub(crate) fn focused(&self) -> Option<&str> {
+        self.focused.as_deref()
+    }
+
+    pub(crate) fn set_focused(&mut self, id: Option<String>) {
+        self.focused = id;
     }
 
     fn get_mut(&mut self, id: &str) -> Option<&mut UiNode> {
@@ -290,6 +356,107 @@ async fn handle_request(
                 .get("payload")
                 .cloned()
                 .unwrap_or(serde_json::Value::Null);
+
+            // Click focuses interactive widgets.
+            if matches!(event.as_str(), "click" | "press") {
+                let mut t = tree.lock().await;
+                if t.get(&nid)
+                    .is_some_and(|n| focus::is_interactive(&n.kind))
+                {
+                    t.set_focused(Some(nid.clone()));
+                }
+            }
+
+            // Keyboard editing on the focused field.
+            if event == "key" {
+                let key = event_payload
+                    .get("key")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let text = event_payload
+                    .get("text")
+                    .and_then(|v| v.as_str());
+                let mods = input_edit::KeyMods {
+                    shift: event_payload
+                        .get("shift")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false),
+                    ctrl: event_payload
+                        .get("ctrl")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false),
+                    alt: event_payload
+                        .get("alt")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false),
+                    meta: event_payload
+                        .get("meta")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false),
+                };
+                if key == "Tab" {
+                    let mut t = tree.lock().await;
+                    let next = focus::next_focus(&t, t.focused(), mods.shift);
+                    t.set_focused(next.clone());
+                    return success_response(
+                        &id,
+                        serde_json::json!({ "handled": 1, "focused": next, "action": "tab" }),
+                    );
+                }
+                let mut t = tree.lock().await;
+                let focus_id = t.focused().unwrap_or(&nid).to_string();
+                let edited = if let Some(node) = t.get(&focus_id) {
+                    if matches!(node.kind.as_str(), "field" | "input") {
+                        let current = node
+                            .props
+                            .get("text")
+                            .or_else(|| node.props.get("value"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        let caret = node
+                            .props
+                            .get("caret")
+                            .and_then(|v| v.as_u64())
+                            .map(|n| n as usize);
+                        let mut buf = input_edit::TextBuffer::from_props(current, caret);
+                        if input_edit::apply_key(&mut buf, key, text, &mods) {
+                            if let Some(node) = t.get_mut(&focus_id) {
+                                node.props
+                                    .insert("text".into(), serde_json::json!(buf.text.clone()));
+                                node.props
+                                    .insert("value".into(), serde_json::json!(buf.text.clone()));
+                                node.props
+                                    .insert("caret".into(), serde_json::json!(buf.caret));
+                            }
+                            t.revision += 1;
+                            let rev = t.revision;
+                            let snapshot = renderer::serialize_subtree(&t, t.root_id());
+                            Some((buf, rev, snapshot))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                drop(t);
+                if let Some((buf, rev, snapshot)) = edited {
+                    let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                    return success_response(
+                        &id,
+                        serde_json::json!({
+                            "handled": 1,
+                            "action": "edit",
+                            "text": buf.text,
+                            "caret": buf.caret,
+                            "revision": rev,
+                        }),
+                    );
+                }
+            }
+
             let bindings = {
                 let t = tree.lock().await;
                 let node = t.get(&nid);
@@ -297,7 +464,7 @@ async fn handle_request(
                     .map(|n| serde_json::to_value(&n.props).unwrap_or(serde_json::Value::Null))
                     .unwrap_or(serde_json::Value::Null);
                 let b = node.map(|n| n.bindings.clone()).unwrap_or_default();
-                let chat_text = if event == "press" {
+                let chat_text = if event == "press" || event == "click" {
                     t.get("ui.chat_input")
                         .and_then(|n| {
                             n.props
@@ -363,8 +530,61 @@ async fn handle_request(
                     "revision": t.revision,
                     "nodes": t.nodes.len(),
                     "auil_parser": "rust",
+                    "asl_parser": "rust-subset",
+                    "focused": t.focused(),
+                    "text_stack": "harfrust",
                 }),
             )
+        }
+        "ui.focus.get" => {
+            let t = tree.lock().await;
+            success_response(
+                &id,
+                serde_json::json!({ "focused": t.focused() }),
+            )
+        }
+        "ui.focus.set" => {
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let nid = params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let mut t = tree.lock().await;
+            if let Some(ref idn) = nid {
+                if t.get(idn).is_none() {
+                    return error_response(&id, "E_NOT_FOUND", "node not found");
+                }
+            }
+            t.set_focused(nid.clone());
+            let sync_id = nid.clone();
+            drop(t);
+            if let Some(sid) = sync_id {
+                let _ = mcp_call(
+                    "compositor.focus",
+                    serde_json::json!({ "id": format!("surface.{sid}") }),
+                )
+                .await;
+            }
+            success_response(&id, serde_json::json!({ "focused": nid }))
+        }
+        "ui.focus.next" => {
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let reverse = params
+                .get("reverse")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let mut t = tree.lock().await;
+            let next = focus::next_focus(&t, t.focused(), reverse);
+            t.set_focused(next.clone());
+            drop(t);
+            if let Some(ref sid) = next {
+                let _ = mcp_call(
+                    "compositor.focus",
+                    serde_json::json!({ "id": format!("surface.{sid}") }),
+                )
+                .await;
+            }
+            success_response(&id, serde_json::json!({ "focused": next }))
         }
         "ui.auil.parse" => {
             let params = params.unwrap_or(serde_json::Value::Null);

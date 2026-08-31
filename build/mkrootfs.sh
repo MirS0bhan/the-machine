@@ -126,6 +126,13 @@ if [[ -f "${ROOT}/build/boot.auil" ]]; then
   install -m 0644 "${ROOT}/build/boot.auil" "${ROOTFS}/etc/the-machine/boot.auil"
 fi
 
+# Design-system typefaces (Inter + numeric companion) for HarfRust chrome.
+if [[ -d "${ROOT}/assets/fonts" ]]; then
+  mkdir -p "${ROOTFS}/etc/the-machine/fonts" "${ROOTFS}/the-machine/fonts"
+  install -m 0644 "${ROOT}/assets/fonts/"*.ttf "${ROOTFS}/etc/the-machine/fonts/" 2>/dev/null || true
+  install -m 0644 "${ROOT}/assets/fonts/"*.ttf "${ROOTFS}/the-machine/fonts/" 2>/dev/null || true
+fi
+
 cat > "${ROOTFS}/etc/the-machine/machine.conf" <<'CONF'
 # The Machine OS configuration (installed system)
 THE_MACHINE_SOCKET_DIR=/run/the-machine
@@ -135,6 +142,7 @@ STATE_STORE_PATH=/var/lib/the-machine/state
 THE_MACHINE_LAMBDA_DIR=/var/lib/the-machine/lambdas
 THE_MACHINE_COMPOSITOR_BACKEND=auto
 THE_MACHINE_BOOT_AUIL=/etc/the-machine/boot.auil
+THE_MACHINE_FONT_DIR=/etc/the-machine/fonts
 LOCAL_MODEL_PATH=/var/lib/the-machine/models/machine-tiny.gguf
 CONF
 

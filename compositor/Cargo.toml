@@ -15,6 +15,10 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 libc = { workspace = true }
 wayland-server = "0.31"
+# Pure-Rust HarfBuzz shaping port (https://github.com/harfbuzz/harfrust).
+harfrust = "0.13.3"
+# FreeType still used for glyph rasterization into the framebuffer.
+freetype-rs = "0.38"
 
 [[bin]]
 name = "compositor"

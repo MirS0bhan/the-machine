@@ -23,6 +23,7 @@ Welcome to the documentation for **The Machine**, an agent-native operating syst
 - [Python ↔ Rust Overlap](./guides/python-rust-overlap.md) — Which implementation to use
 - [Glossary](./reference/glossary.md) — Terminology reference
 - [Design System](./design-system/README.md) — The visual language: HIG, tokens, widget catalog, event model, and UI/UX patterns for AUIL/ASL
+- [UI Framework maturity](./design-system/08-ui-framework/README.md) — Gap analysis vs WinForms/Compose/GTK/Qt and boot-path roadmap
 
 ---
 

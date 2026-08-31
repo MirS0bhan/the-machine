@@ -1,8 +1,10 @@
-//! Renderer bridge: sync UI tree nodes to compositor surfaces.
+//! Renderer bridge: layout AUIL trees with design-system tokens, sync to compositor.
 
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use crate::layout::{self, LaidOutNode};
+use crate::tokens;
 use crate::UiTree;
 
 pub fn serialize_subtree(tree: &UiTree, id: &str) -> Value {
@@ -24,36 +26,16 @@ pub fn serialize_subtree(tree: &UiTree, id: &str) -> Value {
 }
 
 pub async fn sync_tree_to_compositor(root: &Value) -> usize {
+    let (vw, vh) = layout::default_viewport();
+    let laid = layout::layout_tree(root, vw, vh);
     let mut count = 0;
-    if let Some(nodes) = collect_visible_nodes(root) {
-        for node in &nodes {
-            let id = node
-                .get("id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("ui.unknown");
-            let kind = node
-                .get("type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("widget");
-            let label = node
-                .get("props")
-                .and_then(|p| p.get("text").or_else(|| p.get("label")))
-                .and_then(|v| v.as_str())
-                .unwrap_or(id);
-            let (x, y, w, h) = geometry_for(id, kind);
-            let _ = bus_call(
-                "compositor.surface",
-                json!({
-                    "action": "create",
-                    "id": format!("surface.{}", id),
-                    "geometry": { "x": x, "y": y, "width": w, "height": h },
-                    "kind": kind,
-                    "label": label,
-                }),
-            )
-            .await;
-            count += 1;
+    for node in &laid {
+        // Skip empty caption/status plates so they don't show widget ids.
+        if node.kind == "text" && node.label.is_empty() {
+            continue;
         }
+        ensure_surface(node).await;
+        count += 1;
     }
     let _ = bus_call(
         "compositor.present",
@@ -63,42 +45,70 @@ pub async fn sync_tree_to_compositor(root: &Value) -> usize {
     count
 }
 
-fn geometry_for(id: &str, kind: &str) -> (i32, i32, u32, u32) {
-    match id {
-        "ui.greeting" => (40, 32, 1200, 64),
-        "ui.chat_log" => (40, 110, 1200, 400),
-        "ui.chat_input" => (40, 530, 980, 56),
-        "ui.chat_send" => (1040, 530, 200, 56),
-        _ => match kind {
-            "text" => (40, 40, 800, 48),
-            "input" => (40, 520, 800, 48),
-            "button" => (880, 520, 160, 48),
-            _ => (40, 40, 240, 48),
-        },
-    }
-}
-
-fn collect_visible_nodes(root: &Value) -> Option<Vec<Value>> {
-    let mut out = Vec::new();
-    walk_node(root, &mut out);
-    if out.is_empty() {
-        None
+fn surface_create_params(node: &LaidOutNode) -> Value {
+    let font_px = match node.font_scale {
+        4 => 20,
+        3 => 13,
+        2 => 14,
+        1 => 12,
+        _ => 14,
+    };
+    let font_weight = if node.role == "title" || node.id == "ui.greeting" {
+        "bold"
+    } else if node.kind == "button" {
+        "medium"
     } else {
-        Some(out)
+        "regular"
+    };
+    let mut params = json!({
+        "action": "update",
+        "id": format!("surface.{}", node.id),
+        "geometry": {
+            "x": node.x,
+            "y": node.y,
+            "width": node.width,
+            "height": node.height,
+        },
+        "kind": node.kind,
+        "label": node.label,
+        "variant": node.variant,
+        "radius": node.radius,
+        "font_scale": node.font_scale,
+        "font_px": font_px,
+        "font_weight": font_weight,
+        "font_family": "default",
+        "bg": node.bg.to_array(),
+        "fg": node.fg.to_array(),
+    });
+    if let Some(border) = node.border {
+        params
+            .as_object_mut()
+            .unwrap()
+            .insert("border".into(), json!(border.to_array()));
     }
+    if node.id == "ui.chat_input" {
+        params.as_object_mut().unwrap().insert(
+            "border".into(),
+            json!(tokens::dark::BORDER_FOCUS.to_array()),
+        );
+    }
+    params
 }
 
-fn walk_node(node: &Value, out: &mut Vec<Value>) {
-    let kind = node.get("type").and_then(|v| v.as_str()).unwrap_or("");
-    if !matches!(kind, "container" | "stack") {
-        out.push(node.clone());
-    }
-    if let Some(children) = node.get("children").and_then(|v| v.as_array()) {
-        for child in children {
-            if child.is_object() {
-                walk_node(child, out);
-            }
-        }
+async fn ensure_surface(node: &LaidOutNode) {
+    let mut create = surface_create_params(node);
+    create
+        .as_object_mut()
+        .unwrap()
+        .insert("action".into(), json!("create"));
+    let updated = bus_call("compositor.surface", surface_create_params(node)).await;
+    let ok = updated
+        .as_ref()
+        .and_then(|v| v.get("ok"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if !ok {
+        let _ = bus_call("compositor.surface", create).await;
     }
 }
 
@@ -124,4 +134,38 @@ async fn bus_call(method: &str, params: Value) -> Option<Value> {
         .ok()?;
     let resp: Value = serde_json::from_slice(&buf[..n]).ok()?;
     resp.get("result").cloned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn surface_params_carry_design_tokens() {
+        let node = LaidOutNode {
+            id: "ui.chat_send".into(),
+            kind: "button".into(),
+            label: "Send".into(),
+            placeholder: String::new(),
+            x: 10,
+            y: 20,
+            width: 96,
+            height: 48,
+            bg: tokens::dark::ACCENT_DEFAULT,
+            fg: tokens::dark::TEXT_ON_ACCENT,
+            border: None,
+            radius: tokens::radius::MD,
+            font_scale: 3,
+            variant: "primary".into(),
+            role: String::new(),
+        };
+        let p = surface_create_params(&node);
+        assert_eq!(p.get("kind").and_then(|v| v.as_str()), Some("button"));
+        assert_eq!(p.get("variant").and_then(|v| v.as_str()), Some("primary"));
+        assert_eq!(
+            p.get("bg").and_then(|v| v.as_array()).map(|a| a.len()),
+            Some(3)
+        );
+        assert_eq!(p.get("radius").and_then(|v| v.as_u64()), Some(10));
+    }
 }

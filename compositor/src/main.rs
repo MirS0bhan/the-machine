@@ -1,10 +1,13 @@
 //! Compositor — surface model + real pixel output (framebuffer / wlroots).
 
 mod bitmap_font;
+mod chrome;
+mod clip;
 mod drm;
 mod env;
 mod model;
 mod pixel;
+mod text;
 mod wayland_backend;
 mod wl_globals;
 mod wl_session;
@@ -26,6 +29,18 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     info!("Starting Compositor");
+    if std::env::var("THE_MACHINE_FONT_DIR").is_err() {
+        for candidate in [
+            "/etc/the-machine/fonts",
+            "/the-machine/fonts",
+            "/workspace/assets/fonts",
+        ] {
+            if std::path::Path::new(candidate).join("Inter-Regular.ttf").exists() {
+                std::env::set_var("THE_MACHINE_FONT_DIR", candidate);
+                break;
+            }
+        }
+    }
     std::env::set_var("WAYLAND_DISPLAY", crate::env::wayland_display_name());
     let pixels: SharedPixel = Arc::new(Mutex::new(PixelBackend::open()));
     let wayland: Arc<Option<wayland_backend::WaylandSession>> =
@@ -79,39 +94,83 @@ async fn paint_frame(comp: &Arc<Mutex<Compositor>>, pixels: &SharedPixel) {
             .collect()
     };
     let mut px = pixels.lock().await;
-    px.clear(20, 24, 32);
+    // Canvas = surface.canvas (dark theme) — not a TUI black void.
+    let canvas = chrome::SURFACE_CANVAS;
+    px.clear(canvas[0], canvas[1], canvas[2]);
     for s in &surfaces {
-        let (r, g, b) = if s.confirmation {
-            (200, 80, 60)
-        } else {
-            hash_color(&s.id)
-        };
-        let w = s.geometry.width.max(40);
-        let h = s.geometry.height.max(24);
-        px.fill_rect(
-            s.geometry.x,
-            s.geometry.y,
-            w,
-            h,
-            [
-                r.saturating_sub(20),
-                g.saturating_sub(20),
-                b.saturating_sub(10),
-            ],
-        );
-        if !s.label.is_empty() {
-            bitmap_font::draw_text(
-                &mut px,
-                s.geometry.x + 8,
-                s.geometry.y + 8,
-                &s.label,
-                240,
-                240,
-                245,
-            );
-        }
+        paint_surface(&mut px, s);
     }
     px.present();
+}
+
+fn paint_surface(px: &mut PixelBackend, s: &Surface) {
+    let w = s.geometry.width.max(1);
+    let h = s.geometry.height.max(1);
+    let radius = if s.radius > 0 {
+        s.radius
+    } else if matches!(s.kind.as_str(), "button" | "field" | "input") {
+        chrome::RADIUS_MD
+    } else {
+        0
+    };
+
+    let bg = if s.confirmation {
+        chrome::CONFIRMATION_BG
+    } else if let Some(rgb) = s.bg {
+        rgb
+    } else {
+        match s.kind.as_str() {
+            "button" if s.variant == "primary" => chrome::ACCENT_DEFAULT,
+            "button" => chrome::SURFACE_RAISED,
+            "field" | "input" => chrome::SURFACE_SUNKEN,
+            "text" => chrome::SURFACE_CANVAS,
+            _ => {
+                let (r, g, b) = hash_color(&s.id);
+                [r, g, b]
+            }
+        }
+    };
+
+    let fg = s.fg.unwrap_or(match s.kind.as_str() {
+        "button" if s.variant == "primary" || s.confirmation => chrome::TEXT_ON_ACCENT,
+        "field" | "input" => chrome::TEXT_TERTIARY,
+        _ => chrome::TEXT_PRIMARY,
+    });
+
+    // Text nodes are transparent chrome — label only, no filled plate.
+    let draw_plate = s.kind != "text" || s.confirmation;
+    if draw_plate {
+        px.fill_rounded_rect(s.geometry.x, s.geometry.y, w, h, radius, bg);
+        if let Some(border) = s.border {
+            px.stroke_rounded_rect(s.geometry.x, s.geometry.y, w, h, radius, border);
+        } else if matches!(s.kind.as_str(), "field" | "input") {
+            let border = if s.focused {
+                chrome::BORDER_FOCUS
+            } else {
+                chrome::BORDER_DEFAULT
+            };
+            px.stroke_rounded_rect(s.geometry.x, s.geometry.y, w, h, radius, border);
+        }
+    }
+
+    if !s.label.is_empty() {
+        let font_px = text::resolve_px(s.font_px, s.font_scale);
+        let weight = text::FontWeight::parse(&s.font_weight);
+        let family = text::FontFamily::parse(&s.font_family);
+        let pad_x = if draw_plate { 16i32 } else { 0 };
+        let (_, text_h) = text::measure_text(&s.label, font_px, weight, family);
+        let pad_y = ((h as i32 - text_h as i32) / 2).max(0);
+        text::draw_text(
+            px,
+            s.geometry.x + pad_x,
+            s.geometry.y + pad_y,
+            &s.label,
+            fg,
+            font_px,
+            weight,
+            family,
+        );
+    }
 }
 
 async fn handle_connection(
@@ -224,6 +283,7 @@ async fn handle_request(
                     "pixels": true,
                     "confirmation_active": c.confirmation_active,
                     "backend": pixels.lock().await.backend_name(),
+                    "text": text::backend_name(),
                 }),
             )
         }
@@ -252,6 +312,7 @@ async fn handle_request(
                     "pixels": true,
                     "confirmation_active": c.confirmation_active,
                     "backend": backend,
+                    "text": text::backend_name(),
                     "wayland_session": wayland_session,
                 }),
             )
@@ -289,6 +350,15 @@ async fn handle_surface(
                 focused: false,
                 label: String::new(),
                 confirmation: false,
+                bg: None,
+                fg: None,
+                border: None,
+                radius: 0,
+                font_scale: 2,
+                font_px: 0,
+                font_weight: "regular".into(),
+                font_family: "default".into(),
+                variant: String::new(),
             });
             s.id = sid.clone();
             if s.geometry.width == 0 {
@@ -300,6 +370,30 @@ async fn handle_surface(
             if let Some(label) = params.get("label").and_then(|v| v.as_str()) {
                 s.label = label.to_string();
             }
+            if let Some(kind) = params.get("kind").and_then(|v| v.as_str()) {
+                s.kind = kind.to_string();
+            }
+            if let Some(v) = params.get("variant").and_then(|v| v.as_str()) {
+                s.variant = v.to_string();
+            }
+            if let Some(r) = params.get("radius").and_then(|v| v.as_u64()) {
+                s.radius = r as u32;
+            }
+            if let Some(fs) = params.get("font_scale").and_then(|v| v.as_u64()) {
+                s.font_scale = fs as u32;
+            }
+            if let Some(fp) = params.get("font_px").and_then(|v| v.as_u64()) {
+                s.font_px = fp as u32;
+            }
+            if let Some(fw) = params.get("font_weight").and_then(|v| v.as_str()) {
+                s.font_weight = fw.to_string();
+            }
+            if let Some(ff) = params.get("font_family").and_then(|v| v.as_str()) {
+                s.font_family = ff.to_string();
+            }
+            s.bg = parse_rgb(params.get("bg")).or(s.bg);
+            s.fg = parse_rgb(params.get("fg")).or(s.fg);
+            s.border = parse_rgb(params.get("border")).or(s.border);
             let mut c = comp.lock().await;
             c.surfaces.insert(sid.clone(), s);
             c.recompute_order();
@@ -343,6 +437,59 @@ async fn handle_surface(
                 error_response(id, "E_NOT_FOUND", "surface not found")
             }
         }
+        "update" => {
+            let sid = params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let mut c = comp.lock().await;
+            if let Some(s) = c.surfaces.get_mut(&sid) {
+                if let Some(g) = params.get("geometry") {
+                    if let Ok(geo) = serde_json::from_value::<Geometry>(g.clone()) {
+                        s.geometry = geo;
+                    }
+                }
+                if let Some(label) = params.get("label").and_then(|v| v.as_str()) {
+                    s.label = label.to_string();
+                }
+                if let Some(kind) = params.get("kind").and_then(|v| v.as_str()) {
+                    s.kind = kind.to_string();
+                }
+                if let Some(v) = params.get("variant").and_then(|v| v.as_str()) {
+                    s.variant = v.to_string();
+                }
+                if let Some(r) = params.get("radius").and_then(|v| v.as_u64()) {
+                    s.radius = r as u32;
+                }
+                if let Some(fs) = params.get("font_scale").and_then(|v| v.as_u64()) {
+                    s.font_scale = fs as u32;
+                }
+                if let Some(fp) = params.get("font_px").and_then(|v| v.as_u64()) {
+                    s.font_px = fp as u32;
+                }
+                if let Some(fw) = params.get("font_weight").and_then(|v| v.as_str()) {
+                    s.font_weight = fw.to_string();
+                }
+                if let Some(ff) = params.get("font_family").and_then(|v| v.as_str()) {
+                    s.font_family = ff.to_string();
+                }
+                if let Some(bg) = parse_rgb(params.get("bg")) {
+                    s.bg = Some(bg);
+                }
+                if let Some(fg) = parse_rgb(params.get("fg")) {
+                    s.fg = Some(fg);
+                }
+                if let Some(border) = parse_rgb(params.get("border")) {
+                    s.border = Some(border);
+                }
+                drop(c);
+                paint_frame(comp, pixels).await;
+                success_response(id, serde_json::json!({ "id": sid, "ok": true, "updated": true }))
+            } else {
+                error_response(id, "E_NOT_FOUND", "surface not found")
+            }
+        }
         _ => error_response(id, "E_INVALID", "unknown surface action"),
     }
 }
@@ -382,6 +529,33 @@ async fn handle_input(
     comp: &Arc<Mutex<Compositor>>,
     id: &Uuid,
 ) -> McpMessage {
+    let event = params
+        .get("event")
+        .and_then(|v| v.as_str())
+        .unwrap_or("click");
+    if event == "key" {
+        let c = comp.lock().await;
+        let focused = c.focused.clone().or_else(|| {
+            c.surfaces
+                .iter()
+                .find(|(_, s)| s.focused)
+                .map(|(id, _)| id.clone())
+        });
+        let widget_id = focused
+            .as_ref()
+            .map(|sid| sid.strip_prefix("surface.").unwrap_or(sid).to_string());
+        return success_response(
+            id,
+            serde_json::json!({
+                "surface": focused,
+                "widget_id": widget_id,
+                "handled": focused.is_some(),
+                "event": "key",
+                "key": params.get("key"),
+                "text": params.get("text"),
+            }),
+        );
+    }
     let x = params.get("x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
     let y = params.get("y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
     let require_provenance = params
@@ -394,10 +568,19 @@ async fn handle_input(
             serde_json::json!({ "handled": false, "reason": "provenance_required" }),
         );
     }
-    let c = comp.lock().await;
+    let mut c = comp.lock().await;
     match c.pick(x, y) {
         Some(sid) => {
             let widget_id = sid.strip_prefix("surface.").unwrap_or(&sid).to_string();
+            if event == "click" || event == "press" {
+                for s in c.surfaces.values_mut() {
+                    s.focused = false;
+                }
+                if let Some(s) = c.surfaces.get_mut(&sid) {
+                    s.focused = true;
+                }
+                c.focused = Some(sid.clone());
+            }
             success_response(
                 id,
                 serde_json::json!({
@@ -418,6 +601,29 @@ async fn handle_input(
             }),
         ),
     }
+}
+
+fn parse_rgb(v: Option<&serde_json::Value>) -> Option<[u8; 3]> {
+    let v = v?;
+    if let Some(arr) = v.as_array() {
+        if arr.len() >= 3 {
+            return Some([
+                arr[0].as_u64().unwrap_or(0) as u8,
+                arr[1].as_u64().unwrap_or(0) as u8,
+                arr[2].as_u64().unwrap_or(0) as u8,
+            ]);
+        }
+    }
+    if let Some(s) = v.as_str() {
+        let h = s.trim().trim_start_matches('#');
+        if h.len() == 6 {
+            let r = u8::from_str_radix(&h[0..2], 16).ok()?;
+            let g = u8::from_str_radix(&h[2..4], 16).ok()?;
+            let b = u8::from_str_radix(&h[4..6], 16).ok()?;
+            return Some([r, g, b]);
+        }
+    }
+    None
 }
 
 fn success_response(id: &Uuid, result: serde_json::Value) -> McpMessage {
@@ -458,6 +664,9 @@ mod tests {
         Arc<Option<wayland_backend::WaylandSession>>,
     ) {
         std::env::set_var("THE_MACHINE_COMPOSITOR_BACKEND", "memory");
+        if std::env::var("THE_MACHINE_FONT_DIR").is_err() {
+            std::env::set_var("THE_MACHINE_FONT_DIR", "/workspace/assets/fonts");
+        }
         (
             Arc::new(Mutex::new(Compositor::new())),
             Arc::new(Mutex::new(PixelBackend::open())),
@@ -554,5 +763,108 @@ mod tests {
         let surface = c.surfaces.get("confirm.me").expect("surface");
         assert!(surface.confirmation);
         assert_eq!(surface.z_order, 10_000);
+    }
+
+    #[tokio::test]
+    async fn styled_session_greeting_paints_design_system_shell() {
+        let dump = "/tmp/compositor-session-greeting.ppm";
+        std::env::set_var("THE_MACHINE_COMPOSITOR_BACKEND", "memory");
+        std::env::set_var("THE_MACHINE_FB_WIDTH", "1280");
+        std::env::set_var("THE_MACHINE_FB_HEIGHT", "720");
+        std::env::set_var("THE_MACHINE_FB_DUMP", dump);
+        let _ = std::fs::remove_file(dump);
+
+        let (comp, pixels, wayland) = test_harness();
+        let widgets = vec![
+            serde_json::json!({
+                "action": "create",
+                "id": "surface.ui.greeting",
+                "kind": "text",
+                "label": "Welcome back",
+                "geometry": { "x": 400, "y": 260, "width": 480, "height": 48 },
+                "bg": [11, 12, 19],
+                "fg": [247, 248, 252],
+                "font_scale": 4,
+                "font_px": 20,
+                "font_weight": "bold",
+                "radius": 0
+            }),
+            serde_json::json!({
+                "action": "create",
+                "id": "surface.ui.chat_input",
+                "kind": "field",
+                "label": "Ask or say what you need",
+                "variant": "field",
+                "geometry": { "x": 360, "y": 340, "width": 480, "height": 52 },
+                "bg": [5, 5, 10],
+                "fg": [130, 134, 156],
+                "border": [59, 62, 82],
+                "radius": 10,
+                "font_scale": 3,
+                "font_px": 14,
+                "font_weight": "regular"
+            }),
+            serde_json::json!({
+                "action": "create",
+                "id": "surface.ui.chat_send",
+                "kind": "button",
+                "label": "Send",
+                "variant": "primary",
+                "geometry": { "x": 560, "y": 410, "width": 96, "height": 48 },
+                "bg": [156, 124, 242],
+                "fg": [18, 19, 28],
+                "radius": 10,
+                "font_scale": 3,
+                "font_px": 13,
+                "font_weight": "medium"
+            }),
+        ];
+        for w in widgets {
+            let resp = handle_request(
+                "compositor.surface".into(),
+                Some(w),
+                &comp,
+                &pixels,
+                &wayland,
+            )
+            .await;
+            assert!(resp.error.is_none(), "{:?}", resp.error);
+        }
+        let present = handle_request(
+            "compositor.present".into(),
+            None,
+            &comp,
+            &pixels,
+            &wayland,
+        )
+        .await;
+        assert!(present.error.is_none());
+        let result = present.result.expect("present");
+        assert_eq!(
+            result.get("text").and_then(|v| v.as_str()),
+            Some("harfrust+freetype")
+        );
+        assert!(std::path::Path::new(dump).exists());
+        let bytes = std::fs::read(dump).expect("ppm");
+        assert!(bytes.starts_with(b"P6"));
+        let mut pos = 0usize;
+        let mut newlines = 0u8;
+        while pos < bytes.len() && newlines < 2 {
+            if bytes[pos] == b'\n' {
+                newlines += 1;
+            }
+            pos += 1;
+        }
+        let rgb = &bytes[pos..pos + 3];
+        assert_eq!(
+            rgb,
+            &[0x0B, 0x0C, 0x13],
+            "canvas must be design-system surface.canvas"
+        );
+        // Accent button fill should appear somewhere in the frame.
+        let body = &bytes[pos..];
+        let accent = [0x9C_u8, 0x7C, 0xF2];
+        let has_accent = body.windows(3).any(|w| w == accent);
+        assert!(has_accent, "primary button accent.default missing from framebuffer");
     }
 }
