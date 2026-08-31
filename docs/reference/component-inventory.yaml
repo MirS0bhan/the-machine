@@ -126,6 +126,12 @@ mcp_services:
   agent-core:
     - agent.status
     - agent.cloud.status
+    - agent.cloud.reload
+    - agent.chat.send
+    - agent.interrupt
+    - agent.local_only_mode
+    - agent.skills.list
+    - agent.skills.reload
   compositor:
     - compositor.present
     - compositor.surface

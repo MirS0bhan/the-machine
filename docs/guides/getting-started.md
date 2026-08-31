@@ -73,7 +73,11 @@ Boot services started by `scripts/start-services.sh` (rust mode):
 | `STATE_STORE_PATH` | — | sled database path |
 | `LOCAL_MODEL_PATH` | `/models/machine-tiny.gguf` (boot) | GGUF model file |
 | `LOCAL_MODEL_HTTP_URL` | — | Proxy to Python llama.cpp server |
-| `OPENAI_API_KEY` | — | Cloud LLM fallback for agent-core |
+| `OPENAI_API_KEY` | — | Cloud LLM for agent-core (host/dev). Prefer secret file on ISO (below). |
+| `THE_MACHINE_CLOUD_API_KEY` | — | Alternate env for cloud key (host/dev) |
+| `THE_MACHINE_CLOUD_API_KEY_FILE` | — | Path override for cloud key file |
+| `THE_MACHINE_CLOUD_MODEL` | `gpt-4o-mini` | OpenAI-compatible chat model id |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible API base |
 | `WAYLAND_DISPLAY` | `wayland-0` (boot) | Compositor display |
 | `RUST_LOG` | `info` | Tracing filter |
 | `THE_MACHINE_LAMBDA_DIR` | `/var/the-machine/lambdas` | Synthesized lambda source root |
@@ -84,6 +88,20 @@ Boot services started by `scripts/start-services.sh` (rust mode):
 | `THE_MACHINE_LOCALE` | from `LANG` | Override locale catalog (language subtag, e.g. `en`, `fa`) |
 | `THE_MACHINE_LOCALE_DIR` | — | Extra directory of `{locale}.json` catalogs (after `assets/locales`) |
 | `THE_MACHINE_COMPOSITOR_BACKEND` | `auto` | `auto` → DRM → framebuffer → memory (see bare-metal guide) |
+
+### Cloud LLM key (ISO / QEMU)
+
+Host env vars are **not** passed into the ISO. Mount or write the key inside the guest:
+
+```bash
+# inside the guest (or via a shared 9p/virtfs mount scripted at boot)
+mkdir -p /run/the-machine/secrets
+install -m 0600 /path/to/key /run/the-machine/secrets/cloud-api-key
+# optional: pick up the key without restarting agent-core
+# mcp: agent.cloud.reload   (or agent.cloud.status / agent.status re-reads the file)
+```
+
+Fallback order for `chat.message`: cloud (when key present + policy allows) → `localmodel.complete` → heuristic stub. Replies land on `#ui.chat_log` via `ui.patch`.
 
 ## Test
 

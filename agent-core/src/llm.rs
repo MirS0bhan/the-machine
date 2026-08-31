@@ -90,6 +90,28 @@ pub async fn classify_intent(text: &str, category: &str, skills: &[Skill]) -> Cl
     }
 }
 
+/// Plain-text chat reply via local model (not a plan JSON).
+pub async fn complete_chat(user_text: &str) -> Option<String> {
+    let prompt = format!(
+        "You are The Machine, a helpful on-device OS assistant. Reply briefly in plain text.\n\nUser: {user_text}\nAssistant:"
+    );
+    let result = mcp_call(
+        "localmodel.complete",
+        serde_json::json!({
+            "prompt": prompt,
+            "max_tokens": 512,
+            "temperature": 0.5,
+        }),
+    )
+    .await?;
+    let text = result
+        .get("text")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())?;
+    Some(text.to_string())
+}
+
 pub async fn plan_from_model(
     intent: &str,
     text: &str,

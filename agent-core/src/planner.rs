@@ -12,8 +12,30 @@ pub struct PlanStep {
 pub fn uses_heuristic_plan(intent: &str) -> bool {
     matches!(
         intent,
-        "boot.greet" | "chat.message" | "heartbeat" | "calculator" | "notification.triage"
+        // chat.message is handled separately: LLM reply → ui.patch (see main process_wake).
+        "boot.greet" | "heartbeat" | "calculator" | "notification.triage"
     )
+}
+
+/// Fallback assistant line when cloud and localmodel are unavailable.
+pub fn heuristic_chat_reply(user_text: &str) -> String {
+    let trimmed = user_text.trim();
+    if trimmed.is_empty() {
+        "I'm here. Type a message and I'll reply locally when a model is available.".into()
+    } else if trimmed.chars().count() < 80
+        && (trimmed.ends_with('?')
+            || trimmed.to_lowercase().starts_with("what")
+            || trimmed.to_lowercase().starts_with("how")
+            || trimmed.to_lowercase().starts_with("who"))
+    {
+        format!(
+            "I heard: \"{trimmed}\". No cloud or local model is configured yet, so this is a local stub — add a key at /run/the-machine/secrets/cloud-api-key (0600) or enable localmodel."
+        )
+    } else {
+        format!(
+            "I received: \"{trimmed}\". Running without an LLM backend — cloud key or localmodel will unlock real replies."
+        )
+    }
 }
 
 pub fn build_plan_heuristic(
@@ -71,7 +93,7 @@ pub fn build_plan_heuristic(
             action: "state.set".into(),
             params: serde_json::json!({ "path": "task.last_query", "value": payload }),
         }],
-        "chat.message" => chat_message_plan(text),
+        "chat.message" => chat_message_plan(text, &heuristic_chat_reply(text)),
         _ => vec![PlanStep {
             action: "state.set".into(),
             params: serde_json::json!({ "path": "task.last_intent", "value": intent }),
@@ -165,8 +187,14 @@ fn boot_greet_plan() -> Vec<PlanStep> {
     ]
 }
 
-fn chat_message_plan(text: &str) -> Vec<PlanStep> {
-    let user_line = format!("You: {text}\nAssistant: I received your message locally. LLM reply wiring is next.");
+/// Patch `#ui.chat_log` with the user line and assistant reply (same spine as boot.greet).
+pub fn chat_message_plan(user_text: &str, assistant_reply: &str) -> Vec<PlanStep> {
+    let reply = assistant_reply.trim();
+    let user_line = if reply.is_empty() {
+        format!("You: {user_text}")
+    } else {
+        format!("You: {user_text}\nAssistant: {reply}")
+    };
     vec![PlanStep {
         action: "ui.patch".into(),
         params: serde_json::json!({
@@ -210,12 +238,9 @@ mod tests {
 
     #[test]
     fn chat_message_plan_appends_user_line() {
-        let plan = build_plan_heuristic(
-            "chat.message",
-            &serde_json::json!({}),
-            "hello world",
-        );
+        let plan = chat_message_plan("hello world", "Hi there.");
         assert_eq!(plan.len(), 1);
+        assert_eq!(plan[0].action, "ui.patch");
         let text = plan[0]
             .params
             .get("ops")
@@ -226,5 +251,23 @@ mod tests {
             .and_then(|v| v.as_str())
             .unwrap_or("");
         assert!(text.contains("You: hello world"));
+        assert!(text.contains("Assistant: Hi there."));
+        assert!(!text.contains("LLM reply wiring is next"));
+    }
+
+    #[test]
+    fn chat_message_not_forced_heuristic() {
+        assert!(!uses_heuristic_plan("chat.message"));
+        assert!(uses_heuristic_plan("boot.greet"));
+    }
+
+    #[test]
+    fn heuristic_chat_reply_mentions_missing_backend() {
+        let reply = heuristic_chat_reply("hello");
+        assert!(reply.contains("hello"));
+        assert!(
+            reply.contains("LLM") || reply.contains("cloud") || reply.contains("localmodel"),
+            "expected backend hint, got {reply}"
+        );
     }
 }

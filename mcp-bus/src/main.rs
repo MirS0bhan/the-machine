@@ -118,6 +118,7 @@ async fn main() -> anyhow::Result<()> {
         for m in [
             "agent.status",
             "agent.cloud.status",
+            "agent.cloud.reload",
             "agent.interrupt",
             "agent.local_only_mode",
             "agent.skills.list",

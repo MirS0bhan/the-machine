@@ -132,6 +132,7 @@ async fn handle_request(
     let id = Uuid::new_v4();
     match method.as_str() {
         "agent.status" => {
+            refresh_cloud_router(state).await;
             let s = state.lock().await;
             let model_status = mcp_call("localmodel.health", serde_json::json!({}))
                 .await
@@ -167,12 +168,27 @@ async fn handle_request(
             )
         }
         "agent.cloud.status" => {
+            // Re-read key so ISO mounts after boot are picked up without restart.
+            refresh_cloud_router(state).await;
             let s = state.lock().await;
             success_response(
                 &id,
                 serde_json::json!({
                     "enabled": !s.local_only_mode && s.cloud.is_some(),
                     "local_only_mode": s.local_only_mode,
+                    "key": cloud::status(),
+                    "key_source": s.cloud.as_ref().map(|c| c.key_source()),
+                }),
+            )
+        }
+        "agent.cloud.reload" => {
+            let loaded = refresh_cloud_router(state).await;
+            let s = state.lock().await;
+            success_response(
+                &id,
+                serde_json::json!({
+                    "ok": true,
+                    "available": loaded && !s.local_only_mode,
                     "key": cloud::status(),
                     "key_source": s.cloud.as_ref().map(|c| c.key_source()),
                 }),
@@ -341,7 +357,14 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
     }
 
     let trace = new_trace();
-    let plan = if planner::uses_heuristic_plan(&classification.intent) {
+    let mut routing = routing;
+    let plan = if classification.intent == "chat.message" {
+        let (reply, reply_routing) =
+            resolve_chat_reply(&state, &text, privacy_tag, local_only, &trace).await;
+        info!("chat.message reply via {reply_routing}");
+        routing = reply_routing;
+        planner::chat_message_plan(&text, &reply)
+    } else if planner::uses_heuristic_plan(&classification.intent) {
         planner::build_plan_heuristic(&classification.intent, &payload, &text)
     } else if routing == "cloud" {
         let cloud_plan = {
@@ -485,6 +508,46 @@ fn extract_chat_text(params: &Option<serde_json::Value>) -> String {
         }
     }
     String::new()
+}
+
+/// Prefer cloud (when key present), then localmodel.complete, else heuristic stub.
+async fn resolve_chat_reply(
+    state: &Arc<Mutex<AppState>>,
+    text: &str,
+    privacy_tag: bool,
+    local_only: bool,
+    trace: &str,
+) -> (String, String) {
+    let allow_cloud = !privacy_tag && !local_only;
+    if allow_cloud {
+        let _ = refresh_cloud_router(state).await;
+        let cloud_reply = {
+            let s = state.lock().await;
+            if let Some(router) = &s.cloud {
+                router.complete_chat(text, trace).await
+            } else {
+                None
+            }
+        };
+        if let Some(reply) = cloud_reply {
+            return (reply, "cloud".into());
+        }
+    }
+    if let Some(reply) = llm::complete_chat(text).await {
+        return (reply, "local".into());
+    }
+    (
+        planner::heuristic_chat_reply(text),
+        "heuristic".into(),
+    )
+}
+
+/// Reload cloud API key from env/secret file; returns true if a router is available.
+async fn refresh_cloud_router(state: &Arc<Mutex<AppState>>) -> bool {
+    let router = CloudRouter::from_env();
+    let mut s = state.lock().await;
+    s.cloud = router;
+    s.cloud.is_some()
 }
 
 #[cfg(test)]
@@ -663,6 +726,16 @@ mod tests {
         );
         let result = resp.result.expect("result");
         assert_eq!(result.get("ok").and_then(|v| v.as_bool()), Some(true));
+    }
+
+    #[tokio::test]
+    async fn agent_cloud_reload_reports_key_status() {
+        let state = test_state_with(false, None).await;
+        let resp = handle_request("agent.cloud.reload".into(), None, &state).await;
+        assert!(resp.error.is_none());
+        let result = resp.result.expect("result");
+        assert_eq!(result.get("ok").and_then(|v| v.as_bool()), Some(true));
+        assert!(result.get("key").is_some());
     }
 
     #[tokio::test]

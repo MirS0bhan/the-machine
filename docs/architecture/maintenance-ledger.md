@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| G17 + AT-SPI + IME + video | cursor/ui-g17-a11y-ime-video-ac5e | #215 | pr-open | 2026-08-31 | xdg_wm_base v5; org.themachine.A11y; locale/IME; ffmpeg media |
+| chat.message LLM reply wiring | cursor/llm-chat-reply-wiring-ac5e | — | in-progress | 2026-08-31 | cloud → localmodel → heuristic; ui.patch chat_log; agent.cloud.reload |
 | docs close G13 in gap-analysis | cursor/autonomous-machine-maintenance-4565 | #207 | pr-open | 2026-08-30 | Mark G13 fully closed (#157, #159, #168) |
 | verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | #189–#192 | merged | 2026-08-30 | Landed on main (also #193 tree repair) |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
@@ -18,8 +18,9 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-31 | audit | Master Engineering Prompt compliance (inventory/MCP/env/G17 honesty) | pr-open (#215) |
-| 2026-08-31 | gap | G17 xdg-shell + AT-SPI + IME/locale + video decode | pr-open (#215) |
+| 2026-08-31 | gap | chat.message real LLM reply (cloud/local/heuristic) | in-progress |
+| 2026-08-31 | audit | Master Engineering Prompt compliance (inventory/MCP/env/G17 honesty) | merged (#215) |
+| 2026-08-31 | gap | G17 xdg-shell + AT-SPI + IME/locale + video decode | merged (#215) |
 | 2026-08-30 | docs | close G13 in gap-analysis.md (fully merged: #157, #159, #168) | pr-open (#207) |
 | 2026-08-30 | audit | marketplace.install Python integration test | merged to main (#208) |
 | 2026-08-30 | audit | localmodel.health Python integration test | merged to main (#209) |

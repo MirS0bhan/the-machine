@@ -44,7 +44,7 @@ impl CloudRouter {
         payload: &Value,
         provenance_trace: &str,
     ) -> Option<Vec<PlanStep>> {
-        if !cloud_policy_allowed().await {
+        if !cloud_policy_allowed("cloud.plan").await {
             tracing::warn!("cloud plan blocked by policy broker");
             return None;
         }
@@ -59,22 +59,7 @@ impl CloudRouter {
             ],
             "temperature": 0.2,
         });
-        let resp = self
-            .client
-            .post(format!(
-                "{}/chat/completions",
-                self.base_url.trim_end_matches('/')
-            ))
-            .bearer_auth(&self.api_key)
-            .json(&body)
-            .send()
-            .await
-            .ok()?;
-        if !resp.status().is_success() {
-            tracing::warn!("cloud API returned {}", resp.status());
-            return None;
-        }
-        let v: Value = resp.json().await.ok()?;
+        let v = self.chat_completions(&body).await?;
         let content = v
             .get("choices")?
             .as_array()?
@@ -96,6 +81,59 @@ impl CloudRouter {
         } else {
             Some(plan)
         }
+    }
+
+    /// Conversational completion for chat UI replies (plain text, not plan JSON).
+    pub async fn complete_chat(&self, user_text: &str, provenance_trace: &str) -> Option<String> {
+        if !cloud_policy_allowed("cloud.complete").await {
+            tracing::warn!("cloud chat blocked by policy broker");
+            return None;
+        }
+        let body = json!({
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are The Machine, a helpful on-device OS assistant. Reply briefly in plain text. Do not return JSON or markdown fences."
+                },
+                {"role": "user", "content": user_text}
+            ],
+            "temperature": 0.5,
+            "max_tokens": 512,
+        });
+        let v = self.chat_completions(&body).await?;
+        let content = v
+            .get("choices")?
+            .as_array()?
+            .first()?
+            .get("message")?
+            .get("content")?
+            .as_str()?
+            .trim();
+        if content.is_empty() {
+            return None;
+        }
+        self.record_usage(provenance_trace, &v).await;
+        Some(content.to_string())
+    }
+
+    async fn chat_completions(&self, body: &Value) -> Option<Value> {
+        let resp = self
+            .client
+            .post(format!(
+                "{}/chat/completions",
+                self.base_url.trim_end_matches('/')
+            ))
+            .bearer_auth(&self.api_key)
+            .json(body)
+            .send()
+            .await
+            .ok()?;
+        if !resp.status().is_success() {
+            tracing::warn!("cloud API returned {}", resp.status());
+            return None;
+        }
+        resp.json().await.ok()
     }
 
     async fn record_usage(&self, trace_id: &str, response: &Value) {
@@ -136,12 +174,15 @@ pub fn status() -> Value {
     cloud_key_status()
 }
 
-async fn cloud_policy_allowed() -> bool {
+async fn cloud_policy_allowed(action: &str) -> bool {
     mcp_call(
         "policy.check",
         json!({
             "capability": "CAP_CLOUD_INFERENCE",
-            "request": { "principal": "agent-core", "action": "cloud.plan" },
+            "principal": "agent-core",
+            "method": action,
+            "path": action,
+            "request": { "principal": "agent-core", "action": action },
         }),
     )
     .await
@@ -149,5 +190,6 @@ async fn cloud_policy_allowed() -> bool {
         v.get("decision")
             .and_then(|d| d.as_str().map(|s| s == "ALLOW"))
     })
-    .unwrap_or(true)
+    // Broker unreachable: fail closed for cloud (local/heuristic still available).
+    .unwrap_or(false)
 }
