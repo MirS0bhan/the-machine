@@ -532,7 +532,7 @@ async fn handle_request(
                     "auil_parser": "rust",
                     "asl_parser": "rust-subset",
                     "focused": t.focused(),
-                    "text_stack": "harfbuzz",
+                    "text_stack": "harfrust",
                 }),
             )
         }
