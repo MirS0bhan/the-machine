@@ -2,7 +2,7 @@
 
 **Purpose:** Keep design-system / component docs honest about what the Rust boot path implements today versus the normative target language.
 **Authoritative for boot reality:** this file + `01-maturity-vs-toolkits.md`. Chapters 01–07 of the design system remain the **normative target**.
-**Last audited:** after P0/P1 gap landing (#211, #212).
+**Last audited:** after G17/AT-SPI/IME/video landing + inventory/MCP/env hygiene pass.
 
 ---
 
@@ -33,28 +33,32 @@
 | Slider painted; click did not set `value` | Medium | Click/press maps x → value |
 | Escape did nothing for dialog | Low | Escape clears soft dialog exclusivity + removes dialog node when present |
 | Icon measure/style only; no paint | Low | Geometric glyph paint (no bitmap assets yet) |
-| `grid` docs describe 2-axis layout; Rust aliases stack | Documented | Tracked as P2 in roadmap; honesty row in matrix |
+| `grid` docs describe 2-axis layout; Rust aliases stack | Documented | Real `grid.rs` landed in P2 |
+| xdg-shell absent (G17) | Medium | `xdg_wm_base` v5 via wayland-protocols (not wlroots) |
+| No AT-SPI D-Bus | Medium | `org.themachine.A11y` session-bus bridge |
+| No IME / locale catalogs | Medium | Compose/dead-key IME + `assets/locales` + `ui.i18n.*` |
+| Media procedural only | Low | ffmpeg CLI first-frame RGB decode when available |
 
 ---
 
 ## Docs → code mismatches (target language still ahead)
 
-These are **expected** until P2; do not “fix” design docs by deleting them — keep 08 honest instead.
+These are **expected**; do not “fix” design docs by deleting them — keep 08 honest instead.
 
 | Target claim (01–07 / components) | Boot today |
 |---|---|
-| Full ASL mixins (`Hoverable`, `Pressable`, …) + motion curves | Ad-hoc press/hover props; no motion runtime |
-| AT-SPI / refuse empty labels / live regions | Spec only |
-| Real `grid` columns/span, size classes, density | Stack v/h + gap + center |
-| `media` / `chart` paint; icon bitmaps | Unpainted / geometric icon only |
-| OS / Wayland clipboard | In-memory `clipboard.*` |
-| DnD, IME, RTL logical props | Absent |
-| xdg-shell app hosting (G17) | Partial Wayland SHM scaffold only |
+| Full ASL mixins (`Hoverable`, `Pressable`, …) + motion curves | Ad-hoc press/hover props; opacity tween only |
+| Full AT-SPI registry / live regions / refuse empty labels | Machine D-Bus interface + MCP tree; best-effort `org.a11y.Bus` |
+| Icon bitmaps / continuous video playback | Geometric icon; first-frame still via ffmpeg |
+| Full OS IME buses (ibus/fcitx) | Compose/dead-key only |
+| XWayland / wlroots embedding | Not present (xdg-shell without wlroots) |
 | Fallback shell frozen AUIL + Ctrl+Alt+F9 takeover | Console / MCP stub |
 
 ---
 
 ## Boot MCP surface (canonical)
+
+Mirrored in `docs/reference/component-inventory.yaml` (`mcp_services`) and `mcp-bus` default registration.
 
 ### ui-runtime
 
@@ -62,14 +66,16 @@ These are **expected** until P2; do not “fix” design docs by deleting them �
 `ui.focus.get`, `ui.focus.set`, `ui.focus.next`,  
 `ui.theme.get`, `ui.theme.set`,  
 `ui.auil.parse`, `ui.auil.load`,  
-`ui.a11y.tree`, `ui.components.list`
+`ui.a11y.tree`, `ui.atspi.status`,  
+`ui.i18n.status`, `ui.i18n.t`, `ui.i18n.load`,  
+`ui.components.list`
 
 ### compositor
 
 `compositor.surface` (`create`/`update`/`destroy`/`geometry`),  
 `compositor.focus`, `compositor.input`, `compositor.present`,  
-`compositor.list`, `compositor.status` (`xdg_shell: absent`), `compositor.blur`,  
-`compositor.confirmation.set_active`
+`compositor.list`, `compositor.status` (`xdg_shell: xdg_wm_base.v5`, `video: ffmpeg-cli|procedural`),  
+`compositor.blur`, `compositor.confirmation.set_active`
 
 ### system-daemon (UI-adjacent)
 
@@ -82,17 +88,17 @@ These are **expected** until P2; do not “fix” design docs by deleting them �
 
 | Kind | Layout | Paint | Interaction |
 |---|---|---|---|
-| `stack` / `container` | yes (+ RTL) | n/a | — |
+| `stack` / `container` | yes (+ RTL / locale mirror) | n/a | — |
 | `grid` | real cols/span/RTL | n/a | — |
-| `text` | yes | label | — |
-| `field` / `input` | yes | plate + caret | edit, clipboard, focus |
+| `text` | yes | label (`i18n:` resolved) | — |
+| `field` / `input` | yes | plate + caret | edit, IME compose, clipboard, focus |
 | `button` | yes | chrome + press + opacity tween | press/click/Enter |
 | `toggle` | yes | track+knob | click flips `checked` |
 | `slider` | yes | track+thumb | click sets `value` |
 | `list` | yes | rows + clip | wheel scroll |
 | `dialog` | leaf card | scrim + card | soft exclusivity; Escape; focus trap |
 | `icon` | size tiers | geometric glyph | — |
-| `media` | yes | plate + play affordance | focusable |
+| `media` | yes | plate + ffmpeg frame or play affordance | focusable; `src`/`url` prop |
 | `chart` | yes | axes + bars from `data`/`items` | — |
 
 ---

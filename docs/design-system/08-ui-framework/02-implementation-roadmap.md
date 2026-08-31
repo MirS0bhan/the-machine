@@ -30,17 +30,17 @@ Concrete modules for closing toolkit gaps on the AUIL → MCP → compositor spi
 | Item | Module / API | Status |
 |---|---|---|
 | Real grid | `ui-runtime/src/grid.rs` + layout `cols`/`col_span`/`rtl` | landed |
-| Media / chart paint | compositor `paint_media` / `paint_chart` | landed (procedural; no video decode) |
+| Media / chart paint | compositor `paint_media` / `paint_chart` | landed (procedural + ffmpeg first-frame decode) |
 | Motion runtime | opacity tween in present-loop; snappy/gentle/reduced | landed (opacity only) |
-| A11y tree | `ui.a11y.tree` AT-SPI-shaped MCP export | landed (no AT-SPI D-Bus yet) |
+| A11y tree | `ui.a11y.tree` AT-SPI-shaped MCP export | landed |
 | DnD | `draggable` + drag/drop → `change` | landed |
-| RTL | `dir=rtl` / `rtl=true` on stack & grid | landed (layout mirror) |
+| RTL | `dir=rtl` / `rtl=true` + locale auto-mirror | landed |
 | OS clipboard | wl-copy/xclip/xsel best-effort + memory | landed |
 | Dialog focus trap | Tab scoped to dialog subtree | landed |
 | Component registry | `ui.components.list` subset | landed (names/status; not full recipe expand) |
-| xdg-shell (G17) | third-party Wayland clients | **absent** — `compositor.status.xdg_shell="absent"` |
-| IME / full i18n catalogs | locale + input method | deferred |
-| AT-SPI D-Bus bridge | system a11y bus | deferred (MCP tree is the interim) |
+| xdg-shell (G17) | `xdg_wm_base` v5 via `wayland-protocols` | landed (not wlroots; no XWayland) |
+| IME / locale catalogs | compose/dead-key IME; `assets/locales`; `ui.i18n.*` | landed (no full OS IME bus) |
+| AT-SPI D-Bus bridge | `org.themachine.A11y` + best-effort `org.a11y.Bus` | landed (session bus; disable with `THE_MACHINE_ATSPI=0`) |
 
 ## Explicit non-goals (near term)
 

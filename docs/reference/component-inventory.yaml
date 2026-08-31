@@ -57,6 +57,10 @@ env_vars:
   - THE_MACHINE_TOKEN_SECRET
   - THE_MACHINE_POLICY_FAIL_OPEN
   - THE_MACHINE_LEASE_FAST_PATH
+  - THE_MACHINE_ATSPI
+  - THE_MACHINE_LOCALE
+  - THE_MACHINE_LOCALE_DIR
+  - THE_MACHINE_COMPOSITOR_BACKEND
 
 mcp_services:
   system-daemon:
@@ -70,6 +74,8 @@ mcp_services:
     - net.connect_wifi
     - audio.list_devices
     - audio.set_default
+    - clipboard.get
+    - clipboard.set
   policy-broker:
     - policy.check
     - policy.register
@@ -100,17 +106,34 @@ mcp_services:
   ui-runtime:
     - ui.patch
     - ui.get
+    - ui.bind
     - ui.tree
     - ui.event
     - ui.status
+    - ui.focus.get
+    - ui.focus.set
+    - ui.focus.next
+    - ui.theme.get
+    - ui.theme.set
     - ui.auil.parse
     - ui.auil.load
+    - ui.a11y.tree
+    - ui.atspi.status
+    - ui.i18n.status
+    - ui.i18n.t
+    - ui.i18n.load
+    - ui.components.list
   agent-core:
     - agent.status
     - agent.cloud.status
   compositor:
     - compositor.present
     - compositor.surface
+    - compositor.blur
+    - compositor.focus
+    - compositor.input
+    - compositor.list
+    - compositor.status
     - compositor.confirmation.set_active
   mcp-bus:
     - bus.resolve

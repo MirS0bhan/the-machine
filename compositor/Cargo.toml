@@ -19,6 +19,8 @@ wayland-server = "0.31"
 harfrust = "0.13.3"
 # FreeType still used for glyph rasterization into the framebuffer.
 freetype-rs = "0.38"
+# Official Wayland protocol extensions (xdg-shell for G17).
+wayland-protocols = { version = "0.32", features = ["server"] }
 
 [[bin]]
 name = "compositor"

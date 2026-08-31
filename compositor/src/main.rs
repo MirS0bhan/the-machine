@@ -9,10 +9,12 @@ mod env;
 mod model;
 mod pixel;
 mod text;
+mod video;
 mod wayland_backend;
 mod wl_globals;
 mod wl_session;
 mod wl_shm;
+mod wl_xdg;
 
 use common::*;
 use model::{Compositor, Geometry, Surface};
@@ -354,13 +356,25 @@ fn paint_media(px: &mut PixelBackend, s: &Surface, bg: [u8; 3], fg: [u8; 3], rad
         radius,
         s.border.unwrap_or(chrome::BORDER_DEFAULT),
     );
-    // Play triangle (axis-aligned stand-in: rectangle + chevron bars).
-    let cx = s.geometry.x + w as i32 / 2;
-    let cy = s.geometry.y + h as i32 / 2;
-    let tri = (h.min(w) / 6).max(10) as i32;
-    px.fill_rect(cx - tri / 2, cy - tri, 4, (tri * 2) as u32, fg);
-    px.fill_rect(cx - tri / 2, cy - tri / 2, (tri as u32).saturating_add(8), 4, fg);
-    px.fill_rect(cx + 2, cy - tri / 3, (tri as u32) / 2, (tri as u32) * 2 / 3, fg);
+    let mut painted_frame = false;
+    if !s.src.is_empty() {
+        if let Some(frame) = video::decode_first_frame(&s.src, w.saturating_sub(8), h.saturating_sub(8))
+        {
+            let fx = s.geometry.x + ((w as i32 - frame.width as i32) / 2).max(0);
+            let fy = s.geometry.y + ((h as i32 - frame.height as i32) / 2).max(0);
+            video::blit_rgb_frame(px, fx, fy, &frame);
+            painted_frame = true;
+        }
+    }
+    if !painted_frame {
+        // Play triangle affordance when no decoded frame.
+        let cx = s.geometry.x + w as i32 / 2;
+        let cy = s.geometry.y + h as i32 / 2;
+        let tri = (h.min(w) / 6).max(10) as i32;
+        px.fill_rect(cx - tri / 2, cy - tri, 4, (tri * 2) as u32, fg);
+        px.fill_rect(cx - tri / 2, cy - tri / 2, (tri as u32).saturating_add(8), 4, fg);
+        px.fill_rect(cx + 2, cy - tri / 3, (tri as u32) / 2, (tri as u32) * 2 / 3, fg);
+    }
     if !s.label.is_empty() {
         let font_px = text::resolve_px(s.font_px, s.font_scale);
         let weight = text::FontWeight::parse(&s.font_weight);
@@ -717,7 +731,12 @@ async fn handle_request(
                     "backend": backend,
                     "text": text::backend_name(),
                     "wayland_session": wayland_session,
-                    "xdg_shell": "absent",
+                    "xdg_shell": wayland
+                        .as_ref()
+                        .as_ref()
+                        .map(|_| "xdg_wm_base.v5")
+                        .unwrap_or("unbound"),
+                    "video": video::backend_name(),
                     "motion": "present-loop-opacity",
                 }),
             )
@@ -775,6 +794,7 @@ async fn handle_surface(
                 font_weight: "regular".into(),
                 font_family: "default".into(),
                 variant: String::new(),
+                src: String::new(),
             });
             s.id = sid.clone();
             if s.geometry.width == 0 {
@@ -952,6 +972,9 @@ fn apply_surface_fields(s: &mut Surface, params: &serde_json::Value) {
     }
     if let Some(m) = params.get("motion_ms").and_then(|v| v.as_u64()) {
         s.motion_ms = m as u32;
+    }
+    if let Some(src) = params.get("src").and_then(|v| v.as_str()) {
+        s.src = src.to_string();
     }
     if let Some(bg) = parse_rgb(params.get("bg")) {
         s.bg = Some(bg);

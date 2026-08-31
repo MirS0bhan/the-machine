@@ -89,7 +89,9 @@ impl WlGlobals {
 
     pub fn status(&self) -> serde_json::Value {
         serde_json::json!({
-            "globals": ["wl_compositor", "wl_output", "wl_seat", "wl_shm"],
+            "globals": ["wl_compositor", "wl_output", "wl_seat", "wl_shm", "xdg_wm_base"],
+            "xdg_shell": "xdg_wm_base.v5",
+            "xdg_toplevels": crate::wl_xdg::toplevel_count(),
             "output": {
                 "name": self.output.name,
                 "width": self.output.width,

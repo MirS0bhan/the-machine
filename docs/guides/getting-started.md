@@ -80,6 +80,10 @@ Boot services started by `scripts/start-services.sh` (rust mode):
 | `THE_MACHINE_TOKEN_SECRET` | ISO default material | HMAC key for grant tokens |
 | `THE_MACHINE_POLICY_FAIL_OPEN` | unset (fail closed) | Set `1` to allow mutations when the broker is down |
 | `THE_MACHINE_LEASE_FAST_PATH` | unset (metadata only) | Set `1` to bind per-lease relay sockets on `bus.lease` |
+| `THE_MACHINE_ATSPI` | enabled | Set `0` to disable the ui-runtime AT-SPI D-Bus bridge |
+| `THE_MACHINE_LOCALE` | from `LANG` | Override locale catalog (language subtag, e.g. `en`, `fa`) |
+| `THE_MACHINE_LOCALE_DIR` | — | Extra directory of `{locale}.json` catalogs (after `assets/locales`) |
+| `THE_MACHINE_COMPOSITOR_BACKEND` | `auto` | `auto` → DRM → framebuffer → memory (see bare-metal guide) |
 
 ## Test
 

@@ -183,6 +183,23 @@ def main() -> None:
             if not grep_method_in_source(method):
                 errors.append(f"MCP method {method!r} ({service}) not found in Rust sources")
 
+    # Inventory methods must also appear in mcp-bus so bus.resolve can route them.
+    mcp_bus_src = (ROOT / "mcp-bus/src/main.rs").read_text(errors="replace")
+    for service, methods in inv.get("mcp_services", {}).items():
+        for method in methods:
+            if f'"{method}"' not in mcp_bus_src:
+                errors.append(
+                    f"MCP method {method!r} ({service}) missing from mcp-bus/src/main.rs registration"
+                )
+
+    # Stale historical UI MCP names must not be registered on the Rust boot path.
+    for stale in ("ui.get_tree", "ui.get_node"):
+        if f'"{stale}"' in mcp_bus_src:
+            errors.append(f"stale MCP method {stale!r} must not be registered in mcp-bus")
+        for path in (ROOT / "ui-runtime").glob("src/**/*.rs"):
+            if f'"{stale}"' in path.read_text(errors="replace"):
+                errors.append(f"stale MCP method {stale!r} must not appear in {path.relative_to(ROOT)}")
+
     for method, test_path in inv.get("integration_tests", {}).items():
         rel = ROOT / test_path
         if not rel.exists():

@@ -93,6 +93,9 @@ pub struct Surface {
     /// Visual variant (`primary`, `field`, …).
     #[serde(default)]
     pub variant: String,
+    /// Media/video source path (`file://` or absolute path).
+    #[serde(default)]
+    pub src: String,
 }
 
 fn default_one() -> f32 {
