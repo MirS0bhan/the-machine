@@ -83,11 +83,26 @@ fn layout_node(
         .to_string();
     let props = node.get("props").cloned().unwrap_or(json!({}));
 
-    if matches!(kind, "stack" | "container" | "grid") {
+    if kind == "grid" {
+        layout_grid(node, &props, x, y, avail_w, avail_h, out);
+        return;
+    }
+
+    if matches!(kind, "stack" | "container") {
         let dir = props
             .get("dir")
             .and_then(|v| v.as_str())
             .unwrap_or("v");
+        let rtl = props
+            .get("rtl")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+            || dir == "rtl"
+            || props
+                .get("writing_mode")
+                .and_then(|v| v.as_str())
+                .is_some_and(|w| w == "rtl");
+        let dir = if dir == "rtl" { "h" } else { dir };
         let gap = gap_px(&props);
         let align_center = props
             .get("align")
@@ -115,6 +130,9 @@ fn layout_node(
                 }
             }
             measured.push((child.clone(), w, h));
+        }
+        if rtl && dir == "h" {
+            measured.reverse();
         }
         let total_h: u32 = if dir == "v" {
             measured.iter().map(|(_, _, h)| *h).sum::<u32>()
@@ -169,6 +187,64 @@ fn layout_node(
 
     let (w, h) = measure_leaf(node, avail_w);
     out.push(style_leaf(node, x, y, w.min(avail_w), h));
+}
+
+fn layout_grid(
+    node: &Value,
+    props: &Value,
+    x: i32,
+    y: i32,
+    avail_w: u32,
+    _avail_h: u32,
+    out: &mut Vec<LaidOutNode>,
+) {
+    let cols = props
+        .get("cols")
+        .or_else(|| props.get("columns"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(2) as u32;
+    let gap = gap_px(props);
+    let rtl = props
+        .get("rtl")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+        || props
+            .get("dir")
+            .and_then(|v| v.as_str())
+            .is_some_and(|d| d == "rtl");
+    let children = node
+        .get("children")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut sizes = Vec::new();
+    let mut child_props = Vec::new();
+    let mut kept = Vec::new();
+    for child in children {
+        let (w, h) = measure_leaf(&child, avail_w / cols.max(1));
+        if w == 0 && h == 0 {
+            continue;
+        }
+        child_props.push(child.get("props").cloned().unwrap_or(json!({})));
+        sizes.push((w, h));
+        kept.push(child);
+    }
+    let plan = crate::grid::plan(cols, gap, avail_w, &sizes, &child_props, rtl);
+    for cell in &plan.cells {
+        let child = &kept[cell.child_index];
+        let (cw, ch) = sizes[cell.child_index];
+        let (cx, cy) = plan.origin_of(cell, x, y);
+        let (pw, ph) = plan.size_of(cell, cw, ch);
+        let child_kind = child
+            .get("type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("stack");
+        if matches!(child_kind, "stack" | "container" | "grid") {
+            layout_node(child, cx, cy, pw, ph, out);
+        } else {
+            out.push(style_leaf(child, cx, cy, cw.min(pw), ch.min(ph.max(1))));
+        }
+    }
 }
 
 fn gap_px(props: &Value) -> u32 {
@@ -227,7 +303,9 @@ fn measure_leaf(node: &Value, avail_w: u32) -> (u32, u32) {
             let (w, h) = crate::widgets::measure("icon", &props, avail_w);
             (w, h)
         }
-        "toggle" | "slider" | "list" | "dialog" => crate::widgets::measure(kind, &props, avail_w),
+        "toggle" | "slider" | "list" | "dialog" | "media" | "chart" => {
+            crate::widgets::measure(kind, &props, avail_w)
+        }
         _ => (240, 48),
     }
 }
@@ -372,7 +450,7 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
                 v,
             )
         }
-        "toggle" | "slider" | "dialog" | "list" | "icon" => {
+        "toggle" | "slider" | "dialog" | "list" | "icon" | "media" | "chart" => {
             let chrome = crate::widgets::style(&kind, &id, &props);
             (
                 chrome.bg,
@@ -427,10 +505,16 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
         .unwrap_or(0) as i32;
     let items: Vec<String> = props
         .get("items")
+        .or_else(|| props.get("data"))
         .and_then(|v| v.as_array())
         .map(|arr| {
             arr.iter()
-                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .filter_map(|v| {
+                    v.as_str()
+                        .map(|s| s.to_string())
+                        .or_else(|| v.as_f64().map(|n| n.to_string()))
+                        .or_else(|| v.as_i64().map(|n| n.to_string()))
+                })
                 .collect()
         })
         .unwrap_or_default();

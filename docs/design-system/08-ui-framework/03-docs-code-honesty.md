@@ -61,18 +61,19 @@ These are **expected** until P2; do not “fix” design docs by deleting them �
 `ui.patch`, `ui.get`, `ui.tree`, `ui.bind`, `ui.event`, `ui.status`,  
 `ui.focus.get`, `ui.focus.set`, `ui.focus.next`,  
 `ui.theme.get`, `ui.theme.set`,  
-`ui.auil.parse`, `ui.auil.load`
+`ui.auil.parse`, `ui.auil.load`,  
+`ui.a11y.tree`, `ui.components.list`
 
 ### compositor
 
 `compositor.surface` (`create`/`update`/`destroy`/`geometry`),  
 `compositor.focus`, `compositor.input`, `compositor.present`,  
-`compositor.list`, `compositor.status`, `compositor.blur`,  
+`compositor.list`, `compositor.status` (`xdg_shell: absent`), `compositor.blur`,  
 `compositor.confirmation.set_active`
 
 ### system-daemon (UI-adjacent)
 
-`clipboard.get`, `clipboard.set`  
+`clipboard.get`, `clipboard.set` (memory + OS best-effort)  
 (+ power / display / net / audio ops — see `docs/components/system-daemon.md`)
 
 ---
@@ -81,17 +82,18 @@ These are **expected** until P2; do not “fix” design docs by deleting them �
 
 | Kind | Layout | Paint | Interaction |
 |---|---|---|---|
-| `stack` / `container` | yes | n/a | — |
-| `grid` | stack alias | n/a | — |
+| `stack` / `container` | yes (+ RTL) | n/a | — |
+| `grid` | real cols/span/RTL | n/a | — |
 | `text` | yes | label | — |
 | `field` / `input` | yes | plate + caret | edit, clipboard, focus |
-| `button` | yes | chrome + press | press/click/Enter |
+| `button` | yes | chrome + press + opacity tween | press/click/Enter |
 | `toggle` | yes | track+knob | click flips `checked` |
 | `slider` | yes | track+thumb | click sets `value` |
 | `list` | yes | rows + clip | wheel scroll |
-| `dialog` | leaf card | scrim + card | soft exclusivity; Escape dismiss |
+| `dialog` | leaf card | scrim + card | soft exclusivity; Escape; focus trap |
 | `icon` | size tiers | geometric glyph | — |
-| `media` / `chart` | stub size | hash plate | — |
+| `media` | yes | plate + play affordance | focusable |
+| `chart` | yes | axes + bars from `data`/`items` | — |
 
 ---
 

@@ -170,6 +170,8 @@ async fn main() -> anyhow::Result<()> {
             "ui.theme.set",
             "ui.auil.parse",
             "ui.auil.load",
+            "ui.a11y.tree",
+            "ui.components.list",
         ] {
             reg.register(m, "ui-runtime", true).unwrap();
         }
@@ -1012,6 +1014,8 @@ fn is_boot_readonly(method: &str) -> bool {
             | "ui.get"
             | "ui.tree"
             | "ui.status"
+            | "ui.a11y.tree"
+            | "ui.components.list"
             | "compositor.status"
             | "compositor.list"
             | "event.stats"

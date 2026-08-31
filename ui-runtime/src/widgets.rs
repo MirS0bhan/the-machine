@@ -30,6 +30,8 @@ pub fn measure(kind: &str, props: &Value, avail_w: u32) -> (u32, u32) {
         }
         "list" => (avail_w.saturating_sub(space::LG), 160),
         "dialog" => ((avail_w * 3 / 4).clamp(280, 560), 240),
+        "media" => ((avail_w * 2 / 3).clamp(240, 640), 180),
+        "chart" => ((avail_w * 2 / 3).clamp(240, 640), 160),
         _ => (240, 48),
     }
 }
@@ -105,6 +107,32 @@ pub fn style(kind: &str, id: &str, props: &Value) -> WidgetChrome {
             label: String::new(),
             variant: if variant.is_empty() {
                 "default".into()
+            } else {
+                variant
+            },
+        },
+        "media" => WidgetChrome {
+            bg: tokens::dark::SURFACE_SUNKEN,
+            fg: tokens::dark::TEXT_PRIMARY,
+            border: Some(tokens::dark::BORDER_DEFAULT),
+            radius: tokens::radius::MD,
+            font_scale: 3,
+            label,
+            variant: if variant.is_empty() {
+                "player".into()
+            } else {
+                variant
+            },
+        },
+        "chart" => WidgetChrome {
+            bg: tokens::dark::SURFACE_CARD,
+            fg: tokens::dark::ACCENT_DEFAULT,
+            border: Some(tokens::dark::BORDER_DEFAULT),
+            radius: tokens::radius::MD,
+            font_scale: 2,
+            label,
+            variant: if variant.is_empty() {
+                "bars".into()
             } else {
                 variant
             },
