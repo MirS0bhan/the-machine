@@ -233,4 +233,13 @@ mod tests {
         apply_key(&mut b, "End", None, &KeyMods::default());
         assert_eq!(b.caret, 2);
     }
+
+    #[test]
+    fn insert_str_replaces_selection() {
+        let mut b = TextBuffer::from_props_sel("hello", Some(5), Some(0));
+        b.insert_str("ok");
+        assert_eq!(b.text, "ok");
+        assert_eq!(b.caret, 2);
+        assert!(b.sel_anchor.is_none());
+    }
 }

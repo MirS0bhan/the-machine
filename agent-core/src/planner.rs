@@ -141,6 +141,8 @@ pub fn desktop_intent_from_text(text: &str) -> Option<&'static str> {
         || t.contains("workspace sidebar")
         || t.contains("show a menu")
         || t.contains("show a sidebar")
+        || wants_media_spawn(&t)
+        || wants_native_app_surface(&t)
         || (t.contains("workspace") && !t.contains("clear") && !t.contains("status"))
     {
         Some("desktop.spawn")
@@ -170,11 +172,35 @@ pub fn chat_command_from_text(text: &str) -> Option<&'static str> {
         Some("chat.suggestions")
     } else if t.contains("take a tour") || t.contains("discover") || t.contains("what can i do") {
         Some("desktop.tour")
-    } else if t.contains("list skills") || t.contains("@skill") || t.contains("skill mention") {
+    } else if wants_skill_tray(&t) {
         Some("chat.suggestions")
     } else {
         None
     }
+}
+
+fn wants_skill_tray(t: &str) -> bool {
+    t.contains("list skills")
+        || t.contains("@skill")
+        || t.contains("skill mention")
+        || t.contains("mention a skill")
+        || t.contains("@mention")
+        || (t.contains('@') && t.contains("skill"))
+}
+
+fn wants_media_spawn(t: &str) -> bool {
+    t.contains("media")
+        || t.contains("video")
+        || t.contains("voice")
+        || t.contains("mic")
+        || t.contains("dictate")
+        || t.contains("push-to-talk")
+        || t.contains("attach")
+        || t.contains("screenshot")
+}
+
+fn wants_native_app_surface(t: &str) -> bool {
+    t.contains("xwayland") || t.contains("x11") || t.contains("xterm")
 }
 
 pub fn build_plan_heuristic(
@@ -572,7 +598,7 @@ pub fn desktop_clear_workspace_plan() -> Vec<PlanStep> {
 
 pub fn desktop_spawn_plan(text: &str) -> Vec<PlanStep> {
     let t = text.to_lowercase();
-    if t.contains("dialog") {
+    if t.contains("dialog") || wants_native_app_surface(&t) {
         return spawn_dialog_plan(text);
     }
     if t.contains("list") {
@@ -602,7 +628,7 @@ pub fn desktop_spawn_plan(text: &str) -> Vec<PlanStep> {
             "Spawned slider into workspace",
         );
     }
-    if t.contains("media") || t.contains("video") {
+    if wants_media_spawn(&t) {
         return spawn_primitive_plan(
             "ui.agent_media",
             "media",
@@ -1799,6 +1825,65 @@ mod tests {
             desktop_intent_from_text("show a menu"),
             Some("desktop.spawn")
         );
+        assert_eq!(
+            desktop_intent_from_text("switch to voice mode"),
+            Some("desktop.spawn")
+        );
+        assert_eq!(
+            desktop_intent_from_text("dictate with push-to-talk"),
+            Some("desktop.spawn")
+        );
+        assert_eq!(
+            desktop_intent_from_text("attach a screenshot to chat"),
+            Some("desktop.spawn")
+        );
+        assert_eq!(
+            chat_command_from_text("@mention a skill"),
+            Some("chat.suggestions")
+        );
+        assert_eq!(
+            desktop_intent_from_text("Start X11 xterm"),
+            Some("desktop.spawn")
+        );
+    }
+
+    #[test]
+    fn catalog_gap_phrases_match_rewritten_expected() {
+        let voice = desktop_spawn_plan("switch to voice mode");
+        assert!(spawn_ops_include_kind(&voice, "media"));
+        let dictate = desktop_spawn_plan("dictate with push-to-talk");
+        assert!(spawn_ops_include_kind(&dictate, "media"));
+        let attach = desktop_spawn_plan("attach a screenshot to chat");
+        assert!(spawn_ops_include_kind(&attach, "media"));
+        let x11 = desktop_spawn_plan("Start X11 xterm");
+        assert!(spawn_ops_include_kind(&x11, "dialog"));
+        let skills = chat_suggestions_plan();
+        assert!(skills.iter().any(|s| {
+            s.params
+                .get("ops")
+                .and_then(|v| v.as_array())
+                .and_then(|ops| ops.first())
+                .and_then(|op| op.get("node"))
+                .and_then(|n| n.get("id"))
+                .and_then(|v| v.as_str())
+                == Some("ui.suggestion_tray")
+        }));
+    }
+
+    fn spawn_ops_include_kind(plan: &[PlanStep], kind: &str) -> bool {
+        plan.iter().any(|s| {
+            s.params
+                .get("ops")
+                .and_then(|v| v.as_array())
+                .is_some_and(|ops| {
+                    ops.iter().any(|op| {
+                        op.get("node")
+                            .and_then(|n| n.get("type"))
+                            .and_then(|v| v.as_str())
+                            == Some(kind)
+                    })
+                })
+        })
     }
 
     #[test]

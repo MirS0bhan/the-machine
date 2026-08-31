@@ -1305,16 +1305,24 @@ async fn handle_request(
                                         .unwrap_or_default();
                                     let mut t = tree.lock().await;
                                     if let Some(node) = t.get_mut(&focus_id) {
-                                        let mut buf = input_edit::TextBuffer::from_props(
-                                            node.props
-                                                .get("text")
-                                                .or_else(|| node.props.get("value"))
-                                                .and_then(|v| v.as_str())
-                                                .unwrap_or(""),
-                                            node.props
-                                                .get("caret")
-                                                .and_then(|v| v.as_u64())
-                                                .map(|n| n as usize),
+                                        let current = node
+                                            .props
+                                            .get("text")
+                                            .or_else(|| node.props.get("value"))
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("");
+                                        let caret = node
+                                            .props
+                                            .get("caret")
+                                            .and_then(|v| v.as_u64())
+                                            .map(|n| n as usize);
+                                        let sel_anchor = node
+                                            .props
+                                            .get("sel_anchor")
+                                            .and_then(|v| v.as_u64())
+                                            .map(|n| n as usize);
+                                        let mut buf = input_edit::TextBuffer::from_props_sel(
+                                            current, caret, sel_anchor,
                                         );
                                         buf.insert_str(&clip);
                                         node.props.insert(
@@ -1327,6 +1335,7 @@ async fn handle_request(
                                         );
                                         node.props
                                             .insert("caret".into(), serde_json::json!(buf.caret));
+                                        node.props.remove("sel_anchor");
                                     }
                                     t.revision += 1;
                                     let snapshot = renderer::serialize_subtree(&t, t.root_id());
