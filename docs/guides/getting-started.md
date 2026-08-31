@@ -19,7 +19,8 @@ This guide walks through building, testing, and running **The Machine** on a Lin
 Install system packages on Debian/Ubuntu:
 
 ```bash
-sudo apt-get install -y busybox-static grub-pc-bin grub-common xorriso mtools
+sudo apt-get install -y busybox-static grub-pc-bin grub-common xorriso mtools \
+    libfreetype6-dev pkg-config
 ```
 
 Install Python packages:

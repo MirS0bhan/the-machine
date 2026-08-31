@@ -38,6 +38,12 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            libfreetype6-dev pkg-config
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -86,6 +92,12 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            libfreetype6-dev pkg-config
 
       - name: Install cargo-llvm-cov
         run: |
@@ -146,6 +158,12 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            libfreetype6-dev pkg-config
 
       - name: Build release binary
         run: cargo build --release -p ${{ matrix.component }}
