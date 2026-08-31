@@ -13,6 +13,7 @@ Version: 0.1.0
 """
 
 import logging
+import os
 import time
 from typing import Any, Callable, Dict, List, Optional, Set
 from models import (
@@ -32,6 +33,13 @@ from components import ComponentRegistry
 from patch_protocol import PatchParser, PatchApplicator, parse_patches
 
 logger = logging.getLogger(__name__)
+
+# Default theme: macOS HIG x GNOME/libadwaita reference design system.
+# See docs/design-research-macos-gnome-adwaita.md for the sourcing of these
+# values and ui-engine/themes/adwaita_macos.asl for the literal ASL source.
+DEFAULT_THEME_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "themes", "adwaita_macos.asl"
+)
 
 
 class UIRuntime:
@@ -61,8 +69,17 @@ class UIRuntime:
         >>> runtime.apply_patch("~ok(color=accent)")
     """
     
-    def __init__(self):
-        """Initialize the UI Runtime."""
+    def __init__(self, load_default_theme: bool = True):
+        """
+        Initialize the UI Runtime.
+
+        Args:
+            load_default_theme: Whether to automatically load the built-in
+                macOS/Adwaita-inspired default theme (see
+                `docs/design-research-macos-gnome-adwaita.md`). Apps that
+                want a fully custom design system can pass False and load
+                their own ASL from scratch.
+        """
         self._tree: Optional[UIStateTree] = None
         self._components = ComponentRegistry()
         self._styles: Dict[str, StyleMixin] = {}
@@ -82,7 +99,30 @@ class UIRuntime:
         # Renderer callback
         self._render_callback: Optional[Callable[[UIStateTree], None]] = None
         
+        if load_default_theme:
+            self.load_default_theme()
+        
         logger.info("UIRuntime initialized")
+
+    def load_default_theme(self, path: Optional[str] = None) -> None:
+        """
+        Load the built-in default theme (macOS HIG x GNOME/Adwaita tokens,
+        scales, motions, and style mixins).
+
+        Args:
+            path: Optional override path to an ASL theme file. Defaults to
+                `DEFAULT_THEME_PATH` (`themes/adwaita_macos.asl`).
+        """
+        theme_path = path or DEFAULT_THEME_PATH
+        try:
+            with open(theme_path, "r", encoding="utf-8") as f:
+                source = f.read()
+        except OSError as exc:
+            logger.warning(f"Could not load default theme from {theme_path}: {exc}")
+            return
+        
+        self.load_asl(source)
+        logger.info(f"Loaded default theme from {theme_path}")
     
     def set_render_callback(self, callback: Callable[[UIStateTree], None]) -> None:
         """
