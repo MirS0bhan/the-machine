@@ -1,6 +1,7 @@
 //! Renderer bridge: layout AUIL trees with design-system tokens, sync to compositor.
 
 use serde_json::{json, Value};
+use std::collections::HashSet;
 use uuid::Uuid;
 
 use crate::layout::{self, LaidOutNode};
@@ -28,21 +29,58 @@ pub fn serialize_subtree(tree: &UiTree, id: &str) -> Value {
 pub async fn sync_tree_to_compositor(root: &Value) -> usize {
     let (vw, vh) = layout::default_viewport();
     let laid = layout::layout_tree(root, vw, vh);
+    let mut desired: HashSet<String> = HashSet::new();
     let mut count = 0;
     for node in &laid {
         // Skip empty caption/status plates so they don't show widget ids.
         if node.kind == "text" && node.label.is_empty() {
             continue;
         }
+        desired.insert(format!("surface.{}", node.id));
         ensure_surface(node).await;
         count += 1;
     }
+    destroy_orphan_surfaces(&desired).await;
     let _ = bus_call(
         "compositor.present",
         json!({ "damage": "full", "revision": Uuid::new_v4() }),
     )
     .await;
     count
+}
+
+/// Destroy compositor surfaces created for UI nodes that are no longer in the tree.
+/// Skips confirmation / non-`surface.*` ids.
+async fn destroy_orphan_surfaces(desired: &HashSet<String>) {
+    let Some(list) = bus_call("compositor.list", json!({})).await else {
+        return;
+    };
+    let surfaces = match list.as_array() {
+        Some(a) => a,
+        None => return,
+    };
+    for s in surfaces {
+        let Some(id) = s.get("id").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        if !id.starts_with("surface.") {
+            continue;
+        }
+        if s.get("confirmation")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        if desired.contains(id) {
+            continue;
+        }
+        let _ = bus_call(
+            "compositor.surface",
+            json!({ "action": "destroy", "id": id }),
+        )
+        .await;
+    }
 }
 
 fn surface_create_params(node: &LaidOutNode) -> Value {
@@ -79,6 +117,13 @@ fn surface_create_params(node: &LaidOutNode) -> Value {
         "font_family": "default",
         "bg": node.bg.to_array(),
         "fg": node.fg.to_array(),
+        "pressed": node.pressed,
+        "checked": node.checked,
+        "value": node.value,
+        "value_min": node.value_min,
+        "value_max": node.value_max,
+        "scroll_y": node.scroll_y,
+        "items": node.items,
     });
     if let Some(border) = node.border {
         params
@@ -91,6 +136,13 @@ fn surface_create_params(node: &LaidOutNode) -> Value {
             "border".into(),
             json!(tokens::dark::BORDER_FOCUS.to_array()),
         );
+    }
+    // Dialog cards sit above normal chrome.
+    if node.kind == "dialog" {
+        params
+            .as_object_mut()
+            .unwrap()
+            .insert("z_order".into(), json!(5_000));
     }
     params
 }
@@ -158,6 +210,13 @@ mod tests {
             font_scale: 3,
             variant: "primary".into(),
             role: String::new(),
+            pressed: false,
+            checked: false,
+            value: 0.0,
+            value_min: 0.0,
+            value_max: 100.0,
+            scroll_y: 0,
+            items: vec![],
         };
         let p = surface_create_params(&node);
         assert_eq!(p.get("kind").and_then(|v| v.as_str()), Some("button"));
@@ -167,5 +226,6 @@ mod tests {
             Some(3)
         );
         assert_eq!(p.get("radius").and_then(|v| v.as_u64()), Some(10));
+        assert_eq!(p.get("pressed").and_then(|v| v.as_bool()), Some(false));
     }
 }

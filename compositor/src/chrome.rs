@@ -18,9 +18,14 @@ pub const TEXT_TERTIARY: [u8; 3] = [0x82, 0x86, 0x9C];
 pub const TEXT_ON_ACCENT: [u8; 3] = [0x12, 0x13, 0x1C];
 
 pub const ACCENT_DEFAULT: [u8; 3] = [0x9C, 0x7C, 0xF2];
+pub const ACCENT_HOVER: [u8; 3] = [0xA9, 0x8E, 0xF5];
+pub const ACCENT_PRESSED: [u8; 3] = [0x7E, 0x5F, 0xD6];
 pub const BORDER_DEFAULT: [u8; 3] = [0x3B, 0x3E, 0x52];
 pub const BORDER_FOCUS: [u8; 3] = ACCENT_DEFAULT;
 pub const CONFIRMATION_BG: [u8; 3] = [0xC8, 0x50, 0x3C];
+/// Semi-transparent scrim stand-in (darkened canvas) for dialog overlays.
+pub const SCRIM: [u8; 3] = [0x05, 0x05, 0x0A];
 
+pub const RADIUS_SM: u32 = 6;
 pub const RADIUS_MD: u32 = 10;
 pub const RADIUS_LG: u32 = 16;

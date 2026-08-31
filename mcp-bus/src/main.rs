@@ -60,26 +60,22 @@ async fn main() -> anyhow::Result<()> {
             .unwrap();
         reg.register("system-op:system-daemon.stats", "system-daemon", true)
             .unwrap();
-        reg.register("power.get_profile", "system-daemon", true)
-            .unwrap();
-        reg.register("power.set_profile", "system-daemon", true)
-            .unwrap();
-        reg.register("display.get_modes", "system-daemon", true)
-            .unwrap();
-        reg.register("display.set_mode", "system-daemon", true)
-            .unwrap();
-        reg.register("net.list_interfaces", "system-daemon", true)
-            .unwrap();
-        reg.register("net.set_interface_state", "system-daemon", true)
-            .unwrap();
-        reg.register("net.get_wifi_status", "system-daemon", true)
-            .unwrap();
-        reg.register("net.connect_wifi", "system-daemon", true)
-            .unwrap();
-        reg.register("audio.list_devices", "system-daemon", true)
-            .unwrap();
-        reg.register("audio.set_default", "system-daemon", true)
-            .unwrap();
+        for m in [
+            "power.get_profile",
+            "power.set_profile",
+            "display.get_modes",
+            "display.set_mode",
+            "net.list_interfaces",
+            "net.set_interface_state",
+            "net.get_wifi_status",
+            "net.connect_wifi",
+            "audio.list_devices",
+            "audio.set_default",
+            "clipboard.get",
+            "clipboard.set",
+        ] {
+            reg.register(m, "system-daemon", true).unwrap();
+        }
         reg.register("state-op:state.get", "state-store", true)
             .unwrap();
         reg.register("state-op:state.set", "state-store", true)
@@ -167,6 +163,11 @@ async fn main() -> anyhow::Result<()> {
             "ui.tree",
             "ui.event",
             "ui.status",
+            "ui.focus.get",
+            "ui.focus.set",
+            "ui.focus.next",
+            "ui.theme.get",
+            "ui.theme.set",
         ] {
             reg.register(m, "ui-runtime", true).unwrap();
         }
@@ -1002,6 +1003,7 @@ fn is_boot_readonly(method: &str) -> bool {
             | "net.get_wifi_status"
             | "audio.list_devices"
             | "system-daemon.stats"
+            | "clipboard.get"
             | "agent.status"
             | "lambda.list"
             | "lambda.health"

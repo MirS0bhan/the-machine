@@ -15,14 +15,14 @@ Concrete modules for closing toolkit gaps on the AUIL → MCP → compositor spi
 
 ## P1 — Framework breadth
 
-| Item | Module / API |
-|---|---|
-| ASL subset | `ui-runtime/src/asl.rs` — tokens/scales/styles used by boot + Surface/Focusable/Pressable |
-| Scroll + clip | `compositor/src/clip.rs`, `ui-runtime/src/scroll.rs`, `list` primitive paint |
-| Widgets | `toggle`, `slider` (incl. progress), `icon` bitmaps, basic `list` rows |
-| Dialog | `dialog` primitive + scrim; reuse confirmation exclusivity pattern (not `e4`) |
-| Clipboard | `clipboard.get`/`set` via system-daemon; Ctrl-C/V on field |
-| Damage | Dirty-rect present |
+| Item | Module / API | Status |
+|---|---|---|
+| ASL subset | `ui-runtime/src/asl.rs` — tokens/scales/styles used by boot + Surface/Focusable/Pressable | landed |
+| Scroll + clip | `compositor/src/clip.rs`, `ui-runtime/src/scroll.rs`, `list` primitive paint | landed |
+| Widgets | `toggle`, `slider` (incl. progress), basic `list` rows; `icon` bitmaps deferred | landed (no icon bitmaps yet) |
+| Dialog | `dialog` primitive + scrim; soft exclusivity (not `e4`) | landed |
+| Clipboard | `clipboard.get`/`set` via system-daemon; Ctrl-C/V/X on field | landed |
+| Damage | Dirty-rect present | landed |
 
 ## P2 — Parity areas
 

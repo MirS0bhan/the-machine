@@ -26,6 +26,13 @@ pub struct LaidOutNode {
     pub variant: String,
     #[allow(dead_code)]
     pub role: String,
+    pub pressed: bool,
+    pub checked: bool,
+    pub value: f64,
+    pub value_min: f64,
+    pub value_max: f64,
+    pub scroll_y: i32,
+    pub items: Vec<String>,
 }
 
 /// Viewport used when compositor size is unknown (memory/DRM defaults).
@@ -320,21 +327,39 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
             } else {
                 variant.clone()
             };
+            let pressed = props
+                .get("pressed")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let hovered = props
+                .get("hovered")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             let (bg, fg) = if v == "primary" {
-                (
-                    tokens::dark::ACCENT_DEFAULT,
-                    tokens::dark::TEXT_ON_ACCENT,
-                )
+                let bg = if pressed {
+                    tokens::dark::ACCENT_PRESSED
+                } else if hovered {
+                    tokens::dark::ACCENT_HOVER
+                } else {
+                    tokens::dark::ACCENT_DEFAULT
+                };
+                (bg, tokens::dark::TEXT_ON_ACCENT)
             } else {
-                (
-                    tokens::dark::SURFACE_RAISED,
-                    tokens::dark::TEXT_PRIMARY,
-                )
+                let bg = if pressed {
+                    tokens::dark::SURFACE_CARD
+                } else {
+                    tokens::dark::SURFACE_RAISED
+                };
+                (bg, tokens::dark::TEXT_PRIMARY)
             };
             (
                 bg,
                 fg,
-                None,
+                if pressed {
+                    Some(tokens::dark::BORDER_FOCUS)
+                } else {
+                    None
+                },
                 tokens::radius::MD,
                 3,
                 if label_prop.is_empty() {
@@ -377,6 +402,37 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
     // Silence unused — type scale documented alongside font_scale mapping.
     let _ = (type_size::BODY, type_size::TITLE_2, type_size::CAPTION);
 
+    let pressed = props
+        .get("pressed")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let checked = props
+        .get("checked")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let value_min = props.get("min").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let value_max = props
+        .get("max")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(100.0);
+    let value = props
+        .get("value")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(value_min);
+    let scroll_y = props
+        .get("scroll_y")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
+    let items: Vec<String> = props
+        .get("items")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
     LaidOutNode {
         id,
         kind,
@@ -393,6 +449,13 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
         font_scale,
         variant,
         role,
+        pressed,
+        checked,
+        value,
+        value_min,
+        value_max,
+        scroll_y,
+        items,
     }
 }
 
