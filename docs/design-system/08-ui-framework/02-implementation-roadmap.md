@@ -17,16 +17,20 @@ Concrete modules for closing toolkit gaps on the AUIL → MCP → compositor spi
 
 | Item | Module / API | Status |
 |---|---|---|
-| ASL subset | `ui-runtime/src/asl.rs` — tokens/scales/styles used by boot + Surface/Focusable/Pressable | landed |
-| Scroll + clip | `compositor/src/clip.rs`, `ui-runtime/src/scroll.rs`, `list` primitive paint | landed |
-| Widgets | `toggle`, `slider` (incl. progress), basic `list` rows; `icon` bitmaps deferred | landed (no icon bitmaps yet) |
-| Dialog | `dialog` primitive + scrim; soft exclusivity (not `e4`) | landed |
-| Clipboard | `clipboard.get`/`set` via system-daemon; Ctrl-C/V/X on field | landed |
+| ASL subset | `ui-runtime/src/asl.rs` — tokens/scales used by boot | landed |
+| Scroll + clip | `clip.rs`, `scroll.rs`, list paint | landed |
+| Widgets | toggle/slider/list/dialog; geometric `icon`; media/chart deferred | landed (icons geometric only) |
+| Dialog | scrim + soft exclusivity; Escape dismiss | landed |
+| Clipboard | `clipboard.get`/`set`; Ctrl-C/V/X | landed (in-memory) |
 | Damage | Dirty-rect present | landed |
+| Hover | pointer `move` → `hovered` prop + press chrome | landed (follow-on) |
+| Caret paint | focused field caret glyph | landed (follow-on) |
+| Slider input | click x → `value` | landed (follow-on) |
+| MCP registry | `ui.auil.*` + focus/theme on mcp-bus | landed (follow-on) |
 
 ## P2 — Parity areas
 
-Motion runtime, canvas/chart/media, AT-SPI a11y tree, DnD, i18n/RTL/IME, xdg-shell app hosting (G17), full component registry port from `ui-engine/components.py`.
+Motion runtime, canvas/chart/media bitmaps, real grid algorithm, AT-SPI a11y tree, DnD, i18n/RTL/IME, OS clipboard, xdg-shell app hosting (G17), full component registry port from `ui-engine/components.py`, focus trap for dialogs.
 
 ## Explicit non-goals (near term)
 

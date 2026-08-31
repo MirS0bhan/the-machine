@@ -14,6 +14,7 @@ The Machine's UI stack is **agent-native**: an AUIL state tree patched over MCP,
 |---|---|
 | `01-maturity-vs-toolkits.md` | Capability matrix vs WinForms / Compose / GTK / Qt, grounded in what the Rust code actually does today |
 | `02-implementation-roadmap.md` | P0–P2 work items mapped to concrete modules under `ui-runtime/` and `compositor/` |
+| `03-docs-code-honesty.md` | Docs↔code audit: stale MCP names, aspirational diagrams, painted kinds, re-audit triggers |
 
 ## Architectural spine (do not abandon)
 

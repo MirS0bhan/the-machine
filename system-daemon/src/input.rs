@@ -156,8 +156,14 @@ fn dispatch_event(
 ) {
     match ev.type_ {
         EV_REL => match ev.code {
-            REL_X => *x += ev.value,
-            REL_Y => *y += ev.value,
+            REL_X => {
+                *x += ev.value;
+                forward_move_throttled(*x, *y);
+            }
+            REL_Y => {
+                *y += ev.value;
+                forward_move_throttled(*x, *y);
+            }
             REL_WHEEL => {
                 let rt = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
@@ -282,6 +288,27 @@ async fn forward_wheel(x: i32, y: i32, delta_y: i32) {
     }
 }
 
+fn forward_move_throttled(x: i32, y: i32) {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+    static LAST_MS: AtomicU64 = AtomicU64::new(0);
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let prev = LAST_MS.load(Ordering::Relaxed);
+    if now.saturating_sub(prev) < 32 {
+        return;
+    }
+    LAST_MS.store(now, Ordering::Relaxed);
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build();
+    if let Ok(rt) = rt {
+        rt.block_on(forward_pointer(x, y, "move", None));
+    }
+}
+
 async fn forward_key(key: String, text: Option<String>, shift: bool, ctrl: bool, alt: bool) {
     let params = json!({
         "event": "key",
@@ -327,12 +354,19 @@ async fn forward_pointer(
     }
     let hit = bus_call("compositor.input", params.clone()).await?;
     if let Some(widget) = hit.get("widget_id").and_then(|v| v.as_str()) {
+        let mut payload = json!({ "x": x, "y": y, "provenance": params.get("provenance") });
+        if let Some(geo) = hit.get("geometry") {
+            payload["geometry"] = geo.clone();
+        }
+        if let Some(kind) = hit.get("kind") {
+            payload["kind"] = kind.clone();
+        }
         let _ = bus_call(
             "ui.event",
             json!({
                 "id": widget,
                 "event": event,
-                "payload": { "x": x, "y": y, "provenance": params.get("provenance") },
+                "payload": payload,
             }),
         )
         .await;

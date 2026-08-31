@@ -9,7 +9,9 @@
 
 This is the complete design-system documentation for The Machine's visual language: the structure language (**AUIL**, Agent UI Layout) and the style-and-motion language (**ASL**, Agent Style Language) implemented in `ui-engine/` and specified in `ui-engine/docs/spec.md`, expanded here into full guidelines, tokens, a widget catalog, an event model, and interaction patterns.
 
-This documentation set is self-contained and normative. Where it defines a value, a rule, or a component, that definition is the canonical one for implementation — it does not merely illustrate the AUIL/ASL grammar, it completes it. Nothing here is aspirational flavor text: every MUST is something the UI Runtime, the Policy Broker, or a code reviewer can actually check.
+This documentation set is self-contained and normative for **design intent**. Where it defines a value, a rule, or a component, that definition is the canonical one for *new* UI work — it does not merely illustrate the AUIL/ASL grammar, it completes it. Every MUST is something the UI Runtime, the Policy Broker, or a code reviewer can actually check against the target language.
+
+**Boot-path reality is a separate contract.** Chapters 01–07 describe what correct Machine UI *should* look and behave like. What the Rust boot daemon paints and handles *today* is recorded in `08-ui-framework/` (maturity matrix, roadmap, and docs↔code honesty audit). When those disagree, treat 01–07 as the target and 08 as the implementation status — do not assume a MUST in HIG/components means the boot compositor already enforces it.
 
 ## Relationship to the implemented AUIL/ASL grammar
 
@@ -52,7 +54,7 @@ If `ui-engine/docs/spec.md` is the grammar of a language, this folder is its dic
 | `05-ui-ux-patterns/` | Navigation and layout, feedback and status, forms and data entry, agent presence and conversation, empty/loading/error states, and multitasking/surfaces — how the primitives and components combine into actual screens |
 | `06-glossary.md` | Every term used across this document set, defined once |
 | `07-governance/` | How a token, mixin, component, or primitive is proposed, reviewed, versioned, and deprecated |
-| `08-ui-framework/` | Maturity vs WinForms/Compose/GTK/Qt and the implementation roadmap for the Rust boot path |
+| `08-ui-framework/` | Maturity vs WinForms/Compose/GTK/Qt, roadmap, and docs↔code honesty for the Rust boot path |
 
 ## Reading order
 

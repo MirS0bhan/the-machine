@@ -54,6 +54,12 @@ pub struct Surface {
     /// List row labels (newline-joined fallback lives in `label`).
     #[serde(default)]
     pub items: Vec<String>,
+    /// Caret byte offset for focused fields (−1 = hidden).
+    #[serde(default = "default_caret")]
+    pub caret: i64,
+    /// When true, `label` is placeholder chrome — caret paints at start.
+    #[serde(default)]
+    pub placeholder_active: bool,
     /// Fill color (design-system token resolved by ui-runtime). Absent → kind fallback.
     #[serde(default)]
     pub bg: Option<Rgb>,
@@ -97,6 +103,10 @@ fn default_font_weight() -> String {
 
 fn default_font_family() -> String {
     "default".into()
+}
+
+fn default_caret() -> i64 {
+    -1
 }
 
 pub struct Compositor {

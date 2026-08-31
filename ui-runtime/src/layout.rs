@@ -33,6 +33,8 @@ pub struct LaidOutNode {
     pub value_max: f64,
     pub scroll_y: i32,
     pub items: Vec<String>,
+    pub caret: i64,
+    pub placeholder_active: bool,
 }
 
 /// Viewport used when compositor size is unknown (memory/DRM defaults).
@@ -432,6 +434,16 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
                 .collect()
         })
         .unwrap_or_default();
+    let caret = props
+        .get("caret")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(if matches!(kind.as_str(), "field" | "input") {
+            text.len() as i64
+        } else {
+            -1
+        });
+    let placeholder_active =
+        matches!(kind.as_str(), "field" | "input") && text.is_empty() && !placeholder.is_empty();
 
     LaidOutNode {
         id,
@@ -456,6 +468,8 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
         value_max,
         scroll_y,
         items,
+        caret,
+        placeholder_active,
     }
 }
 
