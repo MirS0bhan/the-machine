@@ -162,15 +162,13 @@ async fn handle_request(
             let status = state.kernel_handler.lock().await.get_wifi_status();
             success_response(id, status)
         }
-        "clipboard.get" => {
-            success_response(
-                id,
-                serde_json::json!({
-                    "text": clipboard::get(),
-                    "backend": clipboard::backend_name(),
-                }),
-            )
-        }
+        "clipboard.get" => success_response(
+            id,
+            serde_json::json!({
+                "text": clipboard::get(),
+                "backend": clipboard::backend_name(),
+            }),
+        ),
         "clipboard.set" => {
             let text = params
                 .as_ref()
