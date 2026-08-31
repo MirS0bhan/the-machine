@@ -1,0 +1,16 @@
+{
+  "activity.idle": "準備完了",
+  "activity.thinking": "処理中…",
+  "app.welcome": "おかえりなさい",
+  "chat.log": "会話",
+  "chat.mic": "音声入力",
+  "chat.placeholder": "必要なことを入力または話してください",
+  "chat.send": "送信",
+  "chat.suggestions": "候補",
+  "dialog.approve": "承認",
+  "dialog.deny": "拒否",
+  "dialog.dismiss": "閉じる",
+  "error.unavailable": "このマシンでは利用できません",
+  "status.ready": "The Machine · セッション準備完了",
+  "workspace.hint": "ここに何か作るよう頼んでください"
+}

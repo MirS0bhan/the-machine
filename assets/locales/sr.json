@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Спремно",
+  "activity.thinking": "Радим…",
+  "app.welcome": "Добро дошли назад",
+  "chat.log": "Разговор",
+  "chat.mic": "Диктирај",
+  "chat.placeholder": "Питајте или кажите шта вам треба",
+  "chat.send": "Пошаљи",
+  "chat.suggestions": "Предлози",
+  "dialog.approve": "Одобри",
+  "dialog.deny": "Одбиј",
+  "dialog.dismiss": "Затвори",
+  "error.unavailable": "Није доступно на овој машини",
+  "status.ready": "The Machine · сесија је спремна",
+  "workspace.hint": "Замолите ме да нешто изградим овде"
+}

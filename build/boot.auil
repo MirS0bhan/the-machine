@@ -10,7 +10,9 @@ stack#ui.root dir=v gap=md
     text#ui.greeting(role=title size=title-2) "i18n:app.welcome"
     text#ui.chat_log(role=caption live=polite) ""
     field#ui.chat_input(input-mode=hybrid placeholder="i18n:chat.placeholder" aria-label="i18n:chat.placeholder") ""
-    button#ui.chat_send(variant=primary label="i18n:chat.send") on:press=mcp:agent.chat.send
+    stack#ui.chat_actions dir=h gap=sm
+      button#ui.chat_mic(variant=ghost label="i18n:chat.mic" aria-label="i18n:chat.mic") on:press=mcp:agent.chat.voice
+      button#ui.chat_send(variant=primary label="i18n:chat.send") on:press=mcp:agent.chat.send
     list#ui.suggestions(label="i18n:chat.suggestions" height=96) on:activate=mcp:agent.chat.send
   stack#ui.workspace dir=v gap=md
     text#ui.workspace_hint(role=caption) ""

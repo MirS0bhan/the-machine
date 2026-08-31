@@ -1,0 +1,16 @@
+{
+  "activity.idle": "พร้อม",
+  "activity.thinking": "กำลังทำงาน…",
+  "app.welcome": "ยินดีต้อนรับกลับ",
+  "chat.log": "บทสนทนา",
+  "chat.mic": "พูดเพื่อพิมพ์",
+  "chat.placeholder": "พิมพ์หรือพูดสิ่งที่คุณต้องการ",
+  "chat.send": "ส่ง",
+  "chat.suggestions": "ข้อเสนอแนะ",
+  "dialog.approve": "อนุมัติ",
+  "dialog.deny": "ปฏิเสธ",
+  "dialog.dismiss": "ปิด",
+  "error.unavailable": "ใช้ไม่ได้บนเครื่องนี้",
+  "status.ready": "The Machine · เซสชันพร้อมแล้ว",
+  "workspace.hint": "ขอให้ฉันสร้างอะไรที่นี่"
+}

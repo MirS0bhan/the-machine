@@ -1,0 +1,16 @@
+{
+  "activity.idle": "מוכן",
+  "activity.thinking": "עובד…",
+  "app.welcome": "ברוך שובך",
+  "chat.log": "שיחה",
+  "chat.mic": "הכתבה",
+  "chat.placeholder": "שאל או אמור מה נחוץ לך",
+  "chat.send": "שלח",
+  "chat.suggestions": "הצעות",
+  "dialog.approve": "אשר",
+  "dialog.deny": "דחה",
+  "dialog.dismiss": "סגור",
+  "error.unavailable": "לא זמין במכונה הזו",
+  "status.ready": "The Machine · המפגש מוכן",
+  "workspace.hint": "בקש ממני לבנות כאן משהו"
+}

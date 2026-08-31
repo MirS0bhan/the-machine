@@ -1018,23 +1018,79 @@ async fn handle_request(
         }
         "ui.theme.set" => {
             let params = params.unwrap_or(serde_json::Value::Null);
-            let theme = params
-                .get("theme")
-                .cloned()
-                .unwrap_or(serde_json::Value::Null);
-            let mut t = tree.lock().await;
-            if let Ok(th) = serde_json::from_value::<Theme>(theme) {
-                t.theme = th;
-                success_response(&id, serde_json::json!({"ok": true}))
-            } else {
-                error_response(&id, "E_INVALID", "bad theme")
+            // `scheme` switches the painted palette; `theme` still accepts a full
+            // ASL token document for callers that carry their own tokens.
+            if let Some(name) = params.get("scheme").and_then(|v| v.as_str()) {
+                let Some(scheme) = tokens::Scheme::parse(name) else {
+                    return error_response(
+                        &id,
+                        "E_INVALID",
+                        "scheme must be dark, light, or high-contrast",
+                    );
+                };
+                tokens::set_scheme(scheme);
             }
+            if let Some(on) = params.get("reduced_motion").and_then(|v| v.as_bool()) {
+                tokens::set_reduced_motion(on);
+            }
+            if let Some(on) = params.get("reduced_transparency").and_then(|v| v.as_bool()) {
+                tokens::set_reduced_transparency(on);
+            }
+            let theme = params.get("theme").cloned();
+            if let Some(theme) = theme {
+                let mut t = tree.lock().await;
+                match serde_json::from_value::<Theme>(theme) {
+                    Ok(th) => t.theme = th,
+                    Err(_) => return error_response(&id, "E_INVALID", "bad theme"),
+                }
+            }
+            // Colors are resolved at paint time, so a scheme change has to
+            // re-present the tree to actually reach the screen.
+            let snapshot = {
+                let mut t = tree.lock().await;
+                t.revision += 1;
+                renderer::serialize_subtree(&t, t.root_id())
+            };
+            let presented = renderer::sync_tree_to_compositor(&snapshot).await;
+            success_response(
+                &id,
+                serde_json::json!({
+                    "ok": true,
+                    "scheme": tokens::active_scheme().as_str(),
+                    "reduced_motion": tokens::reduced_motion(),
+                    "reduced_transparency": tokens::reduced_transparency(),
+                    "presented_nodes": presented,
+                }),
+            )
         }
         "ui.theme.get" => {
             let t = tree.lock().await;
+            let pal = tokens::palette();
             success_response(
                 &id,
-                serde_json::to_value(&t.theme).unwrap_or(serde_json::Value::Null),
+                serde_json::json!({
+                    "scheme": pal.scheme.as_str(),
+                    "schemes": ["dark", "light", "high-contrast"],
+                    "reduced_motion": tokens::reduced_motion(),
+                    "reduced_transparency": tokens::reduced_transparency(),
+                    "colors": {
+                        "surface.canvas": pal.surface_canvas.to_array(),
+                        "surface.card": pal.surface_card.to_array(),
+                        "text.primary": pal.text_primary.to_array(),
+                        "text.secondary": pal.text_secondary.to_array(),
+                        "accent.default": pal.accent_default.to_array(),
+                        "border.focus": pal.border_focus.to_array(),
+                    },
+                    "contrast": {
+                        "text_on_canvas": tokens::contrast_ratio(
+                            pal.text_primary, pal.surface_canvas
+                        ),
+                        "text_on_accent": tokens::contrast_ratio(
+                            pal.text_on_accent, pal.accent_default
+                        ),
+                    },
+                    "tokens": serde_json::to_value(&t.theme).unwrap_or(serde_json::Value::Null),
+                }),
             )
         }
         "ui.status" => {
@@ -1084,14 +1140,34 @@ async fn handle_request(
             let params = params.unwrap_or(serde_json::Value::Null);
             let locale = params.get("locale").and_then(|v| v.as_str()).unwrap_or("");
             if locale.is_empty() {
-                error_response(&id, "E_INVALID", "locale required")
-            } else {
-                match i18n::load_locale(locale) {
-                    Ok(()) => success_response(&id, i18n::status()),
-                    Err(e) => error_response(&id, "E_I18N", &e),
-                }
+                return error_response(&id, "E_INVALID", "locale required");
             }
+            if let Err(e) = i18n::load_locale(locale) {
+                return error_response(&id, "E_I18N", &e);
+            }
+            // Labels are resolved at paint time, so a locale swap has to re-present
+            // the tree; RTL mirroring happens in the same pass.
+            let snapshot = {
+                let mut t = tree.lock().await;
+                t.revision += 1;
+                renderer::serialize_subtree(&t, t.root_id())
+            };
+            let presented = renderer::sync_tree_to_compositor(&snapshot).await;
+            let mut status = i18n::status();
+            if let Some(obj) = status.as_object_mut() {
+                obj.insert("presented_nodes".into(), serde_json::json!(presented));
+            }
+            success_response(&id, status)
         }
+        "ui.i18n.list" => success_response(
+            &id,
+            serde_json::json!({
+                "available": i18n::available_locales(),
+                "rtl_languages": i18n::RTL_LANGUAGES,
+                "chrome_keys": i18n::CHROME_KEYS,
+                "active": i18n::current_locale(),
+            }),
+        ),
         "ui.components.list" => success_response(
             &id,
             serde_json::json!({ "components": components::catalog() }),

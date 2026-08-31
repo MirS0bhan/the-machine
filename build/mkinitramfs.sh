@@ -78,6 +78,11 @@ if [[ -d "${ROOT}/assets/fonts" ]]; then
   cp "${ROOT}/assets/fonts/"*.ttf "${STAGE}/etc/the-machine/fonts/" 2>/dev/null || true
   cp "${ROOT}/assets/fonts/"*.ttf "${STAGE}/the-machine/fonts/" 2>/dev/null || true
 fi
+# Locale catalogs (i18n) — ui-runtime reads /etc/the-machine/locales at runtime.
+if [[ -d "${ROOT}/assets/locales" ]]; then
+  mkdir -p "${STAGE}/etc/the-machine/locales"
+  cp "${ROOT}/assets/locales/"*.json "${STAGE}/etc/the-machine/locales/" 2>/dev/null || true
+fi
 
 # Boot logging + PID 1 init script.
 install -m 0644 "${ROOT}/build/boot-log-lib.sh" "${STAGE}/boot-log-lib.sh"

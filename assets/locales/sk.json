@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Pripravené",
+  "activity.thinking": "Pracujem…",
+  "app.welcome": "Vitajte späť",
+  "chat.log": "Konverzácia",
+  "chat.mic": "Diktovať",
+  "chat.placeholder": "Spýtajte sa alebo povedzte, čo potrebujete",
+  "chat.send": "Odoslať",
+  "chat.suggestions": "Návrhy",
+  "dialog.approve": "Schváliť",
+  "dialog.deny": "Odmietnuť",
+  "dialog.dismiss": "Zavrieť",
+  "error.unavailable": "Na tomto stroji nie je dostupné",
+  "status.ready": "The Machine · sedenie pripravené",
+  "workspace.hint": "Požiadajte ma, aby som tu niečo postavil"
+}

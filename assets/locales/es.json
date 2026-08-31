@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Listo",
+  "activity.thinking": "Trabajando…",
+  "app.welcome": "Bienvenido de nuevo",
+  "chat.log": "Conversación",
+  "chat.mic": "Dictar",
+  "chat.placeholder": "Pregunta o di qué necesitas",
+  "chat.send": "Enviar",
+  "chat.suggestions": "Sugerencias",
+  "dialog.approve": "Aprobar",
+  "dialog.deny": "Denegar",
+  "dialog.dismiss": "Cerrar",
+  "error.unavailable": "No disponible en esta máquina",
+  "status.ready": "The Machine · sesión lista",
+  "workspace.hint": "Pídeme que construya algo aquí"
+}

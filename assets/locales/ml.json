@@ -1,0 +1,16 @@
+{
+  "activity.idle": "തയ്യാർ",
+  "activity.thinking": "പ്രവർത്തിക്കുന്നു…",
+  "app.welcome": "വീണ്ടും സ്വാഗതം",
+  "chat.log": "സംഭാഷണം",
+  "chat.mic": "പറഞ്ഞ് എഴുതുക",
+  "chat.placeholder": "വേണ്ടത് ടൈപ്പ് ചെയ്യുക അല്ലെങ്കിൽ പറയുക",
+  "chat.send": "അയയ്ക്കുക",
+  "chat.suggestions": "നിർദ്ദേശങ്ങൾ",
+  "dialog.approve": "അനുവദിക്കുക",
+  "dialog.deny": "നിരസിക്കുക",
+  "dialog.dismiss": "അടയ്ക്കുക",
+  "error.unavailable": "ഈ യന്ത്രത്തിൽ ലഭ്യമല്ല",
+  "status.ready": "The Machine · സെഷൻ തയ്യാർ",
+  "workspace.hint": "ഇവിടെ എന്തെങ്കിലും നിർമ്മിക്കാൻ പറയുക"
+}

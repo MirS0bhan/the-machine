@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Gotowe",
+  "activity.thinking": "Pracuję…",
+  "app.welcome": "Witaj ponownie",
+  "chat.log": "Rozmowa",
+  "chat.mic": "Dyktuj",
+  "chat.placeholder": "Zapytaj lub powiedz, czego potrzebujesz",
+  "chat.send": "Wyślij",
+  "chat.suggestions": "Podpowiedzi",
+  "dialog.approve": "Zatwierdź",
+  "dialog.deny": "Odrzuć",
+  "dialog.dismiss": "Zamknij",
+  "error.unavailable": "Niedostępne na tej maszynie",
+  "status.ready": "The Machine · sesja gotowa",
+  "workspace.hint": "Poproś mnie, żebym coś tu zbudował"
+}

@@ -40,24 +40,37 @@ pub fn ease_out(t: f32, power: f32) -> f32 {
     1.0 - (1.0 - t).powf(power.max(0.1))
 }
 
-pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
-    a + (b - a) * t.clamp(0.0, 1.0)
-}
-
-/// Read preferred motion from props / prefers-reduced-motion style flag.
-pub fn curve_for_props(props: &Value) -> MotionCurve {
+/// Motion requested by a node's props, if any (`motion=gentle`).
+pub fn requested_curve(props: &Value) -> Option<String> {
     if props
         .get("reduced_motion")
         .and_then(|v| v.as_bool())
         .unwrap_or(false)
     {
-        return REDUCED;
+        return Some("reduced".into());
     }
-    let name = props
+    props
         .get("motion")
         .and_then(|v| v.as_str())
-        .unwrap_or("snappy");
-    curve_named(name)
+        .map(|s| s.to_string())
+}
+
+/// Curve for a laid-out node, resolved for the compositor present loop.
+///
+/// The global accessibility preference wins over a per-node request, so turning
+/// reduced motion on cannot be overridden by a node that asks for `gentle`.
+pub fn curve_for_node(kind: &str, requested: &str) -> MotionCurve {
+    if crate::tokens::reduced_motion() {
+        return REDUCED;
+    }
+    if !requested.is_empty() {
+        return curve_named(requested);
+    }
+    match kind {
+        // Overlays get the longer curve; ordinary controls stay snappy.
+        "dialog" | "media" => GENTLE,
+        _ => SNAPPY,
+    }
 }
 
 #[cfg(test)]
@@ -68,5 +81,35 @@ mod tests {
     fn ease_ends_at_one() {
         assert!((ease_out(1.0, 2.0) - 1.0).abs() < f32::EPSILON);
         assert!(ease_out(0.0, 2.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn node_request_selects_curve() {
+        crate::tokens::set_reduced_motion(false);
+        assert_eq!(curve_for_node("button", "").name, "snappy");
+        assert_eq!(curve_for_node("dialog", "").name, "gentle");
+        assert_eq!(curve_for_node("button", "gentle").name, "gentle");
+    }
+
+    #[test]
+    fn reduced_motion_preference_overrides_node_request() {
+        crate::tokens::set_reduced_motion(true);
+        let c = curve_for_node("dialog", "gentle");
+        assert_eq!(c.name, "reduced");
+        assert_eq!(c.duration_ms, 1);
+        crate::tokens::set_reduced_motion(false);
+    }
+
+    #[test]
+    fn props_request_is_read_from_the_node() {
+        assert_eq!(
+            requested_curve(&serde_json::json!({ "motion": "gentle" })).as_deref(),
+            Some("gentle")
+        );
+        assert_eq!(
+            requested_curve(&serde_json::json!({ "reduced_motion": true })).as_deref(),
+            Some("reduced")
+        );
+        assert!(requested_curve(&serde_json::json!({})).is_none());
     }
 }

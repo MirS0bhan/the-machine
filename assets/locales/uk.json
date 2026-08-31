@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Готово",
+  "activity.thinking": "Працюю…",
+  "app.welcome": "З поверненням",
+  "chat.log": "Розмова",
+  "chat.mic": "Диктувати",
+  "chat.placeholder": "Запитайте або скажіть, що потрібно",
+  "chat.send": "Надіслати",
+  "chat.suggestions": "Підказки",
+  "dialog.approve": "Дозволити",
+  "dialog.deny": "Відхилити",
+  "dialog.dismiss": "Закрити",
+  "error.unavailable": "Недоступно на цій машині",
+  "status.ready": "The Machine · сеанс готовий",
+  "workspace.hint": "Попросіть мене щось тут побудувати"
+}

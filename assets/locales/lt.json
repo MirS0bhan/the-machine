@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Paruošta",
+  "activity.thinking": "Dirbu…",
+  "app.welcome": "Sveiki sugrįžę",
+  "chat.log": "Pokalbis",
+  "chat.mic": "Diktuoti",
+  "chat.placeholder": "Paklauskite arba pasakykite, ko reikia",
+  "chat.send": "Siųsti",
+  "chat.suggestions": "Pasiūlymai",
+  "dialog.approve": "Patvirtinti",
+  "dialog.deny": "Atmesti",
+  "dialog.dismiss": "Uždaryti",
+  "error.unavailable": "Šiame kompiuteryje nepasiekiama",
+  "status.ready": "The Machine · sesija paruošta",
+  "workspace.hint": "Paprašykite manęs čia ką nors sukurti"
+}

@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Tayari",
+  "activity.thinking": "Inafanya kazi…",
+  "app.welcome": "Karibu tena",
+  "chat.log": "Mazungumzo",
+  "chat.mic": "Imla",
+  "chat.placeholder": "Uliza au sema unachohitaji",
+  "chat.send": "Tuma",
+  "chat.suggestions": "Mapendekezo",
+  "dialog.approve": "Idhinisha",
+  "dialog.deny": "Kataa",
+  "dialog.dismiss": "Funga",
+  "error.unavailable": "Haipatikani kwenye mashine hii",
+  "status.ready": "The Machine · kipindi kiko tayari",
+  "workspace.hint": "Niambie nijenge kitu hapa"
+}

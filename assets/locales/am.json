@@ -1,0 +1,16 @@
+{
+  "activity.idle": "ተዘጋጅቷል",
+  "activity.thinking": "በመስራት ላይ…",
+  "app.welcome": "እንደገና እንኳን ደህና መጡ",
+  "chat.log": "ውይይት",
+  "chat.mic": "በንግግር ጻፍ",
+  "chat.placeholder": "የሚፈልጉትን ይጻፉ ወይም ይናገሩ",
+  "chat.send": "ላክ",
+  "chat.suggestions": "አስተያየቶች",
+  "dialog.approve": "አጽድቅ",
+  "dialog.deny": "አትቀበል",
+  "dialog.dismiss": "ዝጋ",
+  "error.unavailable": "በዚህ ማሽን ላይ አይገኝም",
+  "status.ready": "The Machine · ክፍለ ጊዜው ተዘጋጅቷል",
+  "workspace.hint": "እዚህ አንድ ነገር እንድሠራ ጠይቁኝ"
+}

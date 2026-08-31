@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Έτοιμο",
+  "activity.thinking": "Εργάζομαι…",
+  "app.welcome": "Καλώς ήρθατε πάλι",
+  "chat.log": "Συνομιλία",
+  "chat.mic": "Υπαγόρευση",
+  "chat.placeholder": "Ρωτήστε ή πείτε τι χρειάζεστε",
+  "chat.send": "Αποστολή",
+  "chat.suggestions": "Προτάσεις",
+  "dialog.approve": "Έγκριση",
+  "dialog.deny": "Άρνηση",
+  "dialog.dismiss": "Κλείσιμο",
+  "error.unavailable": "Μη διαθέσιμο σε αυτό το μηχάνημα",
+  "status.ready": "The Machine · η συνεδρία είναι έτοιμη",
+  "workspace.hint": "Ζητήστε μου να φτιάξω κάτι εδώ"
+}

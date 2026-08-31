@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Gatavs",
+  "activity.thinking": "Strādāju…",
+  "app.welcome": "Laipni lūdzam atpakaļ",
+  "chat.log": "Saruna",
+  "chat.mic": "Diktēt",
+  "chat.placeholder": "Pajautājiet vai sakiet, kas nepieciešams",
+  "chat.send": "Sūtīt",
+  "chat.suggestions": "Ieteikumi",
+  "dialog.approve": "Apstiprināt",
+  "dialog.deny": "Atteikt",
+  "dialog.dismiss": "Aizvērt",
+  "error.unavailable": "Šajā datorā nav pieejams",
+  "status.ready": "The Machine · sesija ir gatava",
+  "workspace.hint": "Palūdziet man šeit kaut ko izveidot"
+}

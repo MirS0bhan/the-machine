@@ -1,0 +1,16 @@
+{
+  "activity.idle": "ਤਿਆਰ",
+  "activity.thinking": "ਕੰਮ ਚੱਲ ਰਿਹਾ ਹੈ…",
+  "app.welcome": "ਮੁੜ ਜੀ ਆਇਆਂ ਨੂੰ",
+  "chat.log": "ਗੱਲਬਾਤ",
+  "chat.mic": "ਬੋਲ ਕੇ ਲਿਖੋ",
+  "chat.placeholder": "ਜੋ ਚਾਹੀਦਾ ਹੈ ਲਿਖੋ ਜਾਂ ਬੋਲੋ",
+  "chat.send": "ਭੇਜੋ",
+  "chat.suggestions": "ਸੁਝਾਅ",
+  "dialog.approve": "ਮਨਜ਼ੂਰ ਕਰੋ",
+  "dialog.deny": "ਇਨਕਾਰ ਕਰੋ",
+  "dialog.dismiss": "ਬੰਦ ਕਰੋ",
+  "error.unavailable": "ਇਸ ਮਸ਼ੀਨ ਉੱਤੇ ਉਪਲਬਧ ਨਹੀਂ",
+  "status.ready": "The Machine · ਸੈਸ਼ਨ ਤਿਆਰ",
+  "workspace.hint": "ਮੈਨੂੰ ਇੱਥੇ ਕੁਝ ਬਣਾਉਣ ਲਈ ਕਹੋ"
+}

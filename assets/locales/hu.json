@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Kész",
+  "activity.thinking": "Dolgozom…",
+  "app.welcome": "Üdv újra",
+  "chat.log": "Beszélgetés",
+  "chat.mic": "Diktálás",
+  "chat.placeholder": "Kérdezd vagy mondd, mire van szükséged",
+  "chat.send": "Küldés",
+  "chat.suggestions": "Javaslatok",
+  "dialog.approve": "Jóváhagyás",
+  "dialog.deny": "Elutasítás",
+  "dialog.dismiss": "Bezárás",
+  "error.unavailable": "Ezen a gépen nem elérhető",
+  "status.ready": "The Machine · a munkamenet kész",
+  "workspace.hint": "Kérd meg, hogy építsek ide valamit"
+}

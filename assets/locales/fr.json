@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Prêt",
+  "activity.thinking": "Traitement…",
+  "app.welcome": "Bon retour",
+  "chat.log": "Conversation",
+  "chat.mic": "Dicter",
+  "chat.placeholder": "Demandez ou dites ce qu'il vous faut",
+  "chat.send": "Envoyer",
+  "chat.suggestions": "Suggestions",
+  "dialog.approve": "Approuver",
+  "dialog.deny": "Refuser",
+  "dialog.dismiss": "Fermer",
+  "error.unavailable": "Indisponible sur cette machine",
+  "status.ready": "The Machine · session prête",
+  "workspace.hint": "Demandez-moi de construire quelque chose ici"
+}

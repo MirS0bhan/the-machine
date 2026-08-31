@@ -1,0 +1,16 @@
+{
+  "activity.idle": "就緒",
+  "activity.thinking": "處理中…",
+  "app.welcome": "歡迎回來",
+  "chat.log": "對話",
+  "chat.mic": "語音輸入",
+  "chat.placeholder": "輸入或說出你的需求",
+  "chat.send": "傳送",
+  "chat.suggestions": "建議",
+  "dialog.approve": "核准",
+  "dialog.deny": "拒絕",
+  "dialog.dismiss": "關閉",
+  "error.unavailable": "此機器不支援",
+  "status.ready": "The Machine · 工作階段就緒",
+  "workspace.hint": "讓我在這裡建立一些東西"
+}

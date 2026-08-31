@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Valmis",
+  "activity.thinking": "Työskentelee…",
+  "app.welcome": "Tervetuloa takaisin",
+  "chat.log": "Keskustelu",
+  "chat.mic": "Sanele",
+  "chat.placeholder": "Kysy tai sano mitä tarvitset",
+  "chat.send": "Lähetä",
+  "chat.suggestions": "Ehdotukset",
+  "dialog.approve": "Hyväksy",
+  "dialog.deny": "Hylkää",
+  "dialog.dismiss": "Sulje",
+  "error.unavailable": "Ei käytettävissä tässä koneessa",
+  "status.ready": "The Machine · istunto valmis",
+  "workspace.hint": "Pyydä minua rakentamaan tänne jotain"
+}

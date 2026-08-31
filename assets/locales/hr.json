@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Spremno",
+  "activity.thinking": "Radim…",
+  "app.welcome": "Dobro došli natrag",
+  "chat.log": "Razgovor",
+  "chat.mic": "Diktiraj",
+  "chat.placeholder": "Pitajte ili recite što vam treba",
+  "chat.send": "Pošalji",
+  "chat.suggestions": "Predlošci",
+  "dialog.approve": "Odobri",
+  "dialog.deny": "Odbij",
+  "dialog.dismiss": "Zatvori",
+  "error.unavailable": "Nije dostupno na ovom stroju",
+  "status.ready": "The Machine · sesija je spremna",
+  "workspace.hint": "Zamolite me da nešto izgradim ovdje"
+}

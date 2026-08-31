@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Sẵn sàng",
+  "activity.thinking": "Đang xử lý…",
+  "app.welcome": "Chào mừng trở lại",
+  "chat.log": "Hội thoại",
+  "chat.mic": "Đọc chính tả",
+  "chat.placeholder": "Hỏi hoặc nói điều bạn cần",
+  "chat.send": "Gửi",
+  "chat.suggestions": "Gợi ý",
+  "dialog.approve": "Chấp thuận",
+  "dialog.deny": "Từ chối",
+  "dialog.dismiss": "Đóng",
+  "error.unavailable": "Không có trên máy này",
+  "status.ready": "The Machine · phiên đã sẵn sàng",
+  "workspace.hint": "Hãy yêu cầu tôi tạo gì đó ở đây"
+}

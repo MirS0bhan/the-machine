@@ -1,0 +1,16 @@
+{
+  "activity.idle": "تیار",
+  "activity.thinking": "کام جاری ہے…",
+  "app.welcome": "خوش آمدید",
+  "chat.log": "گفتگو",
+  "chat.mic": "بول کر لکھیں",
+  "chat.placeholder": "پوچھیں یا بتائیں آپ کو کیا چاہیے",
+  "chat.send": "بھیجیں",
+  "chat.suggestions": "تجاویز",
+  "dialog.approve": "منظور کریں",
+  "dialog.deny": "رد کریں",
+  "dialog.dismiss": "بند کریں",
+  "error.unavailable": "اس مشین پر دستیاب نہیں",
+  "status.ready": "The Machine · سیشن تیار ہے",
+  "workspace.hint": "مجھ سے کہیں یہاں کچھ بنائیں"
+}

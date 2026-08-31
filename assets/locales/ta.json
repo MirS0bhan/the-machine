@@ -1,0 +1,16 @@
+{
+  "activity.idle": "தயார்",
+  "activity.thinking": "வேலை நடக்கிறது…",
+  "app.welcome": "மீண்டும் வருக",
+  "chat.log": "உரையாடல்",
+  "chat.mic": "பேசி எழுது",
+  "chat.placeholder": "தேவையானதைத் தட்டச்சு செய்யவும் அல்லது சொல்லவும்",
+  "chat.send": "அனுப்பு",
+  "chat.suggestions": "பரிந்துரைகள்",
+  "dialog.approve": "அனுமதி",
+  "dialog.deny": "மறு",
+  "dialog.dismiss": "மூடு",
+  "error.unavailable": "இந்த இயந்திரத்தில் இல்லை",
+  "status.ready": "The Machine · அமர்வு தயார்",
+  "workspace.hint": "இங்கே ஒன்றை உருவாக்கச் சொல்லுங்கள்"
+}

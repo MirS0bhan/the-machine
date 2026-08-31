@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Gereed",
+  "activity.thinking": "Bezig…",
+  "app.welcome": "Welkom terug",
+  "chat.log": "Gesprek",
+  "chat.mic": "Dicteren",
+  "chat.placeholder": "Vraag of zeg wat je nodig hebt",
+  "chat.send": "Verzenden",
+  "chat.suggestions": "Suggesties",
+  "dialog.approve": "Goedkeuren",
+  "dialog.deny": "Weigeren",
+  "dialog.dismiss": "Sluiten",
+  "error.unavailable": "Niet beschikbaar op deze machine",
+  "status.ready": "The Machine · sessie gereed",
+  "workspace.hint": "Vraag me hier iets te bouwen"
+}

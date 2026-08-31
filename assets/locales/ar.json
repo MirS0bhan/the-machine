@@ -1,0 +1,16 @@
+{
+  "activity.idle": "جاهز",
+  "activity.thinking": "جارٍ العمل…",
+  "app.welcome": "مرحباً بعودتك",
+  "chat.log": "المحادثة",
+  "chat.mic": "إملاء",
+  "chat.placeholder": "اسأل أو قل ما تحتاجه",
+  "chat.send": "إرسال",
+  "chat.suggestions": "اقتراحات",
+  "dialog.approve": "موافقة",
+  "dialog.deny": "رفض",
+  "dialog.dismiss": "إغلاق",
+  "error.unavailable": "غير متوفر على هذا الجهاز",
+  "status.ready": "The Machine · الجلسة جاهزة",
+  "workspace.hint": "اطلب مني بناء شيء هنا"
+}

@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Siap",
+  "activity.thinking": "Sedang bekerja…",
+  "app.welcome": "Selamat datang kembali",
+  "chat.log": "Percakapan",
+  "chat.mic": "Dikte",
+  "chat.placeholder": "Tanyakan atau katakan apa yang Anda butuhkan",
+  "chat.send": "Kirim",
+  "chat.suggestions": "Saran",
+  "dialog.approve": "Setujui",
+  "dialog.deny": "Tolak",
+  "dialog.dismiss": "Tutup",
+  "error.unavailable": "Tidak tersedia di mesin ini",
+  "status.ready": "The Machine · sesi siap",
+  "workspace.hint": "Minta saya membangun sesuatu di sini"
+}

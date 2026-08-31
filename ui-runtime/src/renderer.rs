@@ -91,6 +91,7 @@ fn surface_create_params(node: &LaidOutNode) -> Value {
         1 => 12,
         _ => 14,
     };
+    let curve = crate::motion::curve_for_node(&node.kind, &node.motion);
     let font_weight = if node.role == "title" || node.id == "ui.greeting" {
         "bold"
     } else if node.kind == "button" {
@@ -109,12 +110,22 @@ fn surface_create_params(node: &LaidOutNode) -> Value {
         },
         "kind": node.kind,
         "label": node.label,
+        // Full text travels alongside the fitted label so tooltips and AT can
+        // read what did not fit rather than the ellipsised form.
+        "full_label": node.full_label,
+        "truncated": node.truncated,
         "variant": node.variant,
         "radius": node.radius,
         "font_scale": node.font_scale,
         "font_px": font_px,
         "font_weight": font_weight,
         "font_family": "default",
+        // `motion_ms` is what the compositor present loop reads; the curve name
+        // rides along for status/debug output.
+        "motion_ms": curve.duration_ms,
+        "motion_curve": curve.name,
+        "opaque": crate::tokens::reduced_transparency(),
+        "theme": crate::tokens::active_scheme().as_str(),
         "bg": node.bg.to_array(),
         "fg": node.fg.to_array(),
         "pressed": node.pressed,
@@ -137,7 +148,7 @@ fn surface_create_params(node: &LaidOutNode) -> Value {
     if node.id == "ui.chat_input" {
         params.as_object_mut().unwrap().insert(
             "border".into(),
-            json!(tokens::dark::BORDER_FOCUS.to_array()),
+            json!(tokens::cur::border_focus().to_array()),
         );
     }
     // Dialog cards sit above normal chrome.
@@ -223,6 +234,9 @@ mod tests {
             caret: -1,
             placeholder_active: false,
             src: String::new(),
+            truncated: false,
+            full_label: "Send".into(),
+            motion: String::new(),
         };
         let p = surface_create_params(&node);
         assert_eq!(p.get("kind").and_then(|v| v.as_str()), Some("button"));

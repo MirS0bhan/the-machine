@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Hazır",
+  "activity.thinking": "Çalışıyor…",
+  "app.welcome": "Tekrar hoş geldiniz",
+  "chat.log": "Konuşma",
+  "chat.mic": "Dikte et",
+  "chat.placeholder": "Neye ihtiyacınız olduğunu yazın ya da söyleyin",
+  "chat.send": "Gönder",
+  "chat.suggestions": "Öneriler",
+  "dialog.approve": "Onayla",
+  "dialog.deny": "Reddet",
+  "dialog.dismiss": "Kapat",
+  "error.unavailable": "Bu makinede kullanılamıyor",
+  "status.ready": "The Machine · oturum hazır",
+  "workspace.hint": "Burada bir şey inşa etmemi isteyin"
+}

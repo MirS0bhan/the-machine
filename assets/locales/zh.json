@@ -1,0 +1,16 @@
+{
+  "activity.idle": "就绪",
+  "activity.thinking": "处理中…",
+  "app.welcome": "欢迎回来",
+  "chat.log": "对话",
+  "chat.mic": "语音输入",
+  "chat.placeholder": "输入或说出你的需求",
+  "chat.send": "发送",
+  "chat.suggestions": "建议",
+  "dialog.approve": "批准",
+  "dialog.deny": "拒绝",
+  "dialog.dismiss": "关闭",
+  "error.unavailable": "此机器不支持",
+  "status.ready": "The Machine · 会话就绪",
+  "workspace.hint": "让我在这里搭建一些东西"
+}

@@ -1,0 +1,16 @@
+{
+  "activity.idle": "ಸಿದ್ಧ",
+  "activity.thinking": "ಕೆಲಸ ನಡೆಯುತ್ತಿದೆ…",
+  "app.welcome": "ಮತ್ತೆ ಸ್ವಾಗತ",
+  "chat.log": "ಸಂಭಾಷಣೆ",
+  "chat.mic": "ಮಾತನಾಡಿ ಬರೆಯಿರಿ",
+  "chat.placeholder": "ಬೇಕಾದುದನ್ನು ಟೈಪಿಸಿ ಅಥವಾ ಹೇಳಿ",
+  "chat.send": "ಕಳುಹಿಸಿ",
+  "chat.suggestions": "ಸೂಚನೆಗಳು",
+  "dialog.approve": "ಅನುಮೋದಿಸಿ",
+  "dialog.deny": "ನಿರಾಕರಿಸಿ",
+  "dialog.dismiss": "ಮುಚ್ಚಿ",
+  "error.unavailable": "ಈ ಯಂತ್ರದಲ್ಲಿ ಲಭ್ಯವಿಲ್ಲ",
+  "status.ready": "The Machine · ಅವಧಿ ಸಿದ್ಧ",
+  "workspace.hint": "ಇಲ್ಲಿ ಏನನ್ನಾದರೂ ನಿರ್ಮಿಸಲು ಕೇಳಿ"
+}

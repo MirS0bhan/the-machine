@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Pripravljeno",
+  "activity.thinking": "Delam…",
+  "app.welcome": "Dobrodošli nazaj",
+  "chat.log": "Pogovor",
+  "chat.mic": "Narekuj",
+  "chat.placeholder": "Vprašajte ali povejte, kaj potrebujete",
+  "chat.send": "Pošlji",
+  "chat.suggestions": "Predlogi",
+  "dialog.approve": "Odobri",
+  "dialog.deny": "Zavrni",
+  "dialog.dismiss": "Zapri",
+  "error.unavailable": "Ni na voljo na tem računalniku",
+  "status.ready": "The Machine · seja je pripravljena",
+  "workspace.hint": "Prosite me, da tukaj nekaj zgradim"
+}

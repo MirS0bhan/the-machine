@@ -1,0 +1,16 @@
+{
+  "activity.idle": "준비됨",
+  "activity.thinking": "처리 중…",
+  "app.welcome": "다시 오셨네요",
+  "chat.log": "대화",
+  "chat.mic": "음성 입력",
+  "chat.placeholder": "필요한 것을 입력하거나 말하세요",
+  "chat.send": "보내기",
+  "chat.suggestions": "제안",
+  "dialog.approve": "승인",
+  "dialog.deny": "거부",
+  "dialog.dismiss": "닫기",
+  "error.unavailable": "이 기기에서 사용할 수 없습니다",
+  "status.ready": "The Machine · 세션 준비됨",
+  "workspace.hint": "여기에 무언가를 만들어 달라고 요청하세요"
+}

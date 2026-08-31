@@ -85,8 +85,11 @@ Boot services started by `scripts/start-services.sh` (rust mode):
 | `THE_MACHINE_POLICY_FAIL_OPEN` | unset (fail closed) | Set `1` to allow mutations when the broker is down |
 | `THE_MACHINE_LEASE_FAST_PATH` | unset (metadata only) | Set `1` to bind per-lease relay sockets on `bus.lease` |
 | `THE_MACHINE_ATSPI` | enabled | Set `0` to disable the ui-runtime AT-SPI D-Bus bridge |
-| `THE_MACHINE_LOCALE` | from `LANG` | Override locale catalog (language subtag, e.g. `en`, `fa`) |
+| `THE_MACHINE_LOCALE` | from `LANG` / `LC_ALL` | Override locale catalog (`en`, `fa`, `pt-BR`, `qps-ploc`) |
 | `THE_MACHINE_LOCALE_DIR` | — | Extra directory of `{locale}.json` catalogs (after `assets/locales`) |
+| `THE_MACHINE_THEME` | `dark` | Boot palette: `dark`, `light`, or `high-contrast` |
+| `THE_MACHINE_REDUCED_MOTION` | unset | Set to a non-`0` value to force the reduced motion curve |
+| `THE_MACHINE_REDUCED_TRANSPARENCY` | unset | Set to a non-`0` value to force opaque surfaces (no blur) |
 | `THE_MACHINE_COMPOSITOR_BACKEND` | `auto` | `auto` → DRM → framebuffer → memory (see bare-metal guide) |
 
 ### Cloud LLM key (ISO / QEMU)

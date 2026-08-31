@@ -1,0 +1,16 @@
+{
+  "activity.idle": "సిద్ధం",
+  "activity.thinking": "పని జరుగుతోంది…",
+  "app.welcome": "తిరిగి స్వాగతం",
+  "chat.log": "సంభాషణ",
+  "chat.mic": "మాట్లాడి రాయండి",
+  "chat.placeholder": "కావాల్సినది టైప్ చేయండి లేదా చెప్పండి",
+  "chat.send": "పంపు",
+  "chat.suggestions": "సూచనలు",
+  "dialog.approve": "ఆమోదించు",
+  "dialog.deny": "నిరాకరించు",
+  "dialog.dismiss": "మూసివేయి",
+  "error.unavailable": "ఈ మెషీన్‌లో లేదు",
+  "status.ready": "The Machine · సెషన్ సిద్ధం",
+  "workspace.hint": "ఇక్కడ ఏదైనా నిర్మించమని అడగండి"
+}

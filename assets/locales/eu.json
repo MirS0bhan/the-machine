@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Prest",
+  "activity.thinking": "Lanean…",
+  "app.welcome": "Ongi etorri berriro",
+  "chat.log": "Elkarrizketa",
+  "chat.mic": "Diktatu",
+  "chat.placeholder": "Galdetu edo esan zer behar duzu",
+  "chat.send": "Bidali",
+  "chat.suggestions": "Iradokizunak",
+  "dialog.approve": "Onartu",
+  "dialog.deny": "Ukatu",
+  "dialog.dismiss": "Itxi",
+  "error.unavailable": "Ez dago eskuragarri makina honetan",
+  "status.ready": "The Machine · saioa prest",
+  "workspace.hint": "Eskatu hemen zerbait eraikitzeko"
+}

@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Klar",
+  "activity.thinking": "Arbeider…",
+  "app.welcome": "Velkommen tilbake",
+  "chat.log": "Samtale",
+  "chat.mic": "Diktér",
+  "chat.placeholder": "Spør eller si hva du trenger",
+  "chat.send": "Send",
+  "chat.suggestions": "Forslag",
+  "dialog.approve": "Godkjenn",
+  "dialog.deny": "Avslå",
+  "dialog.dismiss": "Lukk",
+  "error.unavailable": "Ikke tilgjengelig på denne maskinen",
+  "status.ready": "The Machine · økten er klar",
+  "workspace.hint": "Ber meg bygge noe her"
+}

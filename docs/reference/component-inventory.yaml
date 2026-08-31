@@ -122,6 +122,7 @@ mcp_services:
     - ui.i18n.status
     - ui.i18n.t
     - ui.i18n.load
+    - ui.i18n.list
     - ui.i18n.locales
     - ui.components.list
     - ui.workspace.clear
@@ -149,6 +150,8 @@ mcp_services:
     - agent.chat.undo
     - agent.chat.edit
     - agent.chat.regenerate
+    - agent.chat.voice
+    - agent.chat.attach
     - agent.tour.next
     - agent.desktop.spawn
     - agent.desktop.clear

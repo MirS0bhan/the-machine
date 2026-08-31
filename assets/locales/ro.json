@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Pregătit",
+  "activity.thinking": "Lucrez…",
+  "app.welcome": "Bine ai revenit",
+  "chat.log": "Conversație",
+  "chat.mic": "Dictează",
+  "chat.placeholder": "Întreabă sau spune de ce ai nevoie",
+  "chat.send": "Trimite",
+  "chat.suggestions": "Sugestii",
+  "dialog.approve": "Aprobă",
+  "dialog.deny": "Respinge",
+  "dialog.dismiss": "Închide",
+  "error.unavailable": "Indisponibil pe această mașină",
+  "status.ready": "The Machine · sesiune pregătită",
+  "workspace.hint": "Cere-mi să construiesc ceva aici"
+}

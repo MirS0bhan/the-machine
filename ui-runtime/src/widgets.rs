@@ -56,16 +56,16 @@ pub fn style(kind: &str, id: &str, props: &Value) -> WidgetChrome {
                 .unwrap_or(false);
             WidgetChrome {
                 bg: if on {
-                    tokens::dark::ACCENT_DEFAULT
+                    tokens::cur::accent_default()
                 } else {
-                    tokens::dark::SURFACE_RAISED
+                    tokens::cur::surface_raised()
                 },
                 fg: if on {
-                    tokens::dark::TEXT_ON_ACCENT
+                    tokens::cur::text_on_accent()
                 } else {
-                    tokens::dark::TEXT_PRIMARY
+                    tokens::cur::text_primary()
                 },
-                border: Some(tokens::dark::BORDER_DEFAULT),
+                border: Some(tokens::cur::border_default()),
                 radius: tokens::radius::MD,
                 font_scale: 2,
                 label,
@@ -77,9 +77,9 @@ pub fn style(kind: &str, id: &str, props: &Value) -> WidgetChrome {
             }
         }
         "slider" => WidgetChrome {
-            bg: tokens::dark::SURFACE_SUNKEN,
-            fg: tokens::dark::ACCENT_DEFAULT,
-            border: Some(tokens::dark::BORDER_DEFAULT),
+            bg: tokens::cur::surface_sunken(),
+            fg: tokens::cur::accent_default(),
+            border: Some(tokens::cur::border_default()),
             radius: tokens::radius::SM,
             font_scale: 2,
             label,
@@ -90,17 +90,17 @@ pub fn style(kind: &str, id: &str, props: &Value) -> WidgetChrome {
             },
         },
         "dialog" => WidgetChrome {
-            bg: tokens::dark::SURFACE_OVERLAY,
-            fg: tokens::dark::TEXT_PRIMARY,
-            border: Some(tokens::dark::BORDER_DEFAULT),
+            bg: tokens::cur::surface_overlay(),
+            fg: tokens::cur::text_primary(),
+            border: Some(tokens::cur::border_default()),
             radius: tokens::radius::LG,
             font_scale: 3,
             label,
             variant: "dialog".into(),
         },
         "icon" => WidgetChrome {
-            bg: tokens::dark::SURFACE_RAISED,
-            fg: tokens::dark::TEXT_PRIMARY,
+            bg: tokens::cur::surface_raised(),
+            fg: tokens::cur::text_primary(),
             border: None,
             radius: tokens::radius::SM,
             font_scale: 1,
@@ -112,9 +112,9 @@ pub fn style(kind: &str, id: &str, props: &Value) -> WidgetChrome {
             },
         },
         "media" => WidgetChrome {
-            bg: tokens::dark::SURFACE_SUNKEN,
-            fg: tokens::dark::TEXT_PRIMARY,
-            border: Some(tokens::dark::BORDER_DEFAULT),
+            bg: tokens::cur::surface_sunken(),
+            fg: tokens::cur::text_primary(),
+            border: Some(tokens::cur::border_default()),
             radius: tokens::radius::MD,
             font_scale: 3,
             label,
@@ -125,9 +125,9 @@ pub fn style(kind: &str, id: &str, props: &Value) -> WidgetChrome {
             },
         },
         "chart" => WidgetChrome {
-            bg: tokens::dark::SURFACE_CARD,
-            fg: tokens::dark::ACCENT_DEFAULT,
-            border: Some(tokens::dark::BORDER_DEFAULT),
+            bg: tokens::cur::surface_card(),
+            fg: tokens::cur::accent_default(),
+            border: Some(tokens::cur::border_default()),
             radius: tokens::radius::MD,
             font_scale: 2,
             label,
@@ -138,9 +138,9 @@ pub fn style(kind: &str, id: &str, props: &Value) -> WidgetChrome {
             },
         },
         _ => WidgetChrome {
-            bg: tokens::dark::SURFACE_CARD,
-            fg: tokens::dark::TEXT_PRIMARY,
-            border: Some(tokens::dark::BORDER_DEFAULT),
+            bg: tokens::cur::surface_card(),
+            fg: tokens::cur::text_primary(),
+            border: Some(tokens::cur::border_default()),
             radius: tokens::radius::MD,
             font_scale: 2,
             label,

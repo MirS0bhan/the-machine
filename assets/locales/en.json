@@ -1,7 +1,17 @@
 {
+  "activity.idle": "Ready",
+  "activity.thinking": "Working…",
+  "app.name": "The Machine",
   "app.welcome": "Welcome back",
+  "chat.log": "Conversation",
+  "chat.mic": "Dictate",
   "chat.placeholder": "Ask or say what you need",
   "chat.send": "Send",
+  "chat.suggestions": "Suggestions",
   "dialog.approve": "Approve",
-  "dialog.deny": "Deny"
+  "dialog.deny": "Deny",
+  "dialog.dismiss": "Dismiss",
+  "error.unavailable": "Not available on this machine",
+  "status.ready": "The Machine · session ready",
+  "workspace.hint": "Ask me to build something here"
 }

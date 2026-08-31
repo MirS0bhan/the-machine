@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Klar",
+  "activity.thinking": "Arbetar…",
+  "app.welcome": "Välkommen tillbaka",
+  "chat.log": "Konversation",
+  "chat.mic": "Diktera",
+  "chat.placeholder": "Fråga eller säg vad du behöver",
+  "chat.send": "Skicka",
+  "chat.suggestions": "Förslag",
+  "dialog.approve": "Godkänn",
+  "dialog.deny": "Neka",
+  "dialog.dismiss": "Stäng",
+  "error.unavailable": "Inte tillgängligt på den här maskinen",
+  "status.ready": "The Machine · sessionen är klar",
+  "workspace.hint": "Be mig bygga något här"
+}

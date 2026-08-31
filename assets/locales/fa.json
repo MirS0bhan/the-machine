@@ -1,7 +1,16 @@
 {
+  "activity.idle": "آماده",
+  "activity.thinking": "در حال کار…",
   "app.welcome": "خوش آمدید",
+  "chat.log": "گفتگو",
+  "chat.mic": "دیکته",
   "chat.placeholder": "بپرسید یا بگویید چه نیاز دارید",
   "chat.send": "ارسال",
+  "chat.suggestions": "پیشنهادها",
   "dialog.approve": "تأیید",
-  "dialog.deny": "رد"
+  "dialog.deny": "رد",
+  "dialog.dismiss": "بستن",
+  "error.unavailable": "در این دستگاه موجود نیست",
+  "status.ready": "The Machine · نشست آماده است",
+  "workspace.hint": "از من بخواهید چیزی اینجا بسازم"
 }

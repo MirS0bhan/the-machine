@@ -177,6 +177,56 @@ pub fn chrome_ops(turns: &[ChatTurn]) -> Vec<Value> {
     ]
 }
 
+/// Reset `#ui.chat_input` after a send so the next message starts clean.
+///
+/// The caret, selection anchor and edit history go with the text; leaving them
+/// behind would let Ctrl+Z resurrect a message that was already sent.
+pub fn clear_input_ops() -> Vec<Value> {
+    vec![json!({
+        "op": "update",
+        "id": "ui.chat_input",
+        "props": {
+            "text": "",
+            "value": "",
+            "caret": 0,
+            "selection_anchor": Value::Null,
+            "undo_history": [],
+            "redo_history": [],
+            "preedit": "",
+            "attachments": [],
+        }
+    })]
+}
+
+/// Mic adornment state for the hybrid text/voice field.
+pub fn mic_ops(listening: bool) -> Vec<Value> {
+    vec![
+        json!({
+            "op": "update",
+            "id": "ui.chat_mic",
+            "props": {
+                "pressed": listening,
+                "variant": if listening { "primary" } else { "ghost" },
+                "aria-label": if listening { "Stop dictation" } else { "Start dictation" },
+            }
+        }),
+        json!({
+            "op": "update",
+            "id": "ui.chat_input",
+            "props": { "input-mode": if listening { "voice" } else { "hybrid" } }
+        }),
+    ]
+}
+
+/// Show staged attachments on the field before the message is sent.
+pub fn staged_attachment_ops(staged: &[String]) -> Vec<Value> {
+    vec![json!({
+        "op": "update",
+        "id": "ui.chat_input",
+        "props": { "attachments": staged }
+    })]
+}
+
 /// State ops persisting both the structured turns and the rendered log.
 pub fn state_ops(turns: &[ChatTurn]) -> Vec<Value> {
     json_ops(turns)
@@ -191,10 +241,20 @@ fn json_ops(turns: &[ChatTurn]) -> Vec<Value> {
 
 /// The canonical "one conversational turn happened" plan.
 pub fn turn_plan(turns: &[ChatTurn]) -> Vec<PlanStep> {
+    turn_plan_with(turns, false)
+}
+
+/// Same, but `clear_input` also empties `#ui.chat_input` — used when the turn
+/// came from the chat field, so a sent message does not linger in the box.
+pub fn turn_plan_with(turns: &[ChatTurn], clear_input: bool) -> Vec<PlanStep> {
+    let mut ops = chrome_ops(turns);
+    if clear_input {
+        ops.extend(clear_input_ops());
+    }
     vec![
         PlanStep {
             action: "ui.patch".into(),
-            params: json!({ "ops": chrome_ops(turns) }),
+            params: json!({ "ops": ops }),
         },
         PlanStep {
             action: "state.patch".into(),
@@ -491,6 +551,43 @@ mod tests {
             Some("calculator")
         );
         assert!(skill_mention("plain text").is_none());
+    }
+
+    #[test]
+    fn clear_input_ops_reset_text_and_history() {
+        let ops = clear_input_ops();
+        assert_eq!(ops[0]["id"], "ui.chat_input");
+        assert_eq!(ops[0]["props"]["text"], "");
+        assert_eq!(ops[0]["props"]["caret"], 0);
+        assert!(ops[0]["props"]["undo_history"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn turn_plan_with_clear_adds_the_field_reset() {
+        let plan = turn_plan_with(&turns(1), true);
+        let ops = plan[0].params["ops"].as_array().unwrap();
+        assert!(ops.iter().any(|o| o["id"] == "ui.chat_input"));
+        let plan = turn_plan_with(&turns(1), false);
+        let ops = plan[0].params["ops"].as_array().unwrap();
+        assert!(!ops.iter().any(|o| o["id"] == "ui.chat_input"));
+    }
+
+    #[test]
+    fn mic_ops_flip_field_input_mode() {
+        let on = mic_ops(true);
+        assert_eq!(on[0]["props"]["pressed"], true);
+        assert_eq!(on[1]["props"]["input-mode"], "voice");
+        let off = mic_ops(false);
+        assert_eq!(off[1]["props"]["input-mode"], "hybrid");
+    }
+
+    #[test]
+    fn staged_attachments_show_on_the_field() {
+        let ops = staged_attachment_ops(&["/tmp/a.png".to_string()]);
+        assert_eq!(ops[0]["props"]["attachments"][0], "/tmp/a.png");
     }
 
     #[test]

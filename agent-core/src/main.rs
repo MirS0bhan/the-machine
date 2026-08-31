@@ -241,6 +241,12 @@ async fn handle_request(
             let attachments = {
                 let mut a = chat::attachments_from_payload(&payload);
                 a.extend(chat::attachments_from_payload(&inner));
+                // Anything staged by agent.chat.attach rides along with the send.
+                for staged in take_staged_attachments().await {
+                    if !a.contains(&staged) {
+                        a.push(staged);
+                    }
+                }
                 a
             };
             let source_mode = if chat::source_from_payload(&payload) != "text" {
@@ -272,6 +278,123 @@ async fn handle_request(
                 .await;
             });
             success_response(&id, serde_json::json!({ "ok": true, "queued": true }))
+        }
+        "agent.chat.voice" => {
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let transcript = params
+                .get("transcript")
+                .or_else(|| params.get("text"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            // No transcript: this is the mic toggle. `listening` defaults to the
+            // opposite of the stored state so one binding can serve both edges.
+            if transcript.is_empty() {
+                let was = load_bool("ui.mic_listening").await.unwrap_or(false);
+                let listening = params
+                    .get("listening")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(!was);
+                let mut ops = chat::mic_ops(listening);
+                ops.extend(chat::staged_attachment_ops(
+                    &load_staged_attachments().await,
+                ));
+                let _ = mcp_call("ui.patch", serde_json::json!({ "ops": ops })).await;
+                let _ = mcp_call(
+                    "state.set",
+                    serde_json::json!({ "path": "ui.mic_listening", "value": listening }),
+                )
+                .await;
+                let note = if listening {
+                    "Listening — dictate, then send the transcript to agent.chat.voice."
+                } else {
+                    "Dictation off."
+                };
+                let _ = mcp_call("ui.patch", planner::activity_plan(note).params).await;
+                return success_response(
+                    &id,
+                    serde_json::json!({
+                        "ok": true,
+                        "listening": listening,
+                        "accepts": "transcript",
+                    }),
+                );
+            }
+            // A transcript arrived: turn dictation off and route it as a voice turn.
+            let _ = mcp_call(
+                "ui.patch",
+                serde_json::json!({ "ops": chat::mic_ops(false) }),
+            )
+            .await;
+            let _ = mcp_call(
+                "state.set",
+                serde_json::json!({ "path": "ui.mic_listening", "value": false }),
+            )
+            .await;
+            let attachments = take_staged_attachments().await;
+            let state = state.clone();
+            let spoken = transcript.clone();
+            tokio::spawn(async move {
+                process_wake(
+                    serde_json::json!({
+                        "category": "input",
+                        "pattern": "chat.message",
+                        "payload": {
+                            "text": spoken,
+                            "source": "chat_ui",
+                            "attachments": attachments,
+                            "input_mode": "voice",
+                        }
+                    }),
+                    state,
+                )
+                .await;
+            });
+            success_response(
+                &id,
+                serde_json::json!({ "ok": true, "queued": true, "transcript": transcript }),
+            )
+        }
+        "agent.chat.attach" => {
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let mut refs = chat::attachments_from_payload(&params);
+            if params
+                .get("clear")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
+                refs.clear();
+            } else {
+                let mut existing = load_staged_attachments().await;
+                for r in refs {
+                    if !existing.contains(&r) {
+                        existing.push(r);
+                    }
+                }
+                refs = existing;
+            }
+            if refs.len() > MAX_STAGED_ATTACHMENTS {
+                return error_response(
+                    &id,
+                    "E_INVALID",
+                    &format!("at most {MAX_STAGED_ATTACHMENTS} attachments per message"),
+                );
+            }
+            let _ = mcp_call(
+                "state.set",
+                serde_json::json!({
+                    "path": "ui.staged_attachments",
+                    "value": refs.clone(),
+                }),
+            )
+            .await;
+            let _ = mcp_call(
+                "ui.patch",
+                serde_json::json!({ "ops": chat::staged_attachment_ops(&refs) }),
+            )
+            .await;
+            success_response(&id, serde_json::json!({ "ok": true, "attachments": refs }))
         }
         "agent.chat.history" => {
             let turns = load_chat_turns().await;
@@ -618,6 +741,36 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
     let attachments = chat::attachments_from_payload(&payload);
     let source_mode = chat::source_from_payload(&payload);
 
+    // `@skill` in the message pins that skill for this turn and says so in the
+    // activity line, so the mention is visible UX rather than silent prompt text.
+    let mut active_skills = active_skills;
+    if let Some(mention) = chat::skill_mention(&text) {
+        let all = state.lock().await.skills.clone();
+        match skills::skill_by_mention(&all, &mention) {
+            Some(skill) => {
+                let name = skill.name.clone();
+                active_skills.retain(|s| s.name != name);
+                active_skills.insert(0, skill.clone());
+                let _ = mcp_call(
+                    "ui.patch",
+                    planner::activity_plan(&format!("Using skill {name}")).params,
+                )
+                .await;
+            }
+            None => {
+                let _ = mcp_call(
+                    "ui.patch",
+                    planner::activity_plan(&format!(
+                        "No skill named @{mention} — answering without it"
+                    ))
+                    .params,
+                )
+                .await;
+            }
+        }
+    }
+    let active_skills = active_skills;
+
     let target_method = infer_target_method(&classification.intent, &text, &payload);
     if let Some(method) = &target_method {
         if let Some(resolved) = bus_resolve(method).await {
@@ -814,7 +967,8 @@ fn record_turn(
     turn.attachments = attachments.to_vec();
     turn.source = source_mode.to_string();
     let turns = chat::append_turn(prior, turn);
-    chat::turn_plan(&turns)
+    // A recorded user turn means the field's contents were consumed.
+    chat::turn_plan_with(&turns, !user_text.trim().is_empty())
 }
 
 /// Human-readable, non-forged summary of what failed in a plan.
@@ -855,6 +1009,40 @@ async fn load_chat_log() -> String {
                 .map(|s| s.to_string())
         })
         .unwrap_or_default()
+}
+
+/// Attachments staged by `agent.chat.attach` but not yet sent.
+const MAX_STAGED_ATTACHMENTS: usize = 8;
+
+async fn load_staged_attachments() -> Vec<String> {
+    mcp_call(
+        "state.get",
+        serde_json::json!({ "path": "ui.staged_attachments" }),
+    )
+    .await
+    .and_then(|v| v.get("value").cloned())
+    .and_then(|v| serde_json::from_value::<Vec<String>>(v).ok())
+    .unwrap_or_default()
+}
+
+/// Read the staged attachments and clear them in one step, so a resend does not
+/// silently re-attach the previous message's files.
+async fn take_staged_attachments() -> Vec<String> {
+    let staged = load_staged_attachments().await;
+    if !staged.is_empty() {
+        let _ = mcp_call(
+            "state.set",
+            serde_json::json!({ "path": "ui.staged_attachments", "value": [] }),
+        )
+        .await;
+    }
+    staged
+}
+
+async fn load_bool(path: &str) -> Option<bool> {
+    mcp_call("state.get", serde_json::json!({ "path": path }))
+        .await
+        .and_then(|v| v.get("value").and_then(|x| x.as_bool()))
 }
 
 async fn load_u64(path: &str) -> Option<u64> {

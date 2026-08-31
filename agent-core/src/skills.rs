@@ -112,6 +112,27 @@ pub fn skills_for_wake(skills: &[Skill], category: &str, intent: &str) -> Vec<Sk
         .collect()
 }
 
+/// Resolve an `@mention` to a loaded skill.
+///
+/// Matching is loose on purpose: users type `@calculator` for the
+/// `calculator-synth` skill, and `@desktop` for `desktop-shell`.
+pub fn skill_by_mention<'a>(skills: &'a [Skill], mention: &str) -> Option<&'a Skill> {
+    let want = mention.to_lowercase();
+    skills
+        .iter()
+        .find(|s| s.name.eq_ignore_ascii_case(&want))
+        .or_else(|| {
+            skills
+                .iter()
+                .find(|s| s.name.to_lowercase().starts_with(&want))
+        })
+        .or_else(|| {
+            skills
+                .iter()
+                .find(|s| s.name.to_lowercase().contains(&want))
+        })
+}
+
 pub fn build_skill_prompt(skills: &[Skill]) -> String {
     if skills.is_empty() {
         return String::new();
@@ -124,6 +145,29 @@ pub fn build_skill_prompt(skills: &[Skill]) -> String {
         ));
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mentions_resolve_loosely_to_skill_names() {
+        let skills = builtin_skills();
+        assert_eq!(
+            skill_by_mention(&skills, "calculator").map(|s| s.name.as_str()),
+            Some("calculator-synth")
+        );
+        assert_eq!(
+            skill_by_mention(&skills, "desktop-shell").map(|s| s.name.as_str()),
+            Some("desktop-shell")
+        );
+        assert_eq!(
+            skill_by_mention(&skills, "triage").map(|s| s.name.as_str()),
+            Some("notification-triage")
+        );
+        assert!(skill_by_mention(&skills, "nosuchthing").is_none());
+    }
 }
 
 pub async fn seed_default_skills_if_empty() {

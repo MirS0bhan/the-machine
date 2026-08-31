@@ -36,6 +36,66 @@ pub struct LaidOutNode {
     pub caret: i64,
     pub placeholder_active: bool,
     pub src: String,
+    /// `label` was shortened to fit `width`; `full_label` keeps the original so
+    /// assistive tech and tooltips still read the whole string.
+    pub truncated: bool,
+    pub full_label: String,
+    /// Motion curve requested by the node (`motion=gentle`), empty for default.
+    pub motion: String,
+}
+
+/// Nominal glyph advance for a font scale, used to fit labels to a box.
+///
+/// Approximate on purpose: the boot renderer has no shaping feedback loop, so
+/// layout budgets width from the same table the renderer picks `font_px` from.
+pub fn glyph_advance(font_scale: u32) -> u32 {
+    match font_scale {
+        4 => 11,
+        3 => 7,
+        2 => 7,
+        1 => 6,
+        _ => 7,
+    }
+}
+
+/// Characters that fit in `width` at `font_scale`, leaving room for padding.
+fn fitting_chars(width: u32, font_scale: u32, padding: u32) -> usize {
+    let usable = width.saturating_sub(padding);
+    (usable / glyph_advance(font_scale).max(1)) as usize
+}
+
+/// Shorten `label` to fit, appending an ellipsis. Multi-line labels (the chat
+/// log) are clipped per line so the newest turn stays readable.
+pub fn fit_label(label: &str, width: u32, font_scale: u32, padding: u32) -> (String, bool) {
+    let budget = fitting_chars(width, font_scale, padding);
+    if budget == 0 {
+        return (String::new(), !label.is_empty());
+    }
+    if !label.contains('\n') {
+        if label.chars().count() <= budget {
+            return (label.to_string(), false);
+        }
+        let keep = budget.saturating_sub(1).max(1);
+        let mut out: String = label.chars().take(keep).collect();
+        out.push('…');
+        return (out, true);
+    }
+    let mut truncated = false;
+    let lines: Vec<String> = label
+        .lines()
+        .map(|line| {
+            if line.chars().count() <= budget {
+                line.to_string()
+            } else {
+                truncated = true;
+                let keep = budget.saturating_sub(1).max(1);
+                let mut out: String = line.chars().take(keep).collect();
+                out.push('…');
+                out
+            }
+        })
+        .collect();
+    (lines.join("\n"), truncated)
 }
 
 /// Viewport used when compositor size is unknown (memory/DRM defaults).
@@ -346,11 +406,11 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
                 text.to_string()
             };
             (
-                tokens::dark::SURFACE_CANVAS,
+                tokens::cur::surface_canvas(),
                 if is_caption {
-                    tokens::dark::TEXT_SECONDARY
+                    tokens::cur::text_secondary()
                 } else {
-                    tokens::dark::TEXT_PRIMARY
+                    tokens::cur::text_primary()
                 },
                 None,
                 0,
@@ -376,14 +436,14 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
                 text.to_string()
             };
             let fg = if text.is_empty() {
-                tokens::dark::TEXT_TERTIARY
+                tokens::cur::text_tertiary()
             } else {
-                tokens::dark::TEXT_PRIMARY
+                tokens::cur::text_primary()
             };
             (
-                tokens::dark::SURFACE_SUNKEN,
+                tokens::cur::surface_sunken(),
                 fg,
-                Some(tokens::dark::BORDER_DEFAULT),
+                Some(tokens::cur::border_default()),
                 tokens::radius::MD,
                 3,
                 shown,
@@ -406,26 +466,26 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
                 .unwrap_or(false);
             let (bg, fg) = if v == "primary" {
                 let bg = if pressed {
-                    tokens::dark::ACCENT_PRESSED
+                    tokens::cur::accent_pressed()
                 } else if hovered {
-                    tokens::dark::ACCENT_HOVER
+                    tokens::cur::accent_hover()
                 } else {
-                    tokens::dark::ACCENT_DEFAULT
+                    tokens::cur::accent_default()
                 };
-                (bg, tokens::dark::TEXT_ON_ACCENT)
+                (bg, tokens::cur::text_on_accent())
             } else {
                 let bg = if pressed {
-                    tokens::dark::SURFACE_CARD
+                    tokens::cur::surface_card()
                 } else {
-                    tokens::dark::SURFACE_RAISED
+                    tokens::cur::surface_raised()
                 };
-                (bg, tokens::dark::TEXT_PRIMARY)
+                (bg, tokens::cur::text_primary())
             };
             (
                 bg,
                 fg,
                 if pressed {
-                    Some(tokens::dark::BORDER_FOCUS)
+                    Some(tokens::cur::border_focus())
                 } else {
                     None
                 },
@@ -452,9 +512,9 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
             )
         }
         _ => (
-            tokens::dark::SURFACE_CARD,
-            tokens::dark::TEXT_PRIMARY,
-            Some(tokens::dark::BORDER_DEFAULT),
+            tokens::cur::surface_card(),
+            tokens::cur::text_primary(),
+            Some(tokens::cur::border_default()),
             tokens::radius::MD,
             2,
             if !text.is_empty() {
@@ -517,6 +577,30 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
         .unwrap_or("")
         .to_string();
 
+    // Long localized copy (or a pseudo-locale) must not run past the box.
+    let padding = match kind.as_str() {
+        "button" => 32,
+        "field" | "input" => 24,
+        _ => 8,
+    };
+    let (label, truncated) = fit_label(&label, w, font_scale, padding);
+    let full_label = if truncated {
+        // Recompute the untruncated string for AT / tooltips.
+        match kind.as_str() {
+            "text" => text.clone(),
+            "field" | "input" => {
+                if placeholder_active {
+                    placeholder.clone()
+                } else {
+                    text.clone()
+                }
+            }
+            _ => label_prop.clone(),
+        }
+    } else {
+        label.clone()
+    };
+
     LaidOutNode {
         id,
         kind,
@@ -543,6 +627,9 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
         caret,
         placeholder_active,
         src,
+        truncated,
+        full_label,
+        motion: crate::motion::requested_curve(&props).unwrap_or_default(),
     }
 }
 
@@ -571,5 +658,77 @@ mod tests {
         // Greeting should sit roughly in the middle vertically.
         assert!(nodes[0].y > 100, "y={}", nodes[0].y);
         assert_eq!(nodes[2].bg, tokens::dark::ACCENT_DEFAULT);
+    }
+
+    #[test]
+    fn fit_label_ellipsises_only_when_needed() {
+        let (short, cut) = fit_label("Send", 200, 3, 32);
+        assert_eq!(short, "Send");
+        assert!(!cut);
+        let long = "Send this extremely long localized button label somewhere";
+        let (fitted, cut) = fit_label(long, 120, 3, 32);
+        assert!(cut);
+        assert!(fitted.ends_with('…'));
+        assert!(fitted.chars().count() < long.chars().count());
+    }
+
+    #[test]
+    fn fit_label_clips_each_line_of_a_multiline_log() {
+        let log = "You: a short line\nAssistant: a very much longer line that will not fit at all";
+        let (fitted, cut) = fit_label(log, 160, 2, 8);
+        assert!(cut);
+        assert_eq!(fitted.lines().count(), 2);
+        assert!(fitted.lines().next().unwrap().starts_with("You: a short"));
+        assert!(fitted.lines().nth(1).unwrap().ends_with('…'));
+    }
+
+    #[test]
+    fn zero_width_box_drops_the_label_but_reports_truncation() {
+        let (fitted, cut) = fit_label("something", 4, 3, 32);
+        assert!(fitted.is_empty());
+        assert!(cut);
+    }
+
+    #[test]
+    fn overlong_locale_copy_is_fitted_and_full_text_kept() {
+        let root = json!({
+            "id": "ui.root",
+            "type": "stack",
+            "props": { "dir": "v" },
+            "children": [{
+                "id": "ui.chat_send",
+                "type": "button",
+                "props": {
+                    "label": "[⟦Send this pseudo-localized label that overflows ⟧⟧⟧]",
+                    "variant": "primary"
+                }
+            }]
+        });
+        let nodes = layout_tree(&root, 1280, 720);
+        let button = &nodes[0];
+        assert!(
+            button.truncated,
+            "label {:?} should be fitted",
+            button.label
+        );
+        assert!(button.label.ends_with('…'));
+        assert!(button.full_label.contains("pseudo-localized"));
+    }
+
+    #[test]
+    fn rtl_prop_mirrors_horizontal_children() {
+        let root = json!({
+            "id": "ui.root",
+            "type": "stack",
+            "props": { "dir": "h", "gap": "sm", "rtl": true },
+            "children": [
+                { "id": "a", "type": "button", "props": { "label": "A" } },
+                { "id": "b", "type": "button", "props": { "label": "B" } },
+            ]
+        });
+        let nodes = layout_tree(&root, 1280, 720);
+        let a = nodes.iter().find(|n| n.id == "a").unwrap();
+        let b = nodes.iter().find(|n| n.id == "b").unwrap();
+        assert!(a.x > b.x, "first child should sit right of second in RTL");
     }
 }

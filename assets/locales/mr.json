@@ -1,0 +1,16 @@
+{
+  "activity.idle": "तयार",
+  "activity.thinking": "काम सुरू आहे…",
+  "app.welcome": "पुन्हा स्वागत",
+  "chat.log": "संवाद",
+  "chat.mic": "बोलून लिहा",
+  "chat.placeholder": "काय हवे ते लिहा किंवा सांगा",
+  "chat.send": "पाठवा",
+  "chat.suggestions": "सूचना",
+  "dialog.approve": "मंजूर करा",
+  "dialog.deny": "नकार द्या",
+  "dialog.dismiss": "बंद करा",
+  "error.unavailable": "या मशीनवर उपलब्ध नाही",
+  "status.ready": "The Machine · सत्र तयार",
+  "workspace.hint": "मला येथे काहीतरी बनवायला सांगा"
+}

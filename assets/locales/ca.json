@@ -1,0 +1,16 @@
+{
+  "activity.idle": "A punt",
+  "activity.thinking": "Treballant…",
+  "app.welcome": "Benvingut de nou",
+  "chat.log": "Conversa",
+  "chat.mic": "Dicta",
+  "chat.placeholder": "Pregunta o digues què necessites",
+  "chat.send": "Envia",
+  "chat.suggestions": "Suggeriments",
+  "dialog.approve": "Aprova",
+  "dialog.deny": "Denega",
+  "dialog.dismiss": "Tanca",
+  "error.unavailable": "No disponible en aquesta màquina",
+  "status.ready": "The Machine · sessió a punt",
+  "workspace.hint": "Demana'm que construeixi alguna cosa aquí"
+}

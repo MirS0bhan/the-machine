@@ -1,0 +1,16 @@
+{
+  "activity.idle": "প্রস্তুত",
+  "activity.thinking": "কাজ চলছে…",
+  "app.welcome": "স্বাগতম",
+  "chat.log": "কথাবার্তা",
+  "chat.mic": "বলে লিখুন",
+  "chat.placeholder": "কী প্রয়োজন লিখুন বা বলুন",
+  "chat.send": "পাঠান",
+  "chat.suggestions": "প্রস্তাব",
+  "dialog.approve": "অনুমোদন",
+  "dialog.deny": "প্রত্যাখ্যান",
+  "dialog.dismiss": "বন্ধ করুন",
+  "error.unavailable": "এই মেশিনে নেই",
+  "status.ready": "The Machine · সেশন প্রস্তুত",
+  "workspace.hint": "আমাকে এখানে কিছু বানাতে বলুন"
+}

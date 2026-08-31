@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Valmis",
+  "activity.thinking": "Töötan…",
+  "app.welcome": "Tere tulemast tagasi",
+  "chat.log": "Vestlus",
+  "chat.mic": "Dikteeri",
+  "chat.placeholder": "Küsi või ütle, mida vajad",
+  "chat.send": "Saada",
+  "chat.suggestions": "Soovitused",
+  "dialog.approve": "Kinnita",
+  "dialog.deny": "Keeldu",
+  "dialog.dismiss": "Sulge",
+  "error.unavailable": "Selles masinas pole saadaval",
+  "status.ready": "The Machine · sessioon on valmis",
+  "workspace.hint": "Palu mul siia midagi ehitada"
+}

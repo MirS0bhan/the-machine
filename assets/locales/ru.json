@@ -1,0 +1,16 @@
+{
+  "activity.idle": "Готово",
+  "activity.thinking": "Работаю…",
+  "app.welcome": "С возвращением",
+  "chat.log": "Диалог",
+  "chat.mic": "Диктовать",
+  "chat.placeholder": "Спросите или скажите, что нужно",
+  "chat.send": "Отправить",
+  "chat.suggestions": "Подсказки",
+  "dialog.approve": "Разрешить",
+  "dialog.deny": "Отклонить",
+  "dialog.dismiss": "Закрыть",
+  "error.unavailable": "Недоступно на этой машине",
+  "status.ready": "The Machine · сеанс готов",
+  "workspace.hint": "Попросите меня собрать что-нибудь здесь"
+}
