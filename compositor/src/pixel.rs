@@ -164,6 +164,95 @@ impl PixelBackend {
         }
     }
 
+    /// Axis-aligned rounded rectangle fill (design-system `radius.*`).
+    pub fn fill_rounded_rect(&mut self, x: i32, y: i32, w: u32, h: u32, radius: u32, rgb: [u8; 3]) {
+        if w == 0 || h == 0 {
+            return;
+        }
+        let r = radius.min(w / 2).min(h / 2);
+        if r == 0 {
+            self.fill_rect(x, y, w, h, rgb);
+            return;
+        }
+        let pixel = [rgb[2], rgb[1], rgb[0], 0u8];
+        let r_i = r as i32;
+        let w_i = w as i32;
+        let h_i = h as i32;
+        let r2 = (r * r) as i64;
+        for dy in 0..h_i {
+            for dx in 0..w_i {
+                let in_corner = (dx < r_i && dy < r_i)
+                    || (dx >= w_i - r_i && dy < r_i)
+                    || (dx < r_i && dy >= h_i - r_i)
+                    || (dx >= w_i - r_i && dy >= h_i - r_i);
+                if in_corner {
+                    let cx = if dx < r_i { r_i } else { w_i - r_i - 1 };
+                    let cy = if dy < r_i { r_i } else { h_i - r_i - 1 };
+                    let ox = (dx - cx) as i64;
+                    let oy = (dy - cy) as i64;
+                    if ox * ox + oy * oy > r2 {
+                        continue;
+                    }
+                }
+                self.put_pixel(x + dx, y + dy, &pixel);
+            }
+        }
+    }
+
+    /// 1px rounded stroke (inside the rect bounds).
+    pub fn stroke_rounded_rect(
+        &mut self,
+        x: i32,
+        y: i32,
+        w: u32,
+        h: u32,
+        radius: u32,
+        rgb: [u8; 3],
+    ) {
+        if w < 2 || h < 2 {
+            return;
+        }
+        let r = radius.min(w / 2).min(h / 2);
+        let pixel = [rgb[2], rgb[1], rgb[0], 0u8];
+        let r_i = r as i32;
+        let w_i = w as i32;
+        let h_i = h as i32;
+        let r2_outer = (r as i64) * (r as i64);
+        let inner = r.saturating_sub(1);
+        let r2_inner = (inner as i64) * (inner as i64);
+        for dy in 0..h_i {
+            for dx in 0..w_i {
+                let on_edge = dx == 0 || dy == 0 || dx == w_i - 1 || dy == h_i - 1;
+                let in_corner = (dx < r_i && dy < r_i)
+                    || (dx >= w_i - r_i && dy < r_i)
+                    || (dx < r_i && dy >= h_i - r_i)
+                    || (dx >= w_i - r_i && dy >= h_i - r_i);
+                if in_corner {
+                    let cx = if dx < r_i { r_i } else { w_i - r_i - 1 };
+                    let cy = if dy < r_i { r_i } else { h_i - r_i - 1 };
+                    let ox = (dx - cx) as i64;
+                    let oy = (dy - cy) as i64;
+                    let d2 = ox * ox + oy * oy;
+                    if d2 <= r2_outer && d2 >= r2_inner {
+                        self.put_pixel(x + dx, y + dy, &pixel);
+                    }
+                } else if on_edge {
+                    self.put_pixel(x + dx, y + dy, &pixel);
+                }
+            }
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    #[allow(dead_code)]
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
     pub fn present(&mut self) {
         match self.kind {
             BackendKind::Drm => {
@@ -273,12 +362,16 @@ fn read_virtual_dim(sys: &str, idx: usize) -> Option<u32> {
 
 fn write_ppm(path: &str, width: u32, height: u32, buffer: &[u8]) -> std::io::Result<()> {
     let mut f = File::create(path)?;
-    writeln!(f, "P6\n{} {}", width, height)?;
+    write!(f, "P6\n{} {} {}\n", width, height, 255)?;
+    // Buffer is BGRA; PPM expects RGB. Use logical width (memory backend stride = width*4).
     for y in 0..height {
         for x in 0..width {
             let off = (y * width * 4 + x * 4) as usize;
             if off + 3 <= buffer.len() {
-                f.write_all(&buffer[off..off + 3])?;
+                let b = buffer[off];
+                let g = buffer[off + 1];
+                let r = buffer[off + 2];
+                f.write_all(&[r, g, b])?;
             }
         }
     }

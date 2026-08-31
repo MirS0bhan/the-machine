@@ -1,7 +1,9 @@
 //! UI Runtime - declarative renderer for the UI State Tree (AUIL) with ASL styling.
 
 mod auil;
+mod layout;
 mod renderer;
+mod tokens;
 
 use common::*;
 use std::collections::{HashMap, HashSet};
@@ -51,6 +53,70 @@ struct Theme {
     typography: HashMap<String, serde_json::Value>,
 }
 
+impl Theme {
+    /// Boot-default dark theme from `docs/design-system/02-style/`.
+    fn design_system_dark() -> Self {
+        let hex = |rgb: tokens::Rgb| format!("#{:02X}{:02X}{:02X}", rgb.0, rgb.1, rgb.2);
+        let mut colors = HashMap::new();
+        for (k, v) in [
+            ("surface.canvas", tokens::dark::SURFACE_CANVAS),
+            ("surface.sunken", tokens::dark::SURFACE_SUNKEN),
+            ("surface.card", tokens::dark::SURFACE_CARD),
+            ("surface.raised", tokens::dark::SURFACE_RAISED),
+            ("surface.overlay", tokens::dark::SURFACE_OVERLAY),
+            ("text.primary", tokens::dark::TEXT_PRIMARY),
+            ("text.secondary", tokens::dark::TEXT_SECONDARY),
+            ("text.tertiary", tokens::dark::TEXT_TERTIARY),
+            ("text.on-accent", tokens::dark::TEXT_ON_ACCENT),
+            ("accent.default", tokens::dark::ACCENT_DEFAULT),
+            ("accent.hover", tokens::dark::ACCENT_HOVER),
+            ("accent.subtle", tokens::dark::ACCENT_SUBTLE),
+            ("border.default", tokens::dark::BORDER_DEFAULT),
+            ("border.focus", tokens::dark::BORDER_FOCUS),
+            ("status.destructive", tokens::dark::STATUS_DESTRUCTIVE),
+        ] {
+            colors.insert(k.into(), serde_json::json!(hex(v)));
+        }
+        let mut spacing = HashMap::new();
+        for (k, v) in [
+            ("xs", tokens::space::XS),
+            ("sm", tokens::space::SM),
+            ("md", tokens::space::MD),
+            ("lg", tokens::space::LG),
+            ("xl", tokens::space::XL),
+            ("xxl", tokens::space::XXL),
+            ("xxxl", tokens::space::XXXL),
+            ("min-target", tokens::space::MIN_TARGET),
+        ] {
+            spacing.insert(k.into(), serde_json::json!(v));
+        }
+        let mut rounding = HashMap::new();
+        for (k, v) in [
+            ("sm", tokens::radius::SM),
+            ("md", tokens::radius::MD),
+            ("lg", tokens::radius::LG),
+            ("xl", tokens::radius::XL),
+        ] {
+            rounding.insert(k.into(), serde_json::json!(v));
+        }
+        let mut typography = HashMap::new();
+        for (k, v) in [
+            ("title-2", tokens::type_size::TITLE_2),
+            ("body", tokens::type_size::BODY),
+            ("caption", tokens::type_size::CAPTION),
+            ("label", tokens::type_size::LABEL),
+        ] {
+            typography.insert(k.into(), serde_json::json!(v));
+        }
+        Theme {
+            colors,
+            spacing,
+            rounding,
+            typography,
+        }
+    }
+}
+
 pub(crate) struct UiTree {
     nodes: HashMap<String, UiNode>,
     root_id: String,
@@ -76,7 +142,7 @@ impl UiTree {
         UiTree {
             nodes,
             root_id: "ui.root".to_string(),
-            theme: Theme::default(),
+            theme: Theme::design_system_dark(),
             revision: 1,
             dirty: HashSet::new(),
         }

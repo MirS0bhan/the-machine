@@ -9,6 +9,9 @@ pub struct Geometry {
     pub height: u32,
 }
 
+/// Optional RGB triple carried on the bus as `[r, g, b]`.
+pub type Rgb = [u8; 3];
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Surface {
     pub id: String,
@@ -32,10 +35,32 @@ pub struct Surface {
     pub label: String,
     #[serde(default)]
     pub confirmation: bool,
+    /// Fill color (design-system token resolved by ui-runtime). Absent → kind fallback.
+    #[serde(default)]
+    pub bg: Option<Rgb>,
+    /// Label / content color.
+    #[serde(default)]
+    pub fg: Option<Rgb>,
+    /// Optional 1px border color (fields, cards).
+    #[serde(default)]
+    pub border: Option<Rgb>,
+    /// Corner radius in px (`radius.md` = 10 for controls).
+    #[serde(default)]
+    pub radius: u32,
+    /// Bitmap font pixel scale (2 = body, 3 = label, 4 = title).
+    #[serde(default = "default_font_scale")]
+    pub font_scale: u32,
+    /// Visual variant (`primary`, `field`, …).
+    #[serde(default)]
+    pub variant: String,
 }
 
 fn default_one() -> f32 {
     1.0
+}
+
+fn default_font_scale() -> u32 {
+    2
 }
 
 pub struct Compositor {

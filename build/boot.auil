@@ -1,5 +1,7 @@
-stack#ui.root dir=v gap=m
-  text#ui.greeting(role=title) "The Machine"
-  text#ui.chat_log(role=body) "Starting..."
-  input#ui.chat_input(placeholder=Message) ""
-  button#ui.chat_send label=Send on:press=mcp:agent.chat.send
+# SessionGreeting — first patch after unlock (design-system § SessionGreeting).
+# Widget IDs are fixed for boot greet / chat send contracts.
+stack#ui.root dir=v gap=lg align=center
+  text#ui.greeting(role=title size=title-2) "Welcome back"
+  text#ui.chat_log(role=caption) ""
+  field#ui.chat_input(input-mode=hybrid placeholder="Ask or say what you need") ""
+  button#ui.chat_send(variant=primary label=Send) on:press=mcp:agent.chat.send
