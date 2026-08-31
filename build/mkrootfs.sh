@@ -126,7 +126,7 @@ if [[ -f "${ROOT}/build/boot.auil" ]]; then
   install -m 0644 "${ROOT}/build/boot.auil" "${ROOTFS}/etc/the-machine/boot.auil"
 fi
 
-# Design-system typefaces (Inter + numeric companion) for HarfBuzz chrome.
+# Design-system typefaces (Inter + numeric companion) for HarfRust chrome.
 if [[ -d "${ROOT}/assets/fonts" ]]; then
   mkdir -p "${ROOTFS}/etc/the-machine/fonts" "${ROOTFS}/the-machine/fonts"
   install -m 0644 "${ROOT}/assets/fonts/"*.ttf "${ROOTFS}/etc/the-machine/fonts/" 2>/dev/null || true

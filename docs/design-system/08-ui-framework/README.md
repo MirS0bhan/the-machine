@@ -26,7 +26,7 @@ ui.event / ui.patch  ←── agent / lambdas (MCP)
         ↓
 ui-runtime layout + ASL tokens
         ↓
-compositor.surface + present (HarfBuzz text, rounded chrome, DRM/fb)
+compositor.surface + present (HarfRust text, rounded chrome, DRM/fb)
 ```
 
 Closing toolkit gaps means **growing this spine**, not replacing it with GTK embedding for first-party UI.

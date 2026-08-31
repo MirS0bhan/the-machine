@@ -6,7 +6,7 @@ Concrete modules for closing toolkit gaps on the AUIL → MCP → compositor spi
 
 | Item | Module / API | Done when |
 |---|---|---|
-| HarfBuzz fonts | `compositor/src/text.rs`, `assets/fonts/` | `compositor.status.text == "harfbuzz+freetype"`; Inter title/body/label |
+| HarfRust fonts | `compositor/src/text.rs`, `assets/fonts/` | `compositor.status.text == "harfrust+freetype"`; Inter title/body/label |
 | Keyboard forward | `system-daemon/src/input.rs` | `EV_KEY` → `compositor.input` `{event:key}` |
 | Focus model | `ui-runtime/src/focus.rs`, `ui.focus.*` | Tab order among interactive nodes; click focuses; Enter activates button |
 | Text editing | `ui-runtime/src/input_edit.rs` | Focused `field` accepts insert/backspace; caret in props; `on:change` |

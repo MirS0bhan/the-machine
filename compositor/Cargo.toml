@@ -2,7 +2,6 @@
 name = "compositor"
 version = "0.1.0"
 edition = "2021"
-build = "build.rs"
 
 [dependencies]
 common = { path = "../common" }
@@ -16,7 +15,9 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 libc = { workspace = true }
 wayland-server = "0.31"
-harfbuzz_rs = { version = "2.0.1", default-features = false }
+# Pure-Rust HarfBuzz shaping port (https://github.com/harfbuzz/harfrust).
+harfrust = "0.13.3"
+# FreeType still used for glyph rasterization into the framebuffer.
 freetype-rs = "0.38"
 
 [[bin]]

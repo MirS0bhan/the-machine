@@ -842,7 +842,7 @@ mod tests {
         let result = present.result.expect("present");
         assert_eq!(
             result.get("text").and_then(|v| v.as_str()),
-            Some("harfbuzz+freetype")
+            Some("harfrust+freetype")
         );
         assert!(std::path::Path::new(dump).exists());
         let bytes = std::fs::read(dump).expect("ppm");
