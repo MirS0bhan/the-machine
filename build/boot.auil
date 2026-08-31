@@ -1,14 +1,16 @@
 # Agentic desktop shell — SessionGreeting + chrome + workspace.
 # Contract widget IDs (boot greet / chat send) must remain: ui.greeting, ui.chat_log,
 # ui.chat_input, ui.chat_send. Agent-spawned controls land under #ui.workspace.
+# Chrome text uses i18n: keys so ui.i18n.load swaps locale copy without a re-patch.
 stack#ui.root dir=v gap=md
   stack#ui.chrome dir=h gap=lg
-    text#ui.status_line(role=caption) "The Machine"
-    text#ui.activity(role=caption) ""
+    text#ui.status_line(role=caption live=polite) "i18n:status.ready"
+    text#ui.activity(role=caption live=polite) ""
   stack.SessionGreeting#ui.session dir=v gap=lg align=center
-    text#ui.greeting(role=title size=title-2) "Welcome back"
-    text#ui.chat_log(role=caption) ""
-    field#ui.chat_input(input-mode=hybrid placeholder="Ask, request status, or place a control") ""
-    button#ui.chat_send(variant=primary label=Send) on:press=mcp:agent.chat.send
+    text#ui.greeting(role=title size=title-2) "i18n:app.welcome"
+    text#ui.chat_log(role=caption live=polite) ""
+    field#ui.chat_input(input-mode=hybrid placeholder="i18n:chat.placeholder" aria-label="i18n:chat.placeholder") ""
+    button#ui.chat_send(variant=primary label="i18n:chat.send") on:press=mcp:agent.chat.send
+    list#ui.suggestions(label="i18n:chat.suggestions" height=96) on:activate=mcp:agent.chat.send
   stack#ui.workspace dir=v gap=md
     text#ui.workspace_hint(role=caption) ""

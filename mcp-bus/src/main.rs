@@ -124,6 +124,17 @@ async fn main() -> anyhow::Result<()> {
             "agent.skills.list",
             "agent.skills.reload",
             "agent.chat.send",
+            "agent.chat.history",
+            "agent.chat.export",
+            "agent.chat.suggest",
+            "agent.chat.pin",
+            "agent.chat.clear",
+            "agent.chat.undo",
+            "agent.chat.edit",
+            "agent.chat.regenerate",
+            "agent.tour.next",
+            "agent.desktop.spawn",
+            "agent.desktop.clear",
         ] {
             reg.register(m, "agent-core", true).unwrap();
         }
@@ -178,7 +189,20 @@ async fn main() -> anyhow::Result<()> {
             "ui.i18n.status",
             "ui.i18n.t",
             "ui.i18n.load",
+            "ui.i18n.locales",
             "ui.components.list",
+            "ui.workspace.clear",
+            "ui.workspace.replace",
+            "ui.workspace.list",
+            "ui.shortcuts.list",
+            "ui.shortcuts.set",
+            "ui.shortcuts.reset",
+            "ui.a11y.announce",
+            "ui.a11y.focus_order",
+            "ui.select.all",
+            "ui.scroll",
+            "ui.snapshot",
+            "ui.menu.open",
         ] {
             reg.register(m, "ui-runtime", true).unwrap();
         }

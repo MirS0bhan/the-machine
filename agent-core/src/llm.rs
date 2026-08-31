@@ -160,6 +160,7 @@ Twelve AUIL primitives only. Never invent Confirmation Surfaces — those are br
                         });
                     }
                 }
+                let plan = sanitize_plan(plan);
                 if !plan.is_empty() {
                     return plan;
                 }
@@ -167,4 +168,98 @@ Twelve AUIL primitives only. Never invent Confirmation Surfaces — those are br
         }
     }
     crate::planner::build_plan_heuristic(intent, payload, text)
+}
+
+/// Drop model-emitted steps the boot path cannot honour, fail-closed.
+///
+/// A model is free to hallucinate a thirteenth primitive or a Confirmation
+/// Surface; neither may reach `ui.patch`. Steps whose `ui.patch` ops reference
+/// an unknown node kind are removed rather than "best-effort" painted.
+pub fn sanitize_plan(plan: Vec<PlanStep>) -> Vec<PlanStep> {
+    plan.into_iter()
+        .filter_map(|mut step| {
+            if step.action != "ui.patch" {
+                // Confirmation Surfaces are broker-owned; a plan may not forge one.
+                if step.action.starts_with("policy.confirm")
+                    || step.action == "compositor.confirmation.set_active"
+                {
+                    return None;
+                }
+                return Some(step);
+            }
+            let ops = step
+                .params
+                .get("ops")
+                .and_then(|v| v.as_array())
+                .cloned()
+                .unwrap_or_default();
+            let kept: Vec<serde_json::Value> = ops
+                .into_iter()
+                .filter(|op| {
+                    match op.get("node").and_then(|n| n.get("type")).and_then(|v| v.as_str()) {
+                        Some(kind) => {
+                            crate::desktop::PRIMITIVES.contains(&kind) || kind == "container"
+                        }
+                        // update / remove / move ops carry no node type.
+                        None => true,
+                    }
+                })
+                .collect();
+            if kept.is_empty() {
+                return None;
+            }
+            step.params = serde_json::json!({ "ops": kept });
+            Some(step)
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn patch(kind: &str) -> PlanStep {
+        PlanStep {
+            action: "ui.patch".into(),
+            params: serde_json::json!({
+                "ops": [{
+                    "op": "insert",
+                    "anchor": "ui.workspace",
+                    "node": { "id": "ui.x", "type": kind, "props": {} }
+                }]
+            }),
+        }
+    }
+
+    #[test]
+    fn sanitize_keeps_every_primitive() {
+        for kind in crate::desktop::PRIMITIVES {
+            assert_eq!(sanitize_plan(vec![patch(kind)]).len(), 1, "kind {kind}");
+        }
+    }
+
+    #[test]
+    fn sanitize_drops_invented_primitive() {
+        assert!(sanitize_plan(vec![patch("carousel")]).is_empty());
+    }
+
+    #[test]
+    fn sanitize_keeps_update_ops_without_node_type() {
+        let step = PlanStep {
+            action: "ui.patch".into(),
+            params: serde_json::json!({
+                "ops": [{ "op": "update", "id": "ui.activity", "props": { "text": "hi" } }]
+            }),
+        };
+        assert_eq!(sanitize_plan(vec![step]).len(), 1);
+    }
+
+    #[test]
+    fn sanitize_refuses_forged_confirmation_surface() {
+        let step = PlanStep {
+            action: "compositor.confirmation.set_active".into(),
+            params: serde_json::json!({ "active": true }),
+        };
+        assert!(sanitize_plan(vec![step]).is_empty());
+    }
 }

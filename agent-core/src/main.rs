@@ -1,7 +1,9 @@
 //! Agent Core - LLM-driven session loop for The Machine.
 
+mod chat;
 mod client;
 mod cloud;
+mod desktop;
 mod llm;
 mod planner;
 mod secrets;
@@ -231,13 +233,39 @@ async fn handle_request(
         }
         "agent.chat.send" => {
             let text = extract_chat_text(&params);
+            let payload = params.clone().unwrap_or(serde_json::Value::Null);
+            let inner = payload
+                .get("payload")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
+            let attachments = {
+                let mut a = chat::attachments_from_payload(&payload);
+                a.extend(chat::attachments_from_payload(&inner));
+                a
+            };
+            let source_mode = if chat::source_from_payload(&payload) != "text" {
+                chat::source_from_payload(&payload)
+            } else {
+                chat::source_from_payload(&inner)
+            };
+            let routing_override = payload
+                .get("routing")
+                .or_else(|| inner.get("routing"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
             let state = state.clone();
             tokio::spawn(async move {
                 process_wake(
                     serde_json::json!({
                         "category": "input",
                         "pattern": "chat.message",
-                        "payload": { "text": text, "source": "chat_ui" }
+                        "payload": {
+                            "text": text,
+                            "source": "chat_ui",
+                            "attachments": attachments,
+                            "input_mode": source_mode,
+                            "routing": routing_override,
+                        }
                     }),
                     state,
                 )
@@ -245,7 +273,211 @@ async fn handle_request(
             });
             success_response(&id, serde_json::json!({ "ok": true, "queued": true }))
         }
+        "agent.chat.history" => {
+            let turns = load_chat_turns().await;
+            success_response(
+                &id,
+                serde_json::json!({
+                    "turns": turns,
+                    "count": turns.len(),
+                    "log": chat::render_log(&turns),
+                }),
+            )
+        }
+        "agent.chat.export" => {
+            let turns = load_chat_turns().await;
+            let transcript = chat::export_transcript(&turns);
+            // Export lands on the clipboard so the user can paste it anywhere.
+            let clip = mcp_call(
+                "clipboard.set",
+                serde_json::json!({ "text": transcript.clone() }),
+            )
+            .await;
+            success_response(
+                &id,
+                serde_json::json!({
+                    "transcript": transcript,
+                    "turns": turns.len(),
+                    "clipboard": clip.is_some(),
+                }),
+            )
+        }
+        "agent.chat.suggest" => {
+            let turns = load_chat_turns().await;
+            let items = chat::suggestions(&turns);
+            let _ = mcp_call(
+                "ui.patch",
+                serde_json::json!({
+                    "ops": [{
+                        "op": "update",
+                        "id": "ui.suggestions",
+                        "props": { "items": items.clone(), "label": "Suggestions" }
+                    }]
+                }),
+            )
+            .await;
+            success_response(&id, serde_json::json!({ "suggestions": items }))
+        }
+        "agent.chat.pin" => {
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let n = params.get("n").and_then(|v| v.as_u64());
+            let pinned = params
+                .get("pinned")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+            let turns = load_chat_turns().await;
+            let target = n.or_else(|| turns.last().map(|t| t.n));
+            match target.and_then(|n| chat::set_pinned(&turns, n, pinned)) {
+                Some(updated) => {
+                    apply_plan_steps(&chat::turn_plan(&updated)).await;
+                    success_response(
+                        &id,
+                        serde_json::json!({ "ok": true, "n": target, "pinned": pinned }),
+                    )
+                }
+                None => error_response(&id, "E_NOT_FOUND", "no such chat turn"),
+            }
+        }
+        "agent.chat.clear" => {
+            let empty: Vec<chat::ChatTurn> = Vec::new();
+            apply_plan_steps(&chat::turn_plan(&empty)).await;
+            success_response(&id, serde_json::json!({ "ok": true, "turns": 0 }))
+        }
+        "agent.chat.undo" => {
+            let turns = load_chat_turns().await;
+            if turns.is_empty() {
+                return error_response(&id, "E_NOT_FOUND", "no chat turn to undo");
+            }
+            let updated = chat::undo_last(&turns);
+            apply_plan_steps(&chat::turn_plan(&updated)).await;
+            success_response(
+                &id,
+                serde_json::json!({ "ok": true, "turns": updated.len() }),
+            )
+        }
+        "agent.chat.edit" => {
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let text = params
+                .get("text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if text.trim().is_empty() {
+                return error_response(&id, "E_INVALID", "text required");
+            }
+            let turns = load_chat_turns().await;
+            let n = params
+                .get("n")
+                .and_then(|v| v.as_u64())
+                .or_else(|| turns.last().map(|t| t.n));
+            let Some(n) = n else {
+                return error_response(&id, "E_NOT_FOUND", "no chat turn to edit");
+            };
+            let Some(edited) = chat::edit_turn(&turns, n, &text) else {
+                return error_response(&id, "E_NOT_FOUND", "no such chat turn");
+            };
+            apply_plan_steps(&chat::turn_plan(&edited)).await;
+            let state = state.clone();
+            let regen_text = text.clone();
+            tokio::spawn(async move {
+                regenerate_turn(state, n, &regen_text).await;
+            });
+            success_response(&id, serde_json::json!({ "ok": true, "n": n, "queued": true }))
+        }
+        "agent.chat.regenerate" => {
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let turns = load_chat_turns().await;
+            let n = params
+                .get("n")
+                .and_then(|v| v.as_u64())
+                .or_else(|| turns.last().map(|t| t.n));
+            let Some(n) = n else {
+                return error_response(&id, "E_NOT_FOUND", "no chat turn to regenerate");
+            };
+            let Some(turn) = turns.iter().find(|t| t.n == n).cloned() else {
+                return error_response(&id, "E_NOT_FOUND", "no such chat turn");
+            };
+            if let Some(cleared) = chat::clear_reply(&turns, n) {
+                apply_plan_steps(&chat::turn_plan(&cleared)).await;
+            }
+            let state = state.clone();
+            let user_text = turn.user.clone();
+            tokio::spawn(async move {
+                regenerate_turn(state, n, &user_text).await;
+            });
+            success_response(&id, serde_json::json!({ "ok": true, "n": n, "queued": true }))
+        }
+        "agent.tour.next" => {
+            let step = load_u64("task.tour_step").await.unwrap_or(0) as usize;
+            let plan = desktop::tour_plan(step);
+            apply_plan_steps(&plan).await;
+            success_response(
+                &id,
+                serde_json::json!({
+                    "ok": true,
+                    "step": (step % desktop::TOUR_TIPS.len()) + 1,
+                    "total": desktop::TOUR_TIPS.len(),
+                }),
+            )
+        }
+        "agent.desktop.spawn" => {
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let text = params
+                .get("text")
+                .or_else(|| params.get("kind"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("button")
+                .to_string();
+            let seq = load_u64("task.spawn_seq").await.unwrap_or(1);
+            let plan = match params.get("id").and_then(|v| v.as_str()) {
+                Some(existing) if !existing.is_empty() => desktop::respawn_plan(&text, existing),
+                _ => desktop::spawn_plan(&text, seq),
+            };
+            let results = apply_plan_steps(&plan).await;
+            success_response(
+                &id,
+                serde_json::json!({ "ok": true, "steps": plan.len(), "failed": results.1 }),
+            )
+        }
+        "agent.desktop.clear" => {
+            let plan = desktop::clear_plan();
+            let results = apply_plan_steps(&plan).await;
+            success_response(
+                &id,
+                serde_json::json!({ "ok": results.1 == 0, "failed": results.1 }),
+            )
+        }
         _ => error_response(&id, "E_NOT_FOUND", &format!("Unknown method: {}", method)),
+    }
+}
+
+/// Run a plan through the bus, returning `(results, failure_count)`.
+async fn apply_plan_steps(plan: &[planner::PlanStep]) -> (Vec<serde_json::Value>, usize) {
+    let mut results = Vec::new();
+    let mut failed = 0usize;
+    for step in plan {
+        let r = mcp_call(&step.action, step.params.clone()).await;
+        if r.is_none() {
+            failed += 1;
+        }
+        results.push(serde_json::json!({ "action": step.action, "ok": r.is_some(), "result": r }));
+    }
+    (results, failed)
+}
+
+/// Re-run the reply chain for one turn and write the new answer back in place.
+async fn regenerate_turn(state: Arc<Mutex<AppState>>, n: u64, user_text: &str) {
+    let (local_only, _) = {
+        let s = state.lock().await;
+        (s.local_only_mode, s.cloud.is_some())
+    };
+    let trace = new_trace();
+    let (reply, route) = resolve_chat_reply(&state, user_text, false, local_only, &trace).await;
+    let turns = load_chat_turns().await;
+    if let Some(updated) = chat::set_reply(&turns, n, &reply, &route) {
+        let mut plan = chat::turn_plan(&updated);
+        plan.push(chat::route_activity(&route));
+        apply_plan_steps(&plan).await;
     }
 }
 
@@ -261,10 +493,24 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let payload = wake_reason
+    let mut payload = wake_reason
         .get("payload")
         .cloned()
         .unwrap_or(serde_json::Value::Null);
+
+    // Desktop planners mint collision-free widget ids from `task.spawn_seq` and
+    // advance the tour from `task.tour_step`; both ride along in the payload so
+    // the pure planner functions stay side-effect free and unit-testable.
+    let spawn_seq = load_u64("task.spawn_seq").await.unwrap_or(1);
+    let tour_step = load_u64("task.tour_step").await.unwrap_or(0);
+    if payload.is_null() {
+        payload = serde_json::json!({});
+    }
+    if let Some(obj) = payload.as_object_mut() {
+        obj.entry("spawn_seq").or_insert(serde_json::json!(spawn_seq));
+        obj.entry("tour_step").or_insert(serde_json::json!(tour_step));
+    }
+    let payload = payload;
 
     let history = mcp_call("state.get", serde_json::json!({ "path": "task.history" }))
         .await
@@ -333,12 +579,22 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
         .get("privacy")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
-    let routing = if privacy_tag || local_only {
-        "local".to_string()
-    } else if classification.requires_cloud && cloud_router {
-        "cloud".to_string()
-    } else {
-        classification.routing.clone()
+    // An explicit `routing` on the wake wins: "local" and "local_only" keep the
+    // turn on-device, "cloud" opts in when a key is present. Unknown values fall
+    // back to the classifier rather than silently escalating.
+    let routing_request = payload
+        .get("routing")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_ascii_lowercase());
+    let local_only = local_only || routing_request.as_deref() == Some("local_only");
+    let privacy_tag = privacy_tag || routing_request.as_deref() == Some("local_only");
+    let routing = match routing_request.as_deref() {
+        Some("local") | Some("local_only") => "local".to_string(),
+        Some("heuristic") => "heuristic".to_string(),
+        Some("cloud") if !privacy_tag && !local_only && cloud_router => "cloud".to_string(),
+        _ if privacy_tag || local_only => "local".to_string(),
+        _ if classification.requires_cloud && cloud_router => "cloud".to_string(),
+        _ => classification.routing.clone(),
     };
 
     info!(
@@ -350,20 +606,33 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
         classification.confidence
     );
 
-    let prior_chat_log = load_chat_log().await;
+    let prior_turns = load_chat_turns().await;
+    let attachments = chat::attachments_from_payload(&payload);
+    let source_mode = chat::source_from_payload(&payload);
 
     let target_method = infer_target_method(&classification.intent, &text, &payload);
     if let Some(method) = &target_method {
         if let Some(resolved) = bus_resolve(method).await {
             if resolved.get("handler").is_some() {
                 info!("resolved {} → {:?}", method, resolved.get("handler"));
-                let _ = mcp_call(method, payload.clone()).await;
+                let routed = mcp_call(method, payload.clone()).await;
                 if from_chat {
-                    let ack = format!("Routed to {method}.");
-                    let plan = planner::chat_message_plan(&text, &ack, &prior_chat_log);
-                    for step in &plan {
-                        let _ = mcp_call(&step.action, step.params.clone()).await;
-                    }
+                    let ack = match &routed {
+                        Some(_) => format!("Routed to {method}."),
+                        None => format!(
+                            "{method} did not answer — nothing was applied. \
+                             The request is recorded and can be retried."
+                        ),
+                    };
+                    let plan = record_turn(
+                        &prior_turns,
+                        &text,
+                        &ack,
+                        if routed.is_some() { "local" } else { "error" },
+                        &attachments,
+                        &source_mode,
+                    );
+                    apply_plan_steps(&plan).await;
                 }
                 record_wake(
                     &state,
@@ -382,20 +651,18 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
 
     let trace = new_trace();
     let mut routing = routing;
-    let plan = if classification.intent == "chat.message" || classification.intent == "generic"
-    {
+    let mut turn_reply: Option<String> = None;
+    let plan = if classification.intent == "chat.message" || classification.intent == "generic" {
         let (reply, reply_routing) =
             resolve_chat_reply(&state, &text, privacy_tag, local_only, &trace).await;
         info!("chat reply via {reply_routing}");
         routing = reply_routing;
-        let follow_on = planner::desktop_actions_for_text(&text);
-        planner::agentic_turn_plan(&text, &reply, &prior_chat_log, follow_on)
+        turn_reply = Some(reply);
+        planner::desktop_actions_for_text(&text)
     } else if from_chat && !matches!(classification.intent.as_str(), "boot.greet" | "heartbeat") {
         // Chat UI + actionable intent: acknowledge in the multi-turn log, then run the plan.
         let (ack, ack_routing) = if cloud_router && !privacy_tag && !local_only {
-            let (reply, r) =
-                resolve_chat_reply(&state, &text, privacy_tag, local_only, &trace).await;
-            (reply, r)
+            resolve_chat_reply(&state, &text, privacy_tag, local_only, &trace).await
         } else {
             (
                 format!("On it — handling {}.", classification.intent),
@@ -403,7 +670,8 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
             )
         };
         routing = ack_routing;
-        let action_plan = resolve_action_plan(
+        turn_reply = Some(ack);
+        resolve_action_plan(
             &state,
             &classification,
             &text,
@@ -414,8 +682,9 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
             privacy_tag,
             local_only,
         )
-        .await;
-        planner::agentic_turn_plan(&text, &ack, &prior_chat_log, action_plan)
+        .await
+    } else if classification.intent == "boot.greet" {
+        boot_greet_with_memory(&prior_turns)
     } else if planner::uses_heuristic_plan(&classification.intent) {
         planner::build_plan_heuristic(&classification.intent, &payload, &text)
     } else {
@@ -433,14 +702,60 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
         .await
     };
 
+    // Conversational turns are recorded first so the log shows the exchange even
+    // if a follow-on desktop step fails.
+    let mut plan = plan;
+    if let Some(reply) = &turn_reply {
+        let mut full = record_turn(
+            &prior_turns,
+            &text,
+            reply,
+            &routing,
+            &attachments,
+            &source_mode,
+        );
+        full.push(chat::route_activity(&routing));
+        full.extend(plan);
+        plan = full;
+    }
+
     let mut results = Vec::new();
+    let mut failures: Vec<String> = Vec::new();
     for step in &plan {
         if state.lock().await.interrupted {
             warn!("wake interrupted mid-plan");
             break;
         }
         let r = mcp_call(&step.action, step.params.clone()).await;
-        results.push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
+        if r.is_none() {
+            warn!("plan step {} produced no result", step.action);
+            failures.push(step.action.clone());
+        }
+        results.push(serde_json::json!({
+            "action": step.action,
+            "ok": r.is_some(),
+            "result": r,
+            "trace_id": trace,
+        }));
+    }
+
+    // Fail soft, but never silently: surface what did not apply.
+    if !failures.is_empty() {
+        let note = fail_soft_message(&failures);
+        let _ = mcp_call("ui.patch", planner::activity_plan(&note).params).await;
+        let _ = mcp_call(
+            "state.set",
+            serde_json::json!({
+                "path": "task.last_error",
+                "value": {
+                    "failed_steps": failures,
+                    "intent": classification.intent,
+                    "trace_id": trace,
+                    "at": chrono::Utc::now().to_rfc3339(),
+                },
+            }),
+        )
+        .await;
     }
 
     record_wake(
@@ -455,6 +770,74 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
     finish_wake(&state, env_snapshot).await;
 }
 
+/// Boot greeting that restores prior conversation instead of clobbering it.
+///
+/// Re-greeting an already-greeted session appends nothing new, so a second
+/// `boot.system.ready` cannot duplicate the welcome or wipe history.
+fn boot_greet_with_memory(prior: &[chat::ChatTurn]) -> Vec<planner::PlanStep> {
+    let already_greeted = prior
+        .iter()
+        .any(|t| t.assistant == planner::BOOT_WELCOME);
+    let turns = if already_greeted {
+        prior.to_vec()
+    } else {
+        let mut turn = chat::ChatTurn::new(
+            chat::next_turn_number(prior),
+            "",
+            planner::BOOT_WELCOME,
+            "boot",
+        );
+        turn.source = "system".into();
+        chat::append_turn(prior, turn)
+    };
+    let mut plan = planner::boot_greet_chrome_plan(&chat::render_log(&turns), turns.len());
+    plan.extend(chat::turn_plan(&turns));
+    plan
+}
+
+/// Build the plan that records one conversational turn in structured form.
+fn record_turn(
+    prior: &[chat::ChatTurn],
+    user_text: &str,
+    reply: &str,
+    route: &str,
+    attachments: &[String],
+    source_mode: &str,
+) -> Vec<planner::PlanStep> {
+    let mut turn = chat::ChatTurn::new(chat::next_turn_number(prior), user_text, reply, route);
+    turn.attachments = attachments.to_vec();
+    turn.source = source_mode.to_string();
+    let turns = chat::append_turn(prior, turn);
+    chat::turn_plan(&turns)
+}
+
+/// Human-readable, non-forged summary of what failed in a plan.
+fn fail_soft_message(failures: &[String]) -> String {
+    let unique: Vec<&String> = {
+        let mut seen = Vec::new();
+        for f in failures {
+            if !seen.contains(&f) {
+                seen.push(f);
+            }
+        }
+        seen
+    };
+    let hint = if unique.iter().any(|f| f.starts_with("ui.")) {
+        " UI may be stale — retry or ask again."
+    } else if unique
+        .iter()
+        .any(|f| f.starts_with("power.") || f.starts_with("display.") || f.starts_with("net.") || f.starts_with("audio."))
+    {
+        " Privileged system change was not applied (policy or broker unavailable)."
+    } else {
+        " Nothing was applied for those steps."
+    };
+    format!("{} step(s) did not complete: {}.{hint}", unique.len(), {
+        let names: Vec<String> = unique.iter().map(|s| s.to_string()).collect();
+        names.join(", ")
+    })
+}
+
 async fn load_chat_log() -> String {
     mcp_call("state.get", serde_json::json!({ "path": "task.chat_log" }))
         .await
@@ -464,6 +847,29 @@ async fn load_chat_log() -> String {
                 .map(|s| s.to_string())
         })
         .unwrap_or_default()
+}
+
+async fn load_u64(path: &str) -> Option<u64> {
+    mcp_call("state.get", serde_json::json!({ "path": path }))
+        .await
+        .and_then(|v| v.get("value").and_then(|x| x.as_u64()))
+}
+
+/// Structured turns from `task.chat_turns`, migrating a legacy log blob when the
+/// array is absent so history written before turns existed is not lost.
+async fn load_chat_turns() -> Vec<chat::ChatTurn> {
+    let value = mcp_call(
+        "state.get",
+        serde_json::json!({ "path": "task.chat_turns" }),
+    )
+    .await
+    .and_then(|v| v.get("value").cloned())
+    .unwrap_or(serde_json::Value::Null);
+    let turns = chat::parse_turns(&value);
+    if !turns.is_empty() {
+        return turns;
+    }
+    chat::turns_from_legacy_log(&load_chat_log().await)
 }
 
 /// Multi-step MCP plan via cloud → localmodel → heuristic (general intents, not chat-only).

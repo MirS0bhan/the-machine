@@ -12,11 +12,29 @@ pub struct PlanStep {
 /// Max characters kept in the on-screen chat log (older turns dropped from the head).
 pub const CHAT_LOG_MAX_CHARS: usize = 2400;
 
+/// Max structured turns retained in `task.chat_turns` (pinned turns are never dropped).
+pub const CHAT_TURNS_MAX: usize = 40;
+
+/// Desktop intents the heuristic planner can satisfy end-to-end without a model.
+pub const DESKTOP_INTENTS: [&str; 8] = [
+    "desktop.status",
+    "desktop.spawn",
+    "desktop.clear",
+    "desktop.replace",
+    "desktop.bind",
+    "desktop.plan",
+    "desktop.system",
+    "desktop.monitor",
+];
+
 pub fn uses_heuristic_plan(intent: &str) -> bool {
+    if DESKTOP_INTENTS.contains(&intent) {
+        return true;
+    }
     matches!(
         intent,
         // chat.message / generic use LLM reply + optional desktop actions (see main).
-        "boot.greet" | "heartbeat" | "calculator" | "notification.triage" | "desktop.status" | "desktop.spawn"
+        "boot.greet" | "heartbeat" | "calculator" | "notification.triage" | "desktop.tour"
     )
 }
 
@@ -61,7 +79,7 @@ pub fn append_chat_log(prior: &str, user_text: &str, assistant_reply: &str) -> S
     truncate_chat_log(&combined)
 }
 
-fn truncate_chat_log(log: &str) -> String {
+pub(crate) fn truncate_chat_log(log: &str) -> String {
     if log.len() <= CHAT_LOG_MAX_CHARS {
         return log.to_string();
     }
@@ -78,41 +96,88 @@ fn truncate_chat_log(log: &str) -> String {
 }
 
 pub fn looks_like_desktop_action(text: &str) -> bool {
-    let t = text.to_lowercase();
-    t.contains("status")
-        || t.contains("workspace")
-        || t.contains("add a button")
-        || t.contains("create a button")
-        || t.contains("show a list")
-        || t.contains("open a dialog")
-        || t.contains("show dialog")
-        || t.contains("list interfaces")
-        || t.contains("network")
-        || t.contains("what can you do")
-        || t.contains("spawn")
+    desktop_intent_from_text(text).is_some()
 }
 
 /// Map free-text to a desktop-oriented intent when classifier is unavailable.
+///
+/// Order matters: the more specific workspace-lifecycle verbs are checked before
+/// the generic spawn/status catch-alls so "clear the workspace" does not spawn.
 pub fn desktop_intent_from_text(text: &str) -> Option<&'static str> {
     let t = text.to_lowercase();
-    if t.contains("add a button")
-        || t.contains("create a button")
-        || t.contains("show a list")
-        || t.contains("open a dialog")
-        || t.contains("show dialog")
-        || t.contains("spawn")
-        || t.contains("workspace")
-    {
-        Some("desktop.spawn")
-    } else if t.contains("status")
-        || t.contains("list interfaces")
-        || t.contains("network")
-        || t.contains("what can you do")
-    {
-        Some("desktop.status")
-    } else {
-        None
+    if wants_clear(&t) {
+        return Some("desktop.clear");
     }
+    if wants_replace(&t) {
+        return Some("desktop.replace");
+    }
+    if t.contains("bind") && crate::desktop::bind_target_from_text(text).is_some() {
+        return Some("desktop.bind");
+    }
+    if (t.contains("plan") || t.contains("steps=") || t.contains("multi-step"))
+        && crate::desktop::multi_step_request(text).is_some()
+    {
+        return Some("desktop.plan");
+    }
+    if t.contains("monitor") || t.contains("watch ") || t.contains("netlink") {
+        return Some("desktop.monitor");
+    }
+    if t.contains("tour")
+        || t.contains("onboarding")
+        || t.contains("getting started")
+        || t.contains("how do i start")
+        || t.contains("tips")
+    {
+        return Some("desktop.tour");
+    }
+    if crate::desktop::system_domain(&t).is_some() && !t.contains("spawn") {
+        return Some("desktop.system");
+    }
+    if wants_spawn(&t) {
+        return Some("desktop.spawn");
+    }
+    if t.contains("status") || t.contains("what can you do") {
+        return Some("desktop.status");
+    }
+    None
+}
+
+fn wants_clear(t: &str) -> bool {
+    let cleared = t.contains("clear")
+        || t.contains("reset")
+        || t.contains("remove all")
+        || t.contains("wipe")
+        || t.contains("empty");
+    cleared && (t.contains("workspace") || t.contains("controls") || t.contains("desktop"))
+}
+
+fn wants_replace(t: &str) -> bool {
+    (t.contains("replace") || t.contains("swap out") || t.contains("start over with"))
+        && (t.contains("workspace") || t.contains("control") || t.contains("desktop"))
+}
+
+fn wants_spawn(t: &str) -> bool {
+    let verb = t.contains("spawn")
+        || t.contains("add a")
+        || t.contains("add an")
+        || t.contains("create a")
+        || t.contains("create an")
+        || t.contains("place a")
+        || t.contains("place an")
+        || t.contains("show a")
+        || t.contains("show an")
+        || t.contains("open a")
+        || t.contains("open an")
+        || t.contains("put a")
+        || t.contains("insert a")
+        || t.contains("give me a")
+        || t.contains("workspace");
+    if !verb {
+        return false;
+    }
+    // Only claim a spawn when a known primitive or product surface is named.
+    let (_, surface) = crate::desktop::spawn_target(t);
+    t.contains(&surface) || t.contains("control") || t.contains("widget") || t.contains("workspace")
 }
 
 pub fn build_plan_heuristic(
@@ -176,7 +241,25 @@ pub fn build_plan_heuristic(
             params: serde_json::json!({ "path": "task.last_query", "value": payload }),
         }],
         "desktop.status" => desktop_status_plan(text),
-        "desktop.spawn" => desktop_spawn_plan(text),
+        "desktop.spawn" => {
+            let seq = spawn_seq_from_payload(payload);
+            match respawn_id_from_payload(payload) {
+                Some(existing) => crate::desktop::respawn_plan(text, &existing),
+                None => crate::desktop::spawn_plan(text, seq),
+            }
+        }
+        "desktop.clear" => crate::desktop::clear_plan(),
+        "desktop.replace" => {
+            crate::desktop::replace_workspace_plan(text, spawn_seq_from_payload(payload))
+        }
+        "desktop.bind" => crate::desktop::bind_plan(text, spawn_seq_from_payload(payload)),
+        "desktop.plan" => match crate::desktop::multi_step_request(text) {
+            Some((method, steps)) => crate::desktop::multi_step_plan(&method, steps, text),
+            None => crate::desktop::multi_step_plan("agent.status", 3, text),
+        },
+        "desktop.system" => crate::desktop::system_plan(text),
+        "desktop.monitor" => crate::desktop::monitor_plan(text),
+        "desktop.tour" => crate::desktop::tour_plan(tour_step_from_payload(payload)),
         "chat.message" => chat_message_plan(text, &heuristic_chat_reply(text), ""),
         _ => vec![
             PlanStep {
@@ -186,6 +269,30 @@ pub fn build_plan_heuristic(
             activity_plan(&format!("Intent recorded: {intent}")),
         ],
     }
+}
+
+/// `task.spawn_seq` is injected into the wake payload by the session loop so the
+/// planner can mint collision-free widget ids without an extra state round-trip.
+fn spawn_seq_from_payload(payload: &serde_json::Value) -> u64 {
+    payload
+        .get("spawn_seq")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(1)
+}
+
+fn tour_step_from_payload(payload: &serde_json::Value) -> usize {
+    payload
+        .get("tour_step")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as usize
+}
+
+fn respawn_id_from_payload(payload: &serde_json::Value) -> Option<String> {
+    payload
+        .get("respawn_id")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
 }
 
 fn synthesize_lambda_plan(text: &str, payload: &serde_json::Value) -> Vec<PlanStep> {
@@ -246,8 +353,27 @@ print(json.dumps({"result": result}))
     ]
 }
 
+/// Assistant line the boot greeting adds as the first conversational turn.
+pub const BOOT_WELCOME: &str = "Welcome aboard. This is your agentic desktop — ask questions, request status, or ask me to place controls in the workspace.";
+
 fn boot_greet_plan() -> Vec<PlanStep> {
-    let welcome = "Assistant: Welcome aboard. This is your agentic desktop — ask questions, request status, or ask me to place controls in the workspace.";
+    let mut plan = boot_greet_chrome_plan(&format!("Assistant: {BOOT_WELCOME}"), 1);
+    plan.push(PlanStep {
+        action: "state.set".into(),
+        params: serde_json::json!({
+            "path": "task.chat_log",
+            "value": format!("Assistant: {BOOT_WELCOME}")
+        }),
+    });
+    plan
+}
+
+/// Chrome half of the boot greeting: greeting, log, status line, activity, hint,
+/// suggestion tray, and the onboarding tip that makes the shell discoverable.
+///
+/// `chat_log` is the rendered conversation (restored turns plus the welcome), so
+/// a returning session sees its own history rather than a blank field.
+pub fn boot_greet_chrome_plan(chat_log: &str, turns: usize) -> Vec<PlanStep> {
     vec![
         PlanStep {
             action: "ui.patch".into(),
@@ -256,27 +382,39 @@ fn boot_greet_plan() -> Vec<PlanStep> {
                     {
                         "op": "update",
                         "id": "ui.greeting",
-                        "props": { "text": "Hello! I'm The Machine." }
+                        "props": { "text": "i18n:app.greeting" }
                     },
                     {
                         "op": "update",
                         "id": "ui.chat_log",
-                        "props": { "text": welcome }
+                        "props": { "text": chat_log, "turns": turns, "live": "polite" }
                     },
                     {
                         "op": "update",
                         "id": "ui.status_line",
-                        "props": { "text": "The Machine · session ready" }
+                        "props": { "text": "i18n:status.ready" }
                     },
                     {
                         "op": "update",
                         "id": "ui.activity",
-                        "props": { "text": "Boot greet complete" }
+                        "props": { "text": "i18n:activity.boot_complete", "live": "polite" }
                     },
                     {
                         "op": "update",
                         "id": "ui.workspace_hint",
-                        "props": { "text": "Workspace — agent-placed controls appear here" }
+                        "props": { "text": crate::desktop::TOUR_TIPS[0] }
+                    },
+                    {
+                        "op": "update",
+                        "id": "ui.suggestions",
+                        "props": {
+                            "label": "i18n:chat.suggestions",
+                            "items": [
+                                "What can you do?",
+                                "Show status",
+                                "Give me a tour",
+                            ]
+                        }
                     }
                 ]
             }),
@@ -286,13 +424,6 @@ fn boot_greet_plan() -> Vec<PlanStep> {
             params: serde_json::json!({
                 "path": "ui.boot_greeted",
                 "value": true
-            }),
-        },
-        PlanStep {
-            action: "state.set".into(),
-            params: serde_json::json!({
-                "path": "task.chat_log",
-                "value": welcome
             }),
         },
     ]

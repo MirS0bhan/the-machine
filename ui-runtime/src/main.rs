@@ -1089,6 +1089,149 @@ async fn handle_request(
                 serde_json::json!({ "handled": results.len(), "results": results }),
             )
         }
+        "ui.workspace.clear" => {
+            // Workspace lifecycle: drop every agent-placed control under the
+            // anchor. `keep_hint` preserves the caption that explains the area.
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let anchor = params
+                .get("anchor")
+                .and_then(|v| v.as_str())
+                .unwrap_or("ui.workspace")
+                .to_string();
+            let keep_hint = params
+                .get("keep_hint")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+            let hint_id = format!("{anchor}_hint");
+            let (removed, snapshot) = {
+                let mut t = tree.lock().await;
+                if t.get(&anchor).is_none() {
+                    return error_response(&id, "E_NOT_FOUND", "anchor not found");
+                }
+                let children: Vec<String> = t
+                    .get(&anchor)
+                    .map(|n| n.children.clone())
+                    .unwrap_or_default();
+                let mut removed = Vec::new();
+                for child in children {
+                    if keep_hint && child == hint_id {
+                        continue;
+                    }
+                    t.detach(&child);
+                    remove_subtree(&mut t, &child);
+                    removed.push(child);
+                }
+                if keep_hint {
+                    if let Some(hint) = t.get_mut(&hint_id) {
+                        hint.props.insert(
+                            "text".into(),
+                            serde_json::json!("Workspace cleared — ask for a control"),
+                        );
+                    }
+                }
+                if t.focused()
+                    .map(|f| !t.nodes.contains_key(f))
+                    .unwrap_or(false)
+                {
+                    t.set_focused(None);
+                }
+                t.revision += 1;
+                let snapshot = renderer::serialize_subtree(&t, t.root_id());
+                (removed, snapshot)
+            };
+            let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+            for rid in &removed {
+                let _ = mcp_call(
+                    "compositor.surface",
+                    serde_json::json!({
+                        "action": "destroy",
+                        "id": format!("surface.{rid}"),
+                    }),
+                )
+                .await;
+            }
+            success_response(
+                &id,
+                serde_json::json!({
+                    "cleared": removed.len(),
+                    "removed": removed,
+                    "anchor": anchor,
+                }),
+            )
+        }
+        "ui.workspace.replace" => {
+            // Clear then load: the caller supplies AUIL source or patch ops.
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let anchor = params
+                .get("anchor")
+                .and_then(|v| v.as_str())
+                .unwrap_or("ui.workspace")
+                .to_string();
+            {
+                let mut t = tree.lock().await;
+                if t.get(&anchor).is_none() {
+                    return error_response(&id, "E_NOT_FOUND", "anchor not found");
+                }
+                let children: Vec<String> = t
+                    .get(&anchor)
+                    .map(|n| n.children.clone())
+                    .unwrap_or_default();
+                for child in children {
+                    t.detach(&child);
+                    remove_subtree(&mut t, &child);
+                }
+                t.revision += 1;
+            }
+            let ops = if let Some(source) = params.get("source").and_then(|v| v.as_str()) {
+                match auil::parse_auil(source) {
+                    Ok(root) => auil::auil_to_patch_ops(&root, &anchor),
+                    Err(e) => return error_response(&id, "E_AUIL_PARSE", &e),
+                }
+            } else {
+                params
+                    .get("ops")
+                    .and_then(|v| v.as_array().cloned())
+                    .unwrap_or_default()
+            };
+            let count = ops.len();
+            match apply_patch(tree, ops, true).await {
+                Ok(rev) => success_response(
+                    &id,
+                    serde_json::json!({ "revision": rev, "ops": count, "anchor": anchor }),
+                ),
+                Err(e) => error_response(&id, "E_PATCH_FAILED", &e),
+            }
+        }
+        "ui.workspace.list" => {
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let anchor = params
+                .get("anchor")
+                .and_then(|v| v.as_str())
+                .unwrap_or("ui.workspace");
+            let t = tree.lock().await;
+            match t.get(anchor) {
+                Some(node) => {
+                    let controls: Vec<serde_json::Value> = node
+                        .children
+                        .iter()
+                        .filter_map(|cid| t.get(cid))
+                        .map(|n| {
+                            serde_json::json!({
+                                "id": n.id,
+                                "kind": n.kind,
+                                "label": a11y::name_for(&n.kind, &n.id, &n.props),
+                                "surface": n.props.get("surface"),
+                            })
+                        })
+                        .collect();
+                    success_response(
+                        &id,
+                        serde_json::json!({ "anchor": anchor, "controls": controls }),
+                    )
+                }
+                None => error_response(&id, "E_NOT_FOUND", "anchor not found"),
+            }
+        }
         "ui.theme.set" => {
             let params = params.unwrap_or(serde_json::Value::Null);
             let theme = params
@@ -1319,7 +1462,25 @@ async fn apply_patch(
                 let node = parse_node(node_val)?;
                 let nid = node.id.clone();
                 let parent = t.resolve_anchor(anchor);
-                if !t.nodes.contains_key(&nid) {
+                // Re-inserting an existing id updates it in place instead of
+                // silently conflicting: the agent can respawn a control and the
+                // workspace keeps one coherent node per id.
+                if let Some(existing) = t.nodes.get_mut(&nid) {
+                    existing.kind = node.kind;
+                    for (k, v) in node.props {
+                        existing.props.insert(k, v);
+                    }
+                    if !node.bindings.is_empty() {
+                        existing.bindings = node.bindings;
+                    }
+                    if node.asl_style.is_some() {
+                        existing.asl_style = node.asl_style;
+                    }
+                    let current_parent = t.parent_of(&nid);
+                    if current_parent != parent {
+                        t.detach(&nid);
+                    }
+                } else {
                     t.nodes.insert(nid.clone(), node);
                 }
                 let p = t.get_mut(&parent).ok_or("insert: anchor not found")?;
@@ -1724,6 +1885,163 @@ mod tests {
             .and_then(|v| v.as_array())
             .expect("ops array");
         assert!(!ops.is_empty());
+    }
+
+    async fn seed_workspace(tree: &SharedTree, kinds: &[(&str, &str)]) {
+        let mut ops = vec![serde_json::json!({
+            "op": "insert",
+            "anchor": "ui.root",
+            "node": { "id": "ui.workspace", "type": "stack", "props": { "dir": "v" } }
+        })];
+        ops.push(serde_json::json!({
+            "op": "insert",
+            "anchor": "ui.workspace",
+            "node": { "id": "ui.workspace_hint", "type": "text", "props": { "text": "hint" } }
+        }));
+        for (id, kind) in kinds {
+            ops.push(serde_json::json!({
+                "op": "insert",
+                "anchor": "ui.workspace",
+                "node": { "id": id, "type": kind, "props": { "label": id } }
+            }));
+        }
+        apply_patch(tree, ops, false).await.expect("seed");
+    }
+
+    #[tokio::test]
+    async fn insert_with_existing_id_updates_in_place() {
+        let tree = test_tree();
+        seed_workspace(&tree, &[("ui.agent_button_1", "button")]).await;
+        apply_patch(
+            &tree,
+            vec![serde_json::json!({
+                "op": "insert",
+                "anchor": "ui.workspace",
+                "node": {
+                    "id": "ui.agent_button_1",
+                    "type": "toggle",
+                    "props": { "label": "replaced", "checked": true },
+                    "bindings": [{ "type": "mcp", "target": "ui.status" }]
+                }
+            })],
+            false,
+        )
+        .await
+        .expect("respawn");
+        let t = tree.lock().await;
+        let node = t.get("ui.agent_button_1").expect("node");
+        assert_eq!(node.kind, "toggle");
+        assert_eq!(
+            node.props.get("label").and_then(|v| v.as_str()),
+            Some("replaced")
+        );
+        assert_eq!(node.bindings.len(), 1);
+        let workspace = t.get("ui.workspace").expect("workspace");
+        assert_eq!(
+            workspace
+                .children
+                .iter()
+                .filter(|c| *c == "ui.agent_button_1")
+                .count(),
+            1,
+            "duplicate insert must not duplicate the child entry"
+        );
+    }
+
+    #[tokio::test]
+    async fn workspace_clear_removes_controls_and_keeps_hint() {
+        let tree = test_tree();
+        seed_workspace(
+            &tree,
+            &[("ui.agent_button_1", "button"), ("ui.agent_list_2", "list")],
+        )
+        .await;
+        let resp = handle_request("ui.workspace.clear".into(), None, &tree).await;
+        assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
+        assert_eq!(
+            resp.result
+                .as_ref()
+                .and_then(|v| v.get("cleared"))
+                .and_then(|v| v.as_u64()),
+            Some(2)
+        );
+        let t = tree.lock().await;
+        assert!(t.get("ui.agent_button_1").is_none());
+        assert!(t.get("ui.agent_list_2").is_none());
+        assert!(t.get("ui.workspace_hint").is_some());
+    }
+
+    #[tokio::test]
+    async fn workspace_clear_can_drop_the_hint_too() {
+        let tree = test_tree();
+        seed_workspace(&tree, &[("ui.agent_button_1", "button")]).await;
+        let resp = handle_request(
+            "ui.workspace.clear".into(),
+            Some(serde_json::json!({ "keep_hint": false })),
+            &tree,
+        )
+        .await;
+        assert!(resp.error.is_none());
+        let t = tree.lock().await;
+        assert!(t.get("ui.workspace_hint").is_none());
+        assert_eq!(t.get("ui.workspace").unwrap().children.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn workspace_clear_unknown_anchor_is_not_found() {
+        let tree = test_tree();
+        let resp = handle_request(
+            "ui.workspace.clear".into(),
+            Some(serde_json::json!({ "anchor": "ui.nope" })),
+            &tree,
+        )
+        .await;
+        assert_eq!(
+            resp.error.as_ref().map(|e| e.code.as_str()),
+            Some("E_NOT_FOUND")
+        );
+    }
+
+    #[tokio::test]
+    async fn workspace_replace_loads_auil_under_anchor() {
+        let tree = test_tree();
+        seed_workspace(&tree, &[("ui.agent_button_1", "button")]).await;
+        let resp = handle_request(
+            "ui.workspace.replace".into(),
+            Some(serde_json::json!({
+                "source": "stack#ui.pack dir=v\n  button#ui.new_action label=Go on:press=mcp:agent.status"
+            })),
+            &tree,
+        )
+        .await;
+        assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
+        let t = tree.lock().await;
+        assert!(t.get("ui.agent_button_1").is_none());
+        assert!(t.get("ui.new_action").is_some());
+    }
+
+    #[tokio::test]
+    async fn workspace_list_reports_controls() {
+        let tree = test_tree();
+        seed_workspace(
+            &tree,
+            &[("ui.agent_chart_1", "chart"), ("ui.agent_toggle_2", "toggle")],
+        )
+        .await;
+        let resp = handle_request("ui.workspace.list".into(), None, &tree).await;
+        let controls = resp
+            .result
+            .as_ref()
+            .and_then(|v| v.get("controls"))
+            .and_then(|v| v.as_array())
+            .cloned()
+            .expect("controls");
+        let kinds: Vec<&str> = controls
+            .iter()
+            .filter_map(|c| c.get("kind").and_then(|v| v.as_str()))
+            .collect();
+        assert!(kinds.contains(&"chart"));
+        assert!(kinds.contains(&"toggle"));
     }
 
     #[tokio::test]

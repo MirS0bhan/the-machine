@@ -82,7 +82,14 @@ fn parse_line(line: &str) -> Result<AuilNode, String> {
     let mut id = None;
     let mut props = HashMap::new();
 
-    let rest = head;
+    // Pull the parenthesised prop group out first: it may contain spaces and
+    // quoted values, so it cannot survive naive whitespace splitting.
+    let (head, paren) = split_paren_group(head);
+    if let Some(group) = paren {
+        parse_props(&group, &mut props);
+    }
+
+    let rest = head.trim();
     if let Some(sp) = rest.find(char::is_whitespace) {
         let (t, p) = rest.split_at(sp);
         parse_tag_token(t, &mut tag, &mut id, &mut props)?;
@@ -101,6 +108,36 @@ fn parse_line(line: &str) -> Result<AuilNode, String> {
         text,
         children: vec![],
     })
+}
+
+/// Split `tag#id(a=1 b="two words") rest` into (`tag#id rest`, `(a=1 b="two words")`).
+///
+/// Quotes are honoured so a `)` inside a quoted value does not close the group.
+fn split_paren_group(head: &str) -> (String, Option<String>) {
+    let Some(open) = head.find('(') else {
+        return (head.to_string(), None);
+    };
+    let bytes: Vec<char> = head.chars().collect();
+    let open_idx = head[..open].chars().count();
+    let mut in_quotes = false;
+    let mut depth = 0usize;
+    for (i, ch) in bytes.iter().enumerate().skip(open_idx) {
+        match ch {
+            '"' => in_quotes = !in_quotes,
+            '(' if !in_quotes => depth += 1,
+            ')' if !in_quotes => {
+                depth -= 1;
+                if depth == 0 {
+                    let group: String = bytes[open_idx..=i].iter().collect();
+                    let before: String = bytes[..open_idx].iter().collect();
+                    let after: String = bytes[i + 1..].iter().collect();
+                    return (format!("{before} {after}"), Some(group));
+                }
+            }
+            _ => {}
+        }
+    }
+    (head.to_string(), None)
 }
 
 fn parse_tag_token(
@@ -188,14 +225,17 @@ fn strip_quotes(s: &str) -> String {
     }
 }
 
+/// Text content is the quoted run at the **end** of the line, so quoted prop
+/// values earlier on the line are left for the prop parser.
 fn split_text_content(line: &str) -> (&str, Option<String>) {
-    if let Some(start) = line.find('"') {
-        if let Some(end) = line.rfind('"') {
-            if end > start {
-                let text = line[start + 1..end].to_string();
-                return (&line[..start], Some(text));
-            }
-        }
+    let trimmed = line.trim_end();
+    if trimmed.len() < 2 || !trimmed.ends_with('"') {
+        return (line, None);
+    }
+    let close = trimmed.len() - 1;
+    if let Some(open) = trimmed[..close].rfind('"') {
+        let text = trimmed[open + 1..close].to_string();
+        return (&line[..open], Some(text));
     }
     (line, None)
 }
@@ -355,6 +395,56 @@ stack#ui.root
         assert!(ids.contains(&"ui.greeting"));
         assert!(ids.contains(&"ui.chat_send"));
         assert!(!ids.iter().any(|id| id.contains('(')));
+    }
+
+    #[test]
+    fn parses_paren_props_containing_spaces_and_quotes() {
+        let src = r#"stack#ui.root
+  field#ui.chat_input(input-mode=hybrid placeholder="Ask or say what you need" aria-label="Chat") ""
+  list#ui.suggestions(label="Suggestions" height=96) on:activate=mcp:agent.chat.send"#;
+        let tree = parse_auil(src).unwrap();
+        let field = &tree.children[0];
+        assert_eq!(field.id.as_deref(), Some("ui.chat_input"));
+        assert_eq!(field.props.get("input-mode").map(String::as_str), Some("hybrid"));
+        assert_eq!(
+            field.props.get("placeholder").map(String::as_str),
+            Some("Ask or say what you need")
+        );
+        assert_eq!(field.props.get("aria-label").map(String::as_str), Some("Chat"));
+        assert_eq!(field.text.as_deref(), Some(""));
+
+        let list = &tree.children[1];
+        assert_eq!(list.props.get("label").map(String::as_str), Some("Suggestions"));
+        assert_eq!(list.props.get("height").map(String::as_str), Some("96"));
+        assert_eq!(
+            list.props.get("on:activate").map(String::as_str),
+            Some("mcp:agent.chat.send")
+        );
+    }
+
+    #[test]
+    fn boot_auil_carries_i18n_chrome_and_suggestions() {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../build/boot.auil");
+        let Ok(src) = std::fs::read_to_string(&path) else {
+            return;
+        };
+        let tree = parse_auil(&src).unwrap();
+        let ops = auil_to_patch_ops(&tree, "ui.root");
+        let find = |id: &str| {
+            ops.iter()
+                .find(|op| op["node"]["id"] == id)
+                .cloned()
+                .unwrap_or_else(|| panic!("missing {id}"))
+        };
+        assert_eq!(find("ui.chat_input")["node"]["props"]["placeholder"], "i18n:chat.placeholder");
+        assert_eq!(find("ui.chat_send")["node"]["props"]["label"], "i18n:chat.send");
+        assert_eq!(find("ui.greeting")["node"]["props"]["text"], "i18n:app.welcome");
+        assert_eq!(find("ui.suggestions")["node"]["type"], "list");
+        assert_eq!(find("ui.activity")["node"]["props"]["live"], "polite");
+        assert_eq!(
+            find("ui.chat_send")["node"]["bindings"][0]["target"],
+            "agent.chat.send"
+        );
     }
 
     #[test]
