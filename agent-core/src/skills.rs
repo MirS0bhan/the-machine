@@ -59,6 +59,18 @@ pub fn builtin_skills() -> Vec<Skill> {
             system_prompt: "Summarize notifications and patch UI with actionable cards.".into(),
             description: "Notification triage".into(),
         },
+        Skill {
+            name: "desktop-shell".into(),
+            version: 1,
+            applies_to: vec![
+                "category:input".into(),
+                "intent:desktop.status".into(),
+                "intent:desktop.spawn".into(),
+                "intent:chat.message".into(),
+            ],
+            system_prompt: "You drive an agentic desktop: multi-turn chat under #ui.chat_log, status/activity chrome, and spawn button/list/dialog into #ui.workspace with real mcp: bindings. Privileged confirmations stay broker-owned.".into(),
+            description: "Agentic desktop shell".into(),
+        },
     ]
 }
 

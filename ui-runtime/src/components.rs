@@ -14,7 +14,8 @@ pub fn catalog() -> Vec<Value> {
         ("Field", "field primitive"),
         ("MediaPlayer", "media primitive"),
         ("Chart", "chart primitive"),
-        ("SessionGreeting", "boot.auil stack"),
+        ("SessionGreeting", "boot.auil session stack"),
+        ("DesktopShell", "chrome + session + workspace"),
         ("AlertDialog", "dialog + destructive confirm"),
         ("ConfirmDialog", "dialog soft exclusivity"),
         ("Toast", "transient text+button (agent-authored)"),
@@ -23,7 +24,7 @@ pub fn catalog() -> Vec<Value> {
     .map(|(name, note)| {
         json!({
             "name": name,
-            "status": if matches!(name, "SessionGreeting" | "PrimaryButton" | "Field" | "ConfirmDialog" | "MediaPlayer" | "Chart") {
+            "status": if matches!(name, "SessionGreeting" | "DesktopShell" | "PrimaryButton" | "Field" | "ConfirmDialog" | "MediaPlayer" | "Chart") {
                 "boot-partial"
             } else {
                 "specified"
@@ -46,6 +47,7 @@ mod tests {
             .filter_map(|v| v.get("name").and_then(|n| n.as_str()))
             .collect();
         assert!(names.contains(&"SessionGreeting"));
+        assert!(names.contains(&"DesktopShell"));
         assert!(names.contains(&"PrimaryButton"));
     }
 }

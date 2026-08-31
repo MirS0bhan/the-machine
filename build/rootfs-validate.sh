@@ -39,11 +39,11 @@ ok "machine.conf runtime env"
 
 BOOT_AUIL="${ROOTFS}/etc/the-machine/boot.auil"
 [[ -f "${BOOT_AUIL}" ]] || fail "missing /etc/the-machine/boot.auil (boot greet layout)"
-for widget in ui.greeting ui.chat_log ui.chat_input ui.chat_send; do
+for widget in ui.greeting ui.chat_log ui.chat_input ui.chat_send ui.status_line ui.activity ui.workspace; do
   grep -q "${widget}" "${BOOT_AUIL}" || fail "boot.auil missing widget ${widget}"
 done
 grep -q 'agent.chat.send' "${BOOT_AUIL}" || fail "boot.auil missing agent.chat.send binding"
-ok "boot.auil greet + chat layout"
+ok "boot.auil agentic desktop shell (greet + chrome + workspace)"
 
 [[ -f "${ROOTFS}/usr/lib/systemd/system/the-machine.target" ]] || fail "missing the-machine.target"
 if [[ "${THE_MACHINE_VALIDATE_INSTALLED:-0}" == "1" ]]; then

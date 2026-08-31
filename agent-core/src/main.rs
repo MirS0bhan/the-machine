@@ -300,7 +300,13 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
         let s = state.lock().await;
         (s.skills.clone(), s.local_only_mode, s.cloud.is_some())
     };
+    let from_chat = pattern == "chat.message"
+        || payload
+            .get("source")
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| s == "chat_ui");
     let active_skills = skills_for_wake(&skills, &category, "");
+    // Boot is forced; chat wakes classify so actionable intents can escape pure chat.message.
     let classification = if let Some(intent) = intent_from_wake(&category, &pattern) {
         llm::Classification {
             intent,
@@ -310,7 +316,16 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
             requires_cloud: false,
         }
     } else {
-        classify_intent(&text, &category, &active_skills).await
+        let mut c = classify_intent(&text, &category, &active_skills).await;
+        if from_chat {
+            if let Some(desktop) = planner::desktop_intent_from_text(&text) {
+                if c.intent == "chat.message" || c.intent == "generic" {
+                    c.intent = desktop.to_string();
+                    c.confidence = c.confidence.max(0.85);
+                }
+            }
+        }
+        c
     };
     let active_skills = skills_for_wake(&skills, &category, &classification.intent);
 
@@ -335,12 +350,21 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
         classification.confidence
     );
 
+    let prior_chat_log = load_chat_log().await;
+
     let target_method = infer_target_method(&classification.intent, &text, &payload);
     if let Some(method) = &target_method {
         if let Some(resolved) = bus_resolve(method).await {
             if resolved.get("handler").is_some() {
                 info!("resolved {} → {:?}", method, resolved.get("handler"));
                 let _ = mcp_call(method, payload.clone()).await;
+                if from_chat {
+                    let ack = format!("Routed to {method}.");
+                    let plan = planner::chat_message_plan(&text, &ack, &prior_chat_log);
+                    for step in &plan {
+                        let _ = mcp_call(&step.action, step.params.clone()).await;
+                    }
+                }
                 record_wake(
                     &state,
                     &classification.intent,
@@ -358,35 +382,55 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
 
     let trace = new_trace();
     let mut routing = routing;
-    let plan = if classification.intent == "chat.message" {
+    let plan = if classification.intent == "chat.message" || classification.intent == "generic"
+    {
         let (reply, reply_routing) =
             resolve_chat_reply(&state, &text, privacy_tag, local_only, &trace).await;
-        info!("chat.message reply via {reply_routing}");
+        info!("chat reply via {reply_routing}");
         routing = reply_routing;
-        planner::chat_message_plan(&text, &reply)
+        let follow_on = planner::desktop_actions_for_text(&text);
+        planner::agentic_turn_plan(&text, &reply, &prior_chat_log, follow_on)
+    } else if from_chat && !matches!(classification.intent.as_str(), "boot.greet" | "heartbeat") {
+        // Chat UI + actionable intent: acknowledge in the multi-turn log, then run the plan.
+        let (ack, ack_routing) = if cloud_router && !privacy_tag && !local_only {
+            let (reply, r) =
+                resolve_chat_reply(&state, &text, privacy_tag, local_only, &trace).await;
+            (reply, r)
+        } else {
+            (
+                format!("On it — handling {}.", classification.intent),
+                "local".into(),
+            )
+        };
+        routing = ack_routing;
+        let action_plan = resolve_action_plan(
+            &state,
+            &classification,
+            &text,
+            &payload,
+            &active_skills,
+            &routing,
+            &trace,
+            privacy_tag,
+            local_only,
+        )
+        .await;
+        planner::agentic_turn_plan(&text, &ack, &prior_chat_log, action_plan)
     } else if planner::uses_heuristic_plan(&classification.intent) {
         planner::build_plan_heuristic(&classification.intent, &payload, &text)
-    } else if routing == "cloud" {
-        let cloud_plan = {
-            let s = state.lock().await;
-            if let Some(router) = &s.cloud {
-                router
-                    .plan(&classification.intent, &text, &payload, &trace)
-                    .await
-            } else {
-                None
-            }
-        };
-        cloud_plan.unwrap_or_else(|| {
-            futures::executor::block_on(plan_from_model(
-                &classification.intent,
-                &text,
-                &payload,
-                &active_skills,
-            ))
-        })
     } else {
-        plan_from_model(&classification.intent, &text, &payload, &active_skills).await
+        resolve_action_plan(
+            &state,
+            &classification,
+            &text,
+            &payload,
+            &active_skills,
+            &routing,
+            &trace,
+            privacy_tag,
+            local_only,
+        )
+        .await
     };
 
     let mut results = Vec::new();
@@ -409,6 +453,59 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
     )
     .await;
     finish_wake(&state, env_snapshot).await;
+}
+
+async fn load_chat_log() -> String {
+    mcp_call("state.get", serde_json::json!({ "path": "task.chat_log" }))
+        .await
+        .and_then(|v| {
+            v.get("value")
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string())
+        })
+        .unwrap_or_default()
+}
+
+/// Multi-step MCP plan via cloud → localmodel → heuristic (general intents, not chat-only).
+async fn resolve_action_plan(
+    state: &Arc<Mutex<AppState>>,
+    classification: &llm::Classification,
+    text: &str,
+    payload: &serde_json::Value,
+    active_skills: &[skills::Skill],
+    routing: &str,
+    trace: &str,
+    privacy_tag: bool,
+    local_only: bool,
+) -> Vec<planner::PlanStep> {
+    if planner::uses_heuristic_plan(&classification.intent) {
+        return planner::build_plan_heuristic(&classification.intent, payload, text);
+    }
+    let allow_cloud = !privacy_tag && !local_only && (routing == "cloud" || classification.requires_cloud);
+    if allow_cloud {
+        let _ = refresh_cloud_router(state).await;
+        let cloud_plan = {
+            let s = state.lock().await;
+            if let Some(router) = &s.cloud {
+                router
+                    .plan(&classification.intent, text, payload, trace)
+                    .await
+            } else {
+                None
+            }
+        };
+        if let Some(plan) = cloud_plan {
+            if !plan.is_empty() {
+                return plan;
+            }
+        }
+    }
+    // Prefer local model for general intents even when routing says local.
+    let local_plan = plan_from_model(&classification.intent, text, payload, active_skills).await;
+    if !local_plan.is_empty() {
+        return local_plan;
+    }
+    planner::build_plan_heuristic(&classification.intent, payload, text)
 }
 
 async fn finish_wake(state: &Arc<Mutex<AppState>>, env_snapshot: serde_json::Value) {
@@ -479,7 +576,8 @@ async fn bus_resolve(method: &str) -> Option<serde_json::Value> {
 fn intent_from_wake(category: &str, pattern: &str) -> Option<String> {
     match (category, pattern) {
         ("boot", "system.ready") => Some("boot.greet".into()),
-        (_, "chat.message") => Some("chat.message".into()),
+        // chat.message is classified from text so desktop/calc intents can win.
+        (_, "chat.message") => None,
         (_, p) if p.contains('.') && !matches!(p, "system.ready" | "heartbeat") => {
             Some(p.to_string())
         }
@@ -511,6 +609,7 @@ fn extract_chat_text(params: &Option<serde_json::Value>) -> String {
 }
 
 /// Prefer cloud (when key present), then localmodel.complete, else heuristic stub.
+/// Used for conversational replies and chat acknowledgments of desktop actions.
 async fn resolve_chat_reply(
     state: &Arc<Mutex<AppState>>,
     text: &str,

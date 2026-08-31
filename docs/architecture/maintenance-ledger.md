@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| chat.message LLM reply wiring | cursor/llm-chat-reply-wiring-ac5e | pending create | pushed | 2026-08-31 | cloud → localmodel → heuristic; ui.patch chat_log; agent.cloud.reload |
+| agentic desktop shell + loop | cursor/agentic-desktop-ac5e | — | pushed | 2026-08-31 | multi-turn chat; chrome/workspace; desktop.status/spawn; general-intent LLM plans |
 | docs close G13 in gap-analysis | cursor/autonomous-machine-maintenance-4565 | #207 | pr-open | 2026-08-30 | Mark G13 fully closed (#157, #159, #168) |
 | verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | #189–#192 | merged | 2026-08-30 | Landed on main (also #193 tree repair) |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
@@ -18,7 +18,8 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
-| 2026-08-31 | gap | chat.message real LLM reply (cloud/local/heuristic) | in-progress |
+| 2026-08-31 | gap | agentic desktop (chat append, shell chrome, actionable workspace) | in-progress (branch) |
+| 2026-08-31 | gap | chat.message real LLM reply (cloud/local/heuristic) | merged to main (`1fa3810`) |
 | 2026-08-31 | audit | Master Engineering Prompt compliance (inventory/MCP/env/G17 honesty) | merged (#215) |
 | 2026-08-31 | gap | G17 xdg-shell + AT-SPI + IME/locale + video decode | merged (#215) |
 | 2026-08-30 | docs | close G13 in gap-analysis.md (fully merged: #157, #159, #168) | pr-open (#207) |
@@ -71,9 +72,12 @@ until the PR is merged to `main`.
 
 Rotate when completing a row. Prefer top item not in cooldown.
 
-G13 is now fully closed (all sub-items merged: #148, #157, #159, #168) — do not pick it up again.
-G17 xdg-shell implementation is in #215 (`xdg_wm_base` v5 via wayland-protocols; not wlroots) — **do not mark gap-analysis closed until that PR merges**. Do not re-open for wlroots unless product direction changes.
+**Development goal:** a real **agentic desktop** (agent authors lasting UI via AUIL→MCP→compositor; multi-turn loop; broker-owned confirmation) — not a one-shot greet/chat stub.
 
-1. **audit** — `localmodel.embed` or `event.register_handler` Python integration test
-2. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
-3. **polish** — continuous media playback / libav, full OS IME bus, XWayland (optional)
+G13 is fully closed (#148, #157, #159, #168) — do not pick it up again.
+G17 xdg-shell is merged via #215 (`xdg_wm_base` v5 via wayland-protocols; not wlroots) — mark gap-analysis closed when docs PR catches up. Do not re-open for wlroots unless product direction changes.
+
+1. **gap** — richer agent plans (multi-MCP from cloud/local for arbitrary intents; workspace lifecycle/clear)
+2. **gap** — chat log as scrollable list of turns (not single caption text)
+3. **audit** — `localmodel.embed` or `event.register_handler` Python integration test
+4. **polish** — continuous media playback / libav, full OS IME bus, XWayland (optional; non-goals for agentic desktop core)

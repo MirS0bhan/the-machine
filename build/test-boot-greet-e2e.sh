@@ -15,6 +15,10 @@ grep -q 'ui\.greeting' build/boot.auil
 grep -q 'ui\.chat_log' build/boot.auil
 grep -q 'ui\.chat_input' build/boot.auil
 grep -q 'agent\.chat\.send' build/boot.auil
+grep -q 'ui\.status_line' build/boot.auil
+grep -q 'ui\.workspace' build/boot.auil
+grep -q 'ui\.activity' build/boot.auil
+echo "OK boot.auil agentic desktop chrome + chat"
 
 echo "==> boot greet e2e: AUIL parser"
 cargo test -p ui-runtime auil::tests::boot_auil_does_not_insert_root_under_itself --quiet

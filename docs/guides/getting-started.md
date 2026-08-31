@@ -101,7 +101,23 @@ install -m 0600 /path/to/key /run/the-machine/secrets/cloud-api-key
 # mcp: agent.cloud.reload   (or agent.cloud.status / agent.status re-reads the file)
 ```
 
-Fallback order for `chat.message`: cloud (when key present + policy allows) → `localmodel.complete` → heuristic stub. Replies land on `#ui.chat_log` via `ui.patch`.
+Fallback order for conversational replies: cloud (when key present + policy allows) → `localmodel.complete` → heuristic stub. Replies **append** to `#ui.chat_log` (persisted at `task.chat_log`), they do not replace the whole log. Chat wakes classify text so desktop/calc intents can run multi-step MCP plans; agent-spawned controls land under `#ui.workspace`.
+
+### Agentic desktop (host / QEMU)
+
+```bash
+# start the Rust services (or boot the ISO)
+make run   # or: cargo run -p mcp-bus & … see Makefile / boot-init
+
+# optional cloud key (host)
+export OPENAI_API_KEY=…   # or THE_MACHINE_CLOUD_API_KEY
+# ISO/QEMU: write inside the guest instead
+mkdir -p /run/the-machine/secrets
+install -m 0600 /path/to/key /run/the-machine/secrets/cloud-api-key
+# mcp: agent.cloud.reload
+```
+
+Try: chat a question; ask for “status”; ask to “add a button” or “show a list” — workspace should gain MCP-bound controls.
 
 ## Test
 

@@ -291,9 +291,19 @@ stack#ui.root
 
     #[test]
     fn boot_auil_does_not_insert_root_under_itself() {
-        let src = std::fs::read_to_string("build/boot.auil").unwrap_or_else(|_| {
-            r#"stack#ui.root dir=v
-  text#ui.greeting "Hi"
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../build/boot.auil");
+        let src = std::fs::read_to_string(&path).unwrap_or_else(|_| {
+            r#"stack#ui.root dir=v gap=md
+  stack#ui.chrome dir=h
+    text#ui.status_line(role=caption) "The Machine"
+    text#ui.activity(role=caption) ""
+  stack#ui.session dir=v
+    text#ui.greeting "Hi"
+    text#ui.chat_log(role=caption) ""
+    field#ui.chat_input ""
+    button#ui.chat_send label=Send on:press=mcp:agent.chat.send
+  stack#ui.workspace dir=v
+    text#ui.workspace_hint(role=caption) ""
 "#
             .into()
         });
@@ -307,6 +317,27 @@ stack#ui.root
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
             assert_ne!(id, "ui.root", "must not re-insert ui.root under itself");
+        }
+        let ids: Vec<_> = ops
+            .iter()
+            .filter_map(|op| op.get("node").and_then(|n| n.get("id")).and_then(|v| v.as_str()))
+            .collect();
+        for expected in [
+            "ui.chrome",
+            "ui.status_line",
+            "ui.activity",
+            "ui.session",
+            "ui.greeting",
+            "ui.chat_log",
+            "ui.chat_input",
+            "ui.chat_send",
+            "ui.workspace",
+            "ui.workspace_hint",
+        ] {
+            assert!(
+                ids.contains(&expected),
+                "boot.auil missing {expected} in patch ops: {ids:?}"
+            );
         }
     }
 

@@ -51,7 +51,7 @@ impl CloudRouter {
         let body = json!({
             "model": self.model,
             "messages": [
-                {"role": "system", "content": "You are Agent Core Tier B. Return JSON: {\"steps\":[{\"action\":\"...\",\"params\":{}}]}"},
+                {"role": "system", "content": "You are Agent Core Tier B for an agentic desktop OS. Return JSON: {\"steps\":[{\"action\":\"...\",\"params\":{}}]}. Prefer ui.patch inserts under anchor ui.workspace with twelve AUIL primitives only (stack/grid/text/field/button/list/media/chart/icon/slider/toggle/dialog). Bind buttons via mcp targets. Never create Confirmation Surfaces."},
                 {"role": "user", "content": format!(
                     "trace_id={}\nintent={}\ntext={}\npayload={}",
                     provenance_trace, intent, text, payload

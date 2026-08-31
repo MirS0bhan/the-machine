@@ -6,7 +6,11 @@
 
 ---
 
-The Machine's UI stack is **agent-native**: an AUIL state tree patched over MCP, styled with ASL tokens, painted by a software compositor. That architecture is intentional — it is not an unfinished clone of Qt. This folder records what that choice still lacks relative to established toolkits, and what the boot path must implement to become a real application UI framework rather than a SessionGreeting shell.
+The Machine's UI stack is **agent-native**: an AUIL state tree patched over MCP, styled with ASL tokens, painted by a software compositor. That architecture is intentional — it is not an unfinished clone of Qt. This folder records what that choice still lacks relative to established toolkits, and what the boot path must implement to become a real **agentic desktop** (agent-authored lasting UI, multi-turn conversation, actionable workspace controls) rather than a one-shot SessionGreeting stub.
+
+**Development goal:** grow the AUIL → MCP → compositor spine into a session where the Agent Core is the sole author of visible structure, chat appends across turns, and agent-spawned `button`/`list`/`dialog` nodes under `#ui.workspace` call real MCP handlers. Privileged confirmations remain broker-owned (never agent-forged Confirmation Surfaces).
+
+**Honest status (2026-08-31):** boot AUIL now includes chrome (`#ui.status_line`, `#ui.activity`) and `#ui.workspace` in addition to SessionGreeting chat. Multi-turn chat append + desktop.status/spawn heuristics are in progress on the agentic-desktop branch — not a finished desktop.
 
 ## Contents
 

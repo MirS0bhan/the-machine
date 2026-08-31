@@ -67,22 +67,24 @@ pub async fn classify_intent(text: &str, category: &str, skills: &[Skill]) -> Cl
     // Fallback heuristic when local-model daemon unavailable.
     let t = text.to_lowercase();
     let intent = if category == "boot" {
-        "boot.greet"
+        "boot.greet".to_string()
     } else if category == "scheduler" {
-        "heartbeat"
+        "heartbeat".to_string()
     } else if t.contains("calc") {
-        "calculator"
+        "calculator".to_string()
     } else if t.contains("play") {
-        "media_control"
+        "media_control".to_string()
     } else if t.contains("notification") {
-        "notification.triage"
+        "notification.triage".to_string()
+    } else if let Some(desktop) = crate::planner::desktop_intent_from_text(text) {
+        desktop.to_string()
     } else if category == "input" || t.contains("chat") {
-        "chat.message"
+        "chat.message".to_string()
     } else {
-        "generic"
+        "generic".to_string()
     };
     Classification {
-        intent: intent.into(),
+        intent,
         confidence: 0.7,
         complexity: "medium".into(),
         routing: "local".into(),
@@ -120,14 +122,16 @@ pub async fn plan_from_model(
 ) -> Vec<PlanStep> {
     let skill_ctx = build_skill_prompt(skills);
     let prompt = format!(
-        r#"You are the Agent Core planner for The Machine OS.
+        r#"You are the Agent Core planner for The Machine agentic desktop.
 Intent: {intent}
 User text: {text}
 Payload: {payload}
 {skill_ctx}
 Respond with JSON only:
 {{"steps":[{{"action":"mcp.method","params":{{}}}}]}}
-Use actions: lambda.register, lambda.invoke, ui.patch, state.patch, state.set, event.publish."#
+Use actions: lambda.register, lambda.invoke, ui.patch, state.patch, state.set, event.publish, agent.status.
+Prefer inserting agent UI under anchor "ui.workspace" (button/list/dialog with mcp bindings).
+Twelve AUIL primitives only. Never invent Confirmation Surfaces — those are broker-owned."#
     );
     if let Some(result) = mcp_call(
         "localmodel.complete",

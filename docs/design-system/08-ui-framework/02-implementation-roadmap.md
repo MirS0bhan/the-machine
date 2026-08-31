@@ -2,7 +2,17 @@
 
 Concrete modules for closing toolkit gaps on the AUIL → MCP → compositor spine.
 
-## P0 — Interactive shell (must land for real apps)
+## P0 — Agentic desktop shell (must land for a real session)
+
+| Item | Module / API | Done when |
+|---|---|---|
+| Persistent chrome | `build/boot.auil` `#ui.status_line` / `#ui.activity` | Boot shows status region beyond SessionGreeting alone |
+| Workspace surface | `#ui.workspace` insert target | Agent `ui.patch` inserts stay on screen under workspace |
+| Multi-turn chat | `task.chat_log` + append `ui.chat_log` | Second Send does not wipe the first turn |
+| Actionable controls | planner `desktop.spawn` / synthesize → mcp bindings | Pressing agent button calls a real MCP method |
+| General-intent plans | cloud/local `plan` on non-chat intents | Wake path not limited to chat.message reply stubs |
+
+## P0 — Interactive shell (toolkit foundation)
 
 | Item | Module / API | Done when |
 |---|---|---|

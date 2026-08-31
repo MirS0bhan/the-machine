@@ -2,7 +2,7 @@
 
 Tracks known gaps between the **north-star** (fully agentic Linux OS) and the current codebase. Updated alongside implementation PRs.
 
-**Last reviewed:** 2026-08-30
+**Last reviewed:** 2026-08-31
 
 ---
 
@@ -55,7 +55,11 @@ Tracks known gaps between the **north-star** (fully agentic Linux OS) and the cu
 
 ## Open — Critical Path
 
-_None — all P0/P1 gaps from the expansion campaign are closed._
+| ID | Gap | Component | Priority |
+|----|-----|-----------|----------|
+| AD1 | Agentic desktop loop: lasting workspace UI, multi-turn chat, multi-MCP plans from cloud/local for general intents | agent-core, ui-runtime, boot.auil | P1 |
+
+_Partial progress on AD1 lands on `cursor/agentic-desktop-ac5e` (multi-turn append, chrome/workspace shell, desktop.status/spawn). Not closed until merged and proven end-to-end with a model backend._
 
 ---
 
@@ -63,7 +67,7 @@ _None — all P0/P1 gaps from the expansion campaign are closed._
 
 | ID | Gap | Component | Priority |
 |----|-----|-----------|----------|
-| G17 | xdg-shell via wayland-protocols `xdg_wm_base` v5 (implementation in #215; **mark closed only after merge**). wlroots/XWayland remain non-goals. | compositor | P3 |
+| G17 | xdg-shell via wayland-protocols `xdg_wm_base` v5 — **implementation merged (#215)**; mark closed here once docs catch-up PR lands. wlroots/XWayland remain non-goals. | compositor | P3 |
 
 ---
 

@@ -278,13 +278,18 @@ fn measure_leaf(node: &Value, avail_w: u32) -> (u32, u32) {
             }
             let h = if role == "title" || id == "ui.greeting" {
                 48
-            } else if role == "caption" || id == "ui.chat_log" {
+            } else if id == "ui.chat_log" {
+                let lines = text.lines().filter(|l| !l.is_empty()).count().max(1) as u32;
+                (24 * lines.min(14)).max(48)
+            } else if role == "caption" {
                 28
             } else {
                 36
             };
             let w = if role == "title" {
                 (avail_w * 3 / 4).clamp(280, 720)
+            } else if id == "ui.chat_log" {
+                (avail_w * 4 / 5).clamp(320, 800)
             } else {
                 (avail_w * 2 / 3).clamp(240, 640)
             };

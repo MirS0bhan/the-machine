@@ -76,4 +76,4 @@ Rust binaries ship in the initramfs for boot. Python servers remain the referenc
 
 ## Remaining Work
 
-See [Gap Analysis](./gap-analysis.md) and [Expansion Proposal](./expansion-proposal.md). Platform polish items (G12–G14) remain where noted; G17 xdg-shell lands via wayland-protocols in #215 (no wlroots/XWayland) — mark closed in gap-analysis only after merge. Critical path gaps G1/G6/G16 and G7 are closed.
+See [Gap Analysis](./gap-analysis.md) and [Expansion Proposal](./expansion-proposal.md). **Development goal:** a real agentic desktop (agent-authored AUIL, multi-turn loop, broker-owned confirmation) — not a greet/chat stub. Platform polish items (G12–G14) remain where noted; G17 xdg-shell is merged via #215 (no wlroots/XWayland) — mark closed in gap-analysis when docs catch-up lands. Critical path gap **AD1** (agentic desktop loop) is open with partial progress on `cursor/agentic-desktop-ac5e`.
