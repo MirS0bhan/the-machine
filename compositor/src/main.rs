@@ -35,7 +35,10 @@ async fn main() -> anyhow::Result<()> {
             std::env::set_var("THE_MACHINE_FONT_DIR", dir);
         } else {
             for candidate in ["/etc/the-machine/fonts", "/the-machine/fonts"] {
-                if std::path::Path::new(candidate).join("Inter-Regular.ttf").exists() {
+                if std::path::Path::new(candidate)
+                    .join("Inter-Regular.ttf")
+                    .exists()
+                {
                     std::env::set_var("THE_MACHINE_FONT_DIR", candidate);
                     break;
                 }
@@ -122,13 +125,7 @@ async fn paint_frame(comp: &Arc<Mutex<Compositor>>, pixels: &SharedPixel) {
         }
     } else if let Some(bounds) = damage_frame.union_bounds() {
         // Partial present: clear union bounds then repaint intersecting surfaces.
-        px.fill_rect(
-            bounds.x,
-            bounds.y,
-            bounds.width,
-            bounds.height,
-            canvas,
-        );
+        px.fill_rect(bounds.x, bounds.y, bounds.width, bounds.height, canvas);
         for s in &surfaces {
             let g = &s.geometry;
             let overlaps = g.x < bounds.x + bounds.width as i32
@@ -312,13 +309,7 @@ fn paint_icon(px: &mut PixelBackend, s: &Surface, bg: [u8; 3], fg: [u8; 3]) {
         "check" => {
             // Simple check: two thick segments.
             px.fill_rect(gx, gy + gh as i32 / 2, gw / 3, 3, fg);
-            px.fill_rect(
-                gx + gw as i32 / 4,
-                gy + gh as i32 / 2,
-                3,
-                gh / 2,
-                fg,
-            );
+            px.fill_rect(gx + gw as i32 / 4, gy + gh as i32 / 2, 3, gh / 2, fg);
         }
         "close" | "x" => {
             // Approximate X with two bars (axis-aligned stand-in).
@@ -878,7 +869,10 @@ async fn handle_surface(
                 }
                 drop(c);
                 paint_frame(comp, pixels).await;
-                success_response(id, serde_json::json!({ "id": sid, "ok": true, "updated": true }))
+                success_response(
+                    id,
+                    serde_json::json!({ "id": sid, "ok": true, "updated": true }),
+                )
             } else {
                 error_response(id, "E_NOT_FOUND", "surface not found")
             }
@@ -1163,10 +1157,7 @@ mod tests {
         std::env::set_var("THE_MACHINE_COMPOSITOR_BACKEND", "memory");
         if std::env::var("THE_MACHINE_FONT_DIR").is_err() {
             let font_dir = text::workspace_font_dir().expect("workspace assets/fonts");
-            std::env::set_var(
-                "THE_MACHINE_FONT_DIR",
-                font_dir.display().to_string(),
-            );
+            std::env::set_var("THE_MACHINE_FONT_DIR", font_dir.display().to_string());
         }
         (
             Arc::new(Mutex::new(Compositor::new())),
@@ -1178,17 +1169,14 @@ mod tests {
     #[tokio::test]
     async fn compositor_present_reports_memory_backend() {
         let (comp, pixels, wayland) = test_harness();
-        let resp = handle_request(
-            "compositor.present".into(),
-            None,
-            &comp,
-            &pixels,
-            &wayland,
-        )
-        .await;
+        let resp =
+            handle_request("compositor.present".into(), None, &comp, &pixels, &wayland).await;
         assert!(resp.error.is_none(), "unexpected {:?}", resp.error);
         let result = resp.result.expect("result");
-        assert_eq!(result.get("presented").and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(
+            result.get("presented").and_then(|v| v.as_bool()),
+            Some(true)
+        );
         assert_eq!(result.get("pixels").and_then(|v| v.as_bool()), Some(true));
         assert_eq!(result.get("surfaces").and_then(|v| v.as_u64()), Some(0));
     }
@@ -1214,14 +1202,8 @@ mod tests {
             .and_then(|r| r.get("id").and_then(|v| v.as_str()).map(str::to_string));
         assert_eq!(id.as_deref(), Some("widget.test"));
 
-        let present = handle_request(
-            "compositor.present".into(),
-            None,
-            &comp,
-            &pixels,
-            &wayland,
-        )
-        .await;
+        let present =
+            handle_request("compositor.present".into(), None, &comp, &pixels, &wayland).await;
         let result = present.result.expect("present result");
         assert_eq!(result.get("surfaces").and_then(|v| v.as_u64()), Some(1));
     }
@@ -1331,14 +1313,8 @@ mod tests {
             .await;
             assert!(resp.error.is_none(), "{:?}", resp.error);
         }
-        let present = handle_request(
-            "compositor.present".into(),
-            None,
-            &comp,
-            &pixels,
-            &wayland,
-        )
-        .await;
+        let present =
+            handle_request("compositor.present".into(), None, &comp, &pixels, &wayland).await;
         assert!(present.error.is_none());
         let result = present.result.expect("present");
         assert_eq!(
@@ -1366,6 +1342,9 @@ mod tests {
         let body = &bytes[pos..];
         let accent = [0x9C_u8, 0x7C, 0xF2];
         let has_accent = body.windows(3).any(|w| w == accent);
-        assert!(has_accent, "primary button accent.default missing from framebuffer");
+        assert!(
+            has_accent,
+            "primary button accent.default missing from framebuffer"
+        );
     }
 }

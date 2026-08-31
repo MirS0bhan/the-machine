@@ -119,7 +119,11 @@ impl Engine {
         })
     }
 
-    fn resolve_key(&self, family: FontFamily, weight: FontWeight) -> Option<(FontFamily, FontWeight)> {
+    fn resolve_key(
+        &self,
+        family: FontFamily,
+        weight: FontWeight,
+    ) -> Option<(FontFamily, FontWeight)> {
         let keys = [
             (family, weight),
             (family, FontWeight::Regular),
@@ -177,7 +181,8 @@ impl Engine {
         let path = self.faces.get(&key)?.path.clone();
         let face = self.ft.new_face(&path, 0).ok()?;
         face.set_pixel_sizes(0, px).ok()?;
-        face.load_glyph(gid, freetype::face::LoadFlag::RENDER).ok()?;
+        face.load_glyph(gid, freetype::face::LoadFlag::RENDER)
+            .ok()?;
         let glyph = face.glyph();
         let bm = glyph.bitmap();
         let width = bm.width();
@@ -401,16 +406,7 @@ fn bitmap_fallback_draw(
     rgb: [u8; 3],
     size: u32,
 ) {
-    bitmap_font::draw_text_scaled(
-        px,
-        x,
-        y,
-        text,
-        rgb[0],
-        rgb[1],
-        rgb[2],
-        (size / 7).max(1),
-    );
+    bitmap_font::draw_text_scaled(px, x, y, text, rgb[0], rgb[1], rgb[2], (size / 7).max(1));
 }
 
 #[cfg(test)]
@@ -420,10 +416,7 @@ mod tests {
     #[test]
     fn harfrust_shapes_and_rasterizes_inter() {
         let font_dir = workspace_font_dir().expect("workspace assets/fonts");
-        std::env::set_var(
-            "THE_MACHINE_FONT_DIR",
-            font_dir.display().to_string(),
-        );
+        std::env::set_var("THE_MACHINE_FONT_DIR", font_dir.display().to_string());
         std::env::set_var("THE_MACHINE_COMPOSITOR_BACKEND", "memory");
         let (w, h) = measure_text("Welcome back", 20, FontWeight::Bold, FontFamily::Default);
         assert!(w > 40, "width={w}");

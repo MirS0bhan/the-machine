@@ -36,6 +36,13 @@ const KEY_DELETE: u16 = 111;
 const KEY_LEFT: u16 = 105;
 const KEY_RIGHT: u16 = 106;
 
+#[derive(Default)]
+struct Modifiers {
+    shift: bool,
+    ctrl: bool,
+    alt: bool,
+}
+
 #[repr(C)]
 struct InputEvent {
     time: libc::timeval,
@@ -108,9 +115,7 @@ fn run_evdev_loop(devices: Vec<PathBuf>, secret: [u8; 32]) {
     let mut x: i32 = 640;
     let mut y: i32 = 360;
     let mut seq: u64 = 0;
-    let mut shift = false;
-    let mut ctrl = false;
-    let mut alt = false;
+    let mut mods = Modifiers::default();
     let mut files: Vec<File> = devices
         .iter()
         .filter_map(|p| OpenOptions::new().read(true).open(p).ok())
@@ -131,16 +136,7 @@ fn run_evdev_loop(devices: Vec<PathBuf>, secret: [u8; 32]) {
                 std::slice::from_raw_parts_mut(&mut ev as *mut InputEvent as *mut u8, size)
             };
             match file.read_exact(buf) {
-                Ok(()) => dispatch_event(
-                    &ev,
-                    &verifier,
-                    &mut x,
-                    &mut y,
-                    &mut seq,
-                    &mut shift,
-                    &mut ctrl,
-                    &mut alt,
-                ),
+                Ok(()) => dispatch_event(&ev, &verifier, &mut x, &mut y, &mut seq, &mut mods),
                 Err(_) => continue,
             }
         }
@@ -154,9 +150,7 @@ fn dispatch_event(
     x: &mut i32,
     y: &mut i32,
     seq: &mut u64,
-    shift: &mut bool,
-    ctrl: &mut bool,
-    alt: &mut bool,
+    mods: &mut Modifiers,
 ) {
     match ev.type_ {
         EV_REL => match ev.code {
@@ -208,24 +202,22 @@ fn dispatch_event(
                 }
             }
         }
-        EV_KEY => {
-            match ev.code {
-                KEY_LEFTSHIFT | KEY_RIGHTSHIFT => *shift = ev.value != 0,
-                KEY_LEFTCTRL | KEY_RIGHTCTRL => *ctrl = ev.value != 0,
-                KEY_LEFTALT | KEY_RIGHTALT => *alt = ev.value != 0,
-                _ if ev.value == 1 || ev.value == 2 => {
-                    if let Some((key, text)) = map_keycode(ev.code, *shift) {
-                        let rt = tokio::runtime::Builder::new_current_thread()
-                            .enable_all()
-                            .build();
-                        if let Ok(rt) = rt {
-                            rt.block_on(forward_key(key, text, *shift, *ctrl, *alt));
-                        }
+        EV_KEY => match ev.code {
+            KEY_LEFTSHIFT | KEY_RIGHTSHIFT => mods.shift = ev.value != 0,
+            KEY_LEFTCTRL | KEY_RIGHTCTRL => mods.ctrl = ev.value != 0,
+            KEY_LEFTALT | KEY_RIGHTALT => mods.alt = ev.value != 0,
+            _ if ev.value == 1 || ev.value == 2 => {
+                if let Some((key, text)) = map_keycode(ev.code, mods.shift) {
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build();
+                    if let Ok(rt) = rt {
+                        rt.block_on(forward_key(key, text, mods.shift, mods.ctrl, mods.alt));
                     }
                 }
-                _ => {}
             }
-        }
+            _ => {}
+        },
         _ => {}
     }
 }
@@ -251,11 +243,7 @@ fn map_keycode(code: u16, shift: bool) -> Option<(String, Option<String>)> {
             } else {
                 ROW3[(code - 44) as usize] as char
             };
-            let ch = if shift {
-                ch.to_ascii_uppercase()
-            } else {
-                ch
-            };
+            let ch = if shift { ch.to_ascii_uppercase() } else { ch };
             Some((ch.to_string(), Some(ch.to_string())))
         }
         57 => Some((" ".into(), Some(" ".into()))), // space

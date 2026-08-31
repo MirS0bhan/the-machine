@@ -98,7 +98,10 @@ impl PixelBackend {
         }
 
         let (width, height) = crate::env::memory_framebuffer_size();
-        warn!("pixel backend: using {}x{} memory buffer (no VGA output)", width, height);
+        warn!(
+            "pixel backend: using {}x{} memory buffer (no VGA output)",
+            width, height
+        );
         record_boot_backend(
             "memory",
             &format!("{width}x{height} — pixels not sent to display; check /dev/fb0 and /dev/dri"),
