@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| G17 + AT-SPI + IME + video | cursor/ui-g17-a11y-ime-video-ac5e | — | pr-open | 2026-08-31 | xdg_wm_base v5; org.themachine.A11y; locale/IME; ffmpeg media |
+| G17 + AT-SPI + IME + video | cursor/ui-g17-a11y-ime-video-ac5e | #215 | pr-open | 2026-08-31 | xdg_wm_base v5; org.themachine.A11y; locale/IME; ffmpeg media |
 | docs close G13 in gap-analysis | cursor/autonomous-machine-maintenance-4565 | #207 | pr-open | 2026-08-30 | Mark G13 fully closed (#157, #159, #168) |
 | verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | #189–#192 | merged | 2026-08-30 | Landed on main (also #193 tree repair) |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
