@@ -8,7 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
-| chat.message LLM reply wiring | cursor/llm-chat-reply-wiring-ac5e | — | in-progress | 2026-08-31 | cloud → localmodel → heuristic; ui.patch chat_log; agent.cloud.reload |
+| chat.message LLM reply wiring | cursor/llm-chat-reply-wiring-ac5e | pending create | pushed | 2026-08-31 | cloud → localmodel → heuristic; ui.patch chat_log; agent.cloud.reload |
 | docs close G13 in gap-analysis | cursor/autonomous-machine-maintenance-4565 | #207 | pr-open | 2026-08-30 | Mark G13 fully closed (#157, #159, #168) |
 | verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | #189–#192 | merged | 2026-08-30 | Landed on main (also #193 tree repair) |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
