@@ -62,6 +62,7 @@ pub fn try_init(pixels: SharedPixel) -> Option<WlSession> {
         return None;
     }
     crate::wl_shm::register_shm_global(&display);
+    crate::wl_xdg::register_xdg_shell_global(&display);
 
     let socket = match ListeningSocket::bind(&preferred) {
         Ok(s) => s,
@@ -107,6 +108,8 @@ impl WlSession {
             "display": self.display_name,
             "engine": "wayland-server",
             "surface_paint": true,
+            "xdg_shell": "xdg_wm_base.v5",
+            "xdg_toplevels": crate::wl_xdg::toplevel_count(),
             "wlroots": false,
         });
         if let Some(obj) = status.as_object_mut() {

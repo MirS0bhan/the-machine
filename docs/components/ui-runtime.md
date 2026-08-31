@@ -368,16 +368,19 @@ The UI Runtime communicates with the compositor using the Wayland protocol:
 | `ui.tree` | Serialize subtree snapshot |
 | `ui.bind` | Attach mcp/state binding to a node |
 | `ui.event` | Pointer/key/wheel → local feedback + bindings |
-| `ui.status` | Revision, focus, parser/text_stack flags |
+| `ui.status` | Revision, focus, parser/text_stack, a11y/i18n/ime flags |
 | `ui.focus.get` / `ui.focus.set` / `ui.focus.next` | Tree focus + compositor focus sync |
 | `ui.theme.get` / `ui.theme.set` | Theme token bag |
 | `ui.auil.parse` / `ui.auil.load` | Parse AUIL source → patch ops / load into tree |
+| `ui.a11y.tree` | AT-SPI-shaped accessibility tree export |
+| `ui.atspi.status` | D-Bus bridge status (`org.themachine.A11y`) |
+| `ui.i18n.status` / `ui.i18n.t` / `ui.i18n.load` | Locale catalogs + string lookup |
 
 Historical names `ui.get_tree` / `ui.get_node` are **not** registered; use `ui.tree` / `ui.get`.
 
 ### AUIL kinds (boot)
 
-Painted interaction kinds: `text`, `field`/`input`, `button`, `toggle`, `slider`, `list`, `dialog`, `icon` (geometric). Layout: `stack`/`container`; `grid` is a stack alias. `media`/`chart` are grammar stubs (unpainted). The PascalCase NodeKind table above is a historical/target sketch — boot tags are lowercase AUIL primitives.
+Painted interaction kinds: `text`, `field`/`input`, `button`, `toggle`, `slider`, `list`, `dialog`, `icon` (geometric), `media` (ffmpeg first frame or play affordance), `chart`. Layout: `stack`/`container` + real `grid` (`cols`/`col_span`/`rtl`). The PascalCase NodeKind table above is a historical/target sketch — boot tags are lowercase AUIL primitives.
 
 ### Example — `ui.patch`
 

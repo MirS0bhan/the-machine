@@ -171,6 +171,10 @@ async fn main() -> anyhow::Result<()> {
             "ui.auil.parse",
             "ui.auil.load",
             "ui.a11y.tree",
+            "ui.atspi.status",
+            "ui.i18n.status",
+            "ui.i18n.t",
+            "ui.i18n.load",
             "ui.components.list",
         ] {
             reg.register(m, "ui-runtime", true).unwrap();
@@ -1015,6 +1019,9 @@ fn is_boot_readonly(method: &str) -> bool {
             | "ui.tree"
             | "ui.status"
             | "ui.a11y.tree"
+            | "ui.atspi.status"
+            | "ui.i18n.status"
+            | "ui.i18n.t"
             | "ui.components.list"
             | "compositor.status"
             | "compositor.list"

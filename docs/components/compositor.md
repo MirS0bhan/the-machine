@@ -12,9 +12,9 @@
 
 The compositor paints the agent UI to real pixels and optionally exposes a Wayland session. On bare metal, `THE_MACHINE_COMPOSITOR_BACKEND=auto` prefers DRM when `/dev/dri/card0` is present.
 
-With `THE_MACHINE_COMPOSITOR_BACKEND=wayland` or `THE_MACHINE_WL_DISPLAY_BIND=1`, the compositor binds `wl_display` and registers `wl_compositor`, `wl_output`, `wl_seat`, and `wl_shm`. Surface commits blit SHM buffers into the pixel backend.
+With `THE_MACHINE_COMPOSITOR_BACKEND=wayland` or `THE_MACHINE_WL_DISPLAY_BIND=1`, the compositor binds `wl_display` and registers `wl_compositor`, `wl_output`, `wl_seat`, `wl_shm`, and `xdg_wm_base` (xdg-shell v5). Surface commits blit SHM buffers into the pixel backend; xdg toplevels receive configure/ack.
 
-A future wlroots `xdg-shell` path for third-party Wayland clients is optional (gap G17). **Today there is no wlroots embedding, no XWayland, and no GPU blur shaders** — see Boot path vs target below.
+XWayland and wlroots embedding remain out of scope. **GPU blur shaders are not painted** — see Boot path vs target below.
 
 ---
 
@@ -27,9 +27,11 @@ A future wlroots `xdg-shell` path for third-party Wayland clients is optional (g
 | Text | HarfRust + FreeType (Inter / JetBrains Mono) | — |
 | Damage | Dirty-rect tracker + partial clear | vblank-synced scheduling |
 | Confirmation exclusivity | `compositor.confirmation.set_active` (MCP) | Wayland confirmation-surface protocol XML |
-| Soft dialog exclusivity | `dialog_active` + scrim paint | Full focus trap / elev=e3 policy |
+| Soft dialog exclusivity | `dialog_active` + scrim paint | Full elev=e3 policy |
 | Blur | `blurred` boolean stored; **not painted** | GPU vibrancy shaders |
-| XWayland / xdg-shell | absent (G17) | Optional legacy / app hosting |
+| xdg-shell | `xdg_wm_base` v5 (wayland-protocols; not wlroots) | Richer popup/positioner |
+| XWayland | absent | Optional legacy app hosting |
+| Media video | ffmpeg CLI first-frame RGB when `src` set | Continuous playback / libav |
 
 Honesty audit: `docs/design-system/08-ui-framework/03-docs-code-honesty.md`.
 
@@ -55,7 +57,7 @@ The older “wlroots-based + XWayland + GPU blur” diagram described the **long
 ## Design Goals
 
 1. **Grow the AUIL→MCP→pixels spine** — do not replace first-party UI with GTK embedding
-2. **xdg-shell / XWayland are escape hatches** — optional (G17), not required for SessionGreeting
+2. **xdg-shell is present; XWayland is an escape hatch** — G17 xdg_wm_base landed without wlroots; XWayland still optional and not required for SessionGreeting
 3. **Confirmation exclusivity is broker-owned** — MCP `confirmation.set_active`, not agent-forgeable chrome
 4. **No opinion about AUIL/ASL grammar** — it paints whatever the UI Runtime provides
 

@@ -8,6 +8,7 @@ until the PR is merged to `main`.
 
 | Gap / task | Branch | PR | Status | Started | Notes |
 |------------|--------|-----|--------|---------|-------|
+| G17 + AT-SPI + IME + video | cursor/ui-g17-a11y-ime-video-ac5e | — | pr-open | 2026-08-31 | xdg_wm_base v5; org.themachine.A11y; locale/IME; ffmpeg media |
 | docs close G13 in gap-analysis | cursor/autonomous-machine-maintenance-4565 | #207 | pr-open | 2026-08-30 | Mark G13 fully closed (#157, #159, #168) |
 | verify-fix ui-runtime merge conflict | cursor/maintenance-verify-fix-ui-runtime-conflict-dfabc51 | #189–#192 | merged | 2026-08-30 | Landed on main (also #193 tree repair) |
 | G7 zbus D-Bus | — | — | merged | 2026-08-30 | Landed on main `f446927` |
@@ -17,6 +18,7 @@ until the PR is merged to `main`.
 
 | Date (UTC) | Run type | Target | Outcome |
 |------------|----------|--------|---------|
+| 2026-08-31 | gap | G17 xdg-shell + AT-SPI + IME/locale + video decode | pr-open |
 | 2026-08-30 | docs | close G13 in gap-analysis.md (fully merged: #157, #159, #168) | pr-open (#207) |
 | 2026-08-30 | audit | marketplace.install Python integration test | merged to main (#208) |
 | 2026-08-30 | audit | localmodel.health Python integration test | merged to main (#209) |
@@ -68,7 +70,8 @@ until the PR is merged to `main`.
 Rotate when completing a row. Prefer top item not in cooldown.
 
 G13 is now fully closed (all sub-items merged: #148, #157, #159, #168) — do not pick it up again.
+G17 xdg-shell is closed via `xdg_wm_base` v5 (wayland-protocols; not wlroots) — do not re-open for wlroots unless product direction changes.
 
-1. **G17** — compositor: wlroots seat/output (cooldown until 2026-09-06)
-2. **audit** — `localmodel.embed` or `event.register_handler` Python integration test
-3. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
+1. **audit** — `localmodel.embed` or `event.register_handler` Python integration test
+2. **audit** — security pass: grant tokens / lambda entrypoint / external.register proxy rules
+3. **polish** — continuous media playback / libav, full OS IME bus, XWayland (optional)

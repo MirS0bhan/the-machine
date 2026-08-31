@@ -3,10 +3,13 @@
 mod asl;
 mod auil;
 mod a11y;
+mod atspi;
 mod components;
 mod dnd;
 mod focus;
 mod grid;
+mod i18n;
+mod ime;
 mod input_edit;
 mod layout;
 mod motion;
@@ -117,6 +120,8 @@ pub(crate) struct UiTree {
     /// Currently focused interactive node id.
     focused: Option<String>,
     drag: Option<dnd::DragSession>,
+    /// Dead-key / compose IME state for the focused field.
+    ime: ime::ImeState,
 }
 
 impl UiTree {
@@ -141,6 +146,7 @@ impl UiTree {
             dirty: HashSet::new(),
             focused: None,
             drag: None,
+            ime: ime::ImeState::default(),
         }
     }
 
@@ -200,6 +206,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     info!("Starting UI Runtime");
+    i18n::ensure_loaded();
     let tree: SharedTree = Arc::new(Mutex::new(UiTree::new()));
 
     // Load boot AUIL layout if present (G6 — parser embedded in Rust boot path).
@@ -209,6 +216,14 @@ async fn main() -> anyhow::Result<()> {
         let tree_boot = tree.clone();
         tokio::spawn(async move {
             publish_boot_ready(tree_boot).await;
+        });
+    }
+
+    // AT-SPI D-Bus bridge (best-effort; disabled with THE_MACHINE_ATSPI=0).
+    {
+        let tree_atspi = tree.clone();
+        tokio::spawn(async move {
+            let _ = atspi::try_start(tree_atspi).await;
         });
     }
 
@@ -622,8 +637,26 @@ async fn handle_request(
                     );
                 }
 
-                // Escape dismisses a soft dialog (not confirmation/e4).
+                // Escape: cancel pending IME first, else dismiss soft dialog.
                 if key == "Escape" {
+                    let cancelled_ime = {
+                        let mut t = tree.lock().await;
+                        if t.ime.pending.is_some() {
+                            t.ime.reset();
+                            true
+                        } else {
+                            false
+                        }
+                    };
+                    if cancelled_ime {
+                        return success_response(
+                            &id,
+                            serde_json::json!({
+                                "handled": 1,
+                                "action": "ime.cancel",
+                            }),
+                        );
+                    }
                     let dismissed = {
                         let mut t = tree.lock().await;
                         let dialog_id = t
@@ -869,6 +902,84 @@ async fn handle_request(
                     }
                 }
 
+                // Dead-key / compose IME before ordinary field editing.
+                if !(mods.ctrl || mods.meta) {
+                    let ime_result = {
+                        let mut t = tree.lock().await;
+                        let out = t.ime.feed(key, text);
+                        match out {
+                            ime::ImeOutput::Pending => Some(("pending".to_string(), None)),
+                            ime::ImeOutput::Commit(composed) => {
+                                let focus_id = t.focused().unwrap_or(&nid).to_string();
+                                let edited = if let Some(node) = t.get(&focus_id) {
+                                    if matches!(node.kind.as_str(), "field" | "input") {
+                                        let current = node
+                                            .props
+                                            .get("text")
+                                            .or_else(|| node.props.get("value"))
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("");
+                                        let caret = node
+                                            .props
+                                            .get("caret")
+                                            .and_then(|v| v.as_u64())
+                                            .map(|n| n as usize);
+                                        let mut buf =
+                                            input_edit::TextBuffer::from_props(current, caret);
+                                        buf.insert_str(&composed);
+                                        if let Some(node) = t.get_mut(&focus_id) {
+                                            node.props.insert(
+                                                "text".into(),
+                                                serde_json::json!(buf.text.clone()),
+                                            );
+                                            node.props.insert(
+                                                "value".into(),
+                                                serde_json::json!(buf.text.clone()),
+                                            );
+                                            node.props.insert(
+                                                "caret".into(),
+                                                serde_json::json!(buf.caret),
+                                            );
+                                        }
+                                        t.revision += 1;
+                                        let snapshot =
+                                            renderer::serialize_subtree(&t, t.root_id());
+                                        Some((composed, snapshot))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                };
+                                Some(("commit".to_string(), edited))
+                            }
+                            ime::ImeOutput::Pass => None,
+                        }
+                    };
+                    if let Some((action, edited)) = ime_result {
+                        if action == "pending" {
+                            return success_response(
+                                &id,
+                                serde_json::json!({
+                                    "handled": 1,
+                                    "action": "ime.pending",
+                                }),
+                            );
+                        }
+                        if let Some((composed, snapshot)) = edited {
+                            let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                            return success_response(
+                                &id,
+                                serde_json::json!({
+                                    "handled": 1,
+                                    "action": "ime.commit",
+                                    "text": composed,
+                                }),
+                            );
+                        }
+                    }
+                }
+
                 let mut t = tree.lock().await;
                 let focus_id = t.focused().unwrap_or(&nid).to_string();
                 let edited = if let Some(node) = t.get(&focus_id) {
@@ -1011,7 +1122,10 @@ async fn handle_request(
                     "asl_parser": "rust-subset",
                     "focused": t.focused(),
                     "text_stack": "harfrust",
-                    "a11y": "mcp-tree",
+                    "a11y": if atspi::is_running() { "mcp-tree+atspi-dbus" } else { "mcp-tree" },
+                    "atspi": atspi::status(),
+                    "i18n": i18n::status(),
+                    "ime": "compose-deadkey",
                     "motion": "snappy|gentle|reduced",
                     "components": components::catalog().len(),
                 }),
@@ -1020,6 +1134,42 @@ async fn handle_request(
         "ui.a11y.tree" => {
             let t = tree.lock().await;
             success_response(&id, a11y::serialize_tree(&t))
+        }
+        "ui.atspi.status" => success_response(&id, atspi::status()),
+        "ui.i18n.status" => success_response(&id, i18n::status()),
+        "ui.i18n.t" => {
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let key = params
+                .get("key")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if key.is_empty() {
+                error_response(&id, "E_INVALID", "key required")
+            } else {
+                success_response(
+                    &id,
+                    serde_json::json!({
+                        "key": key,
+                        "text": i18n::t(key),
+                        "locale": i18n::current_locale(),
+                    }),
+                )
+            }
+        }
+        "ui.i18n.load" => {
+            let params = params.unwrap_or(serde_json::Value::Null);
+            let locale = params
+                .get("locale")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if locale.is_empty() {
+                error_response(&id, "E_INVALID", "locale required")
+            } else {
+                match i18n::load_locale(locale) {
+                    Ok(()) => success_response(&id, i18n::status()),
+                    Err(e) => error_response(&id, "E_I18N", &e),
+                }
+            }
         }
         "ui.components.list" => {
             success_response(

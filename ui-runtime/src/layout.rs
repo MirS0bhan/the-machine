@@ -35,6 +35,7 @@ pub struct LaidOutNode {
     pub items: Vec<String>,
     pub caret: i64,
     pub placeholder_active: bool,
+    pub src: String,
 }
 
 /// Viewport used when compositor size is unknown (memory/DRM defaults).
@@ -101,7 +102,8 @@ fn layout_node(
             || props
                 .get("writing_mode")
                 .and_then(|v| v.as_str())
-                .is_some_and(|w| w == "rtl");
+                .is_some_and(|w| w == "rtl")
+            || crate::i18n::active_rtl();
         let dir = if dir == "rtl" { "h" } else { dir };
         let gap = gap_px(&props);
         let align_center = props
@@ -211,7 +213,8 @@ fn layout_grid(
         || props
             .get("dir")
             .and_then(|v| v.as_str())
-            .is_some_and(|d| d == "rtl");
+            .is_some_and(|d| d == "rtl")
+        || crate::i18n::active_rtl();
     let children = node
         .get("children")
         .and_then(|v| v.as_array())
@@ -327,19 +330,24 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let text = props
-        .get("text")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let label_prop = props
-        .get("label")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let placeholder = props
-        .get("placeholder")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
+    let text = crate::i18n::resolve_label(
+        props
+            .get("text")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+    );
+    let label_prop = crate::i18n::resolve_label(
+        props
+            .get("label")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+    );
+    let placeholder = crate::i18n::resolve_label(
+        props
+            .get("placeholder")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+    );
     let variant = props
         .get("variant")
         .and_then(|v| v.as_str())
@@ -528,6 +536,12 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
         });
     let placeholder_active =
         matches!(kind.as_str(), "field" | "input") && text.is_empty() && !placeholder.is_empty();
+    let src = props
+        .get("src")
+        .or_else(|| props.get("url"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
 
     LaidOutNode {
         id,
@@ -554,6 +568,7 @@ fn style_leaf(node: &Value, x: i32, y: i32, w: u32, h: u32) -> LaidOutNode {
         items,
         caret,
         placeholder_active,
+        src,
     }
 }
 

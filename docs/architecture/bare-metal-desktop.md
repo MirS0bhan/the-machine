@@ -19,10 +19,10 @@ The project is ready for **developers and early adopters** who can run the hardw
 | **A — Boot & install (G13)** | debootstrap rootfs, kernel in `/boot`, GRUB + `/etc/fstab` `LABEL=the-machine`, GPU firmware + Mesa packages, `boot.auil` in `/etc/the-machine` | Done |
 | **B — Display (G14 + G16)** | sysfs/DRM mode query + `display.set_mode`; compositor DRM fb fix | Done |
 | **C — Network (G14)** | `net.list_interfaces` via rtnetlink; `net.set_interface_state` via RTM_SETLINK (`ip` fallback) | Done |
-| **D — Wayland session (G17)** | `wl_compositor` / `wl_output` / `wl_seat` / `wl_shm`; surface commit → pixel paint | Done |
+| **D — Wayland session (G17)** | `wl_compositor` / `wl_output` / `wl_seat` / `wl_shm` / `xdg_wm_base` v5; surface commit → pixel paint | Done |
 | **E — Polish** | PipeWire audio (`pactl`), wpa_supplicant wifi (`wpa_cli`), udev hotplug rules | Done |
 
-**Future (optional):** wlroots `xdg-shell` compositing for conventional Wayland clients — not required for the agent-native UI path.
+**Future (optional):** XWayland and wlroots embedding for conventional desktop clients — not required for the agent-native UI path.
 
 ## Boot paths
 
