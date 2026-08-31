@@ -3,6 +3,7 @@
 mod bitmap_font;
 mod chrome;
 mod clip;
+mod damage;
 mod drm;
 mod env;
 mod model;
@@ -86,19 +87,47 @@ async fn present_loop(comp: Arc<Mutex<Compositor>>, pixels: SharedPixel) {
 }
 
 async fn paint_frame(comp: &Arc<Mutex<Compositor>>, pixels: &SharedPixel) {
-    let surfaces: Vec<Surface> = {
-        let c = comp.lock().await;
-        c.order
+    let (surfaces, damage_frame) = {
+        let mut c = comp.lock().await;
+        let surfaces: Vec<Surface> = c
+            .order
             .iter()
             .filter_map(|id| c.surfaces.get(id).cloned())
-            .collect()
+            .collect();
+        let frame = c.damage.take();
+        (surfaces, frame)
     };
     let mut px = pixels.lock().await;
-    // Canvas = surface.canvas (dark theme) — not a TUI black void.
     let canvas = chrome::SURFACE_CANVAS;
-    px.clear(canvas[0], canvas[1], canvas[2]);
-    for s in &surfaces {
-        paint_surface(&mut px, s);
+    if damage_frame.full || damage_frame.rects.is_empty() {
+        px.clear(canvas[0], canvas[1], canvas[2]);
+        for s in &surfaces {
+            paint_surface(&mut px, s);
+        }
+    } else if let Some(bounds) = damage_frame.union_bounds() {
+        // Partial present: clear union bounds then repaint intersecting surfaces.
+        px.fill_rect(
+            bounds.x,
+            bounds.y,
+            bounds.width,
+            bounds.height,
+            canvas,
+        );
+        for s in &surfaces {
+            let g = &s.geometry;
+            let overlaps = g.x < bounds.x + bounds.width as i32
+                && g.x + g.width as i32 > bounds.x
+                && g.y < bounds.y + bounds.height as i32
+                && g.y + g.height as i32 > bounds.y;
+            if overlaps || s.kind == "dialog" {
+                paint_surface(&mut px, s);
+            }
+        }
+    } else {
+        px.clear(canvas[0], canvas[1], canvas[2]);
+        for s in &surfaces {
+            paint_surface(&mut px, s);
+        }
     }
     px.present();
 }
@@ -108,14 +137,26 @@ fn paint_surface(px: &mut PixelBackend, s: &Surface) {
     let h = s.geometry.height.max(1);
     let radius = if s.radius > 0 {
         s.radius
-    } else if matches!(s.kind.as_str(), "button" | "field" | "input") {
+    } else if matches!(
+        s.kind.as_str(),
+        "button" | "field" | "input" | "toggle" | "dialog"
+    ) {
         chrome::RADIUS_MD
+    } else if s.kind == "slider" {
+        chrome::RADIUS_SM
     } else {
         0
     };
 
+    // Dialog: darken full framebuffer as scrim, then draw the card plate.
+    if s.kind == "dialog" {
+        px.fill_rect(0, 0, px.width(), px.height(), chrome::SCRIM);
+    }
+
     let bg = if s.confirmation {
         chrome::CONFIRMATION_BG
+    } else if s.pressed && s.kind == "button" && s.variant == "primary" {
+        chrome::ACCENT_PRESSED
     } else if let Some(rgb) = s.bg {
         rgb
     } else {
@@ -124,6 +165,11 @@ fn paint_surface(px: &mut PixelBackend, s: &Surface) {
             "button" => chrome::SURFACE_RAISED,
             "field" | "input" => chrome::SURFACE_SUNKEN,
             "text" => chrome::SURFACE_CANVAS,
+            "toggle" if s.checked => chrome::ACCENT_DEFAULT,
+            "toggle" => chrome::SURFACE_RAISED,
+            "slider" => chrome::SURFACE_SUNKEN,
+            "list" => chrome::SURFACE_CARD,
+            "dialog" => chrome::SURFACE_OVERLAY,
             _ => {
                 let (r, g, b) = hash_color(&s.id);
                 [r, g, b]
@@ -133,9 +179,26 @@ fn paint_surface(px: &mut PixelBackend, s: &Surface) {
 
     let fg = s.fg.unwrap_or(match s.kind.as_str() {
         "button" if s.variant == "primary" || s.confirmation => chrome::TEXT_ON_ACCENT,
+        "toggle" if s.checked => chrome::TEXT_ON_ACCENT,
         "field" | "input" => chrome::TEXT_TERTIARY,
         _ => chrome::TEXT_PRIMARY,
     });
+
+    match s.kind.as_str() {
+        "toggle" => {
+            paint_toggle(px, s, bg, fg, radius);
+            return;
+        }
+        "slider" => {
+            paint_slider(px, s, bg, fg, radius);
+            return;
+        }
+        "list" => {
+            paint_list(px, s, bg, fg, radius);
+            return;
+        }
+        _ => {}
+    }
 
     // Text nodes are transparent chrome — label only, no filled plate.
     let draw_plate = s.kind != "text" || s.confirmation;
@@ -150,6 +213,15 @@ fn paint_surface(px: &mut PixelBackend, s: &Surface) {
                 chrome::BORDER_DEFAULT
             };
             px.stroke_rounded_rect(s.geometry.x, s.geometry.y, w, h, radius, border);
+        } else if s.pressed && s.kind == "button" {
+            px.stroke_rounded_rect(
+                s.geometry.x,
+                s.geometry.y,
+                w,
+                h,
+                radius,
+                chrome::BORDER_FOCUS,
+            );
         }
     }
 
@@ -170,6 +242,132 @@ fn paint_surface(px: &mut PixelBackend, s: &Surface) {
             weight,
             family,
         );
+    }
+}
+
+fn paint_toggle(px: &mut PixelBackend, s: &Surface, bg: [u8; 3], fg: [u8; 3], radius: u32) {
+    let w = s.geometry.width.max(1);
+    let h = s.geometry.height.max(1);
+    // Track
+    px.fill_rounded_rect(s.geometry.x, s.geometry.y, w, h, radius, bg);
+    px.stroke_rounded_rect(
+        s.geometry.x,
+        s.geometry.y,
+        w,
+        h,
+        radius,
+        s.border.unwrap_or(chrome::BORDER_DEFAULT),
+    );
+    // Knob
+    let knob = (h as i32 - 8).max(12) as u32;
+    let knob_x = if s.checked {
+        s.geometry.x + w as i32 - knob as i32 - 4
+    } else {
+        s.geometry.x + 4
+    };
+    let knob_y = s.geometry.y + ((h as i32 - knob as i32) / 2).max(0);
+    px.fill_rounded_rect(knob_x, knob_y, knob, knob, knob / 2, fg);
+    if !s.label.is_empty() {
+        let font_px = text::resolve_px(s.font_px, s.font_scale);
+        let weight = text::FontWeight::parse(&s.font_weight);
+        let family = text::FontFamily::parse(&s.font_family);
+        text::draw_text(
+            px,
+            s.geometry.x + w as i32 + 10,
+            s.geometry.y + ((h as i32 - font_px as i32) / 2).max(0),
+            &s.label,
+            chrome::TEXT_PRIMARY,
+            font_px,
+            weight,
+            family,
+        );
+    }
+}
+
+fn paint_slider(px: &mut PixelBackend, s: &Surface, bg: [u8; 3], fg: [u8; 3], radius: u32) {
+    let w = s.geometry.width.max(1);
+    let h = s.geometry.height.max(1);
+    let track_h = 6u32;
+    let track_y = s.geometry.y + ((h as i32 - track_h as i32) / 2).max(0);
+    px.fill_rounded_rect(s.geometry.x, track_y, w, track_h, radius, bg);
+    let min = s.value_min;
+    let max = if s.value_max > min {
+        s.value_max
+    } else {
+        100.0
+    };
+    let t = ((s.value - min) / (max - min)).clamp(0.0, 1.0);
+    let fill_w = ((w as f64) * t) as u32;
+    if fill_w > 0 {
+        px.fill_rounded_rect(s.geometry.x, track_y, fill_w, track_h, radius, fg);
+    }
+    let thumb = 16u32;
+    let thumb_x = s.geometry.x + ((w.saturating_sub(thumb) as f64) * t) as i32;
+    let thumb_y = s.geometry.y + ((h as i32 - thumb as i32) / 2).max(0);
+    px.fill_rounded_rect(thumb_x, thumb_y, thumb, thumb, thumb / 2, fg);
+}
+
+fn paint_list(px: &mut PixelBackend, s: &Surface, bg: [u8; 3], fg: [u8; 3], radius: u32) {
+    let w = s.geometry.width.max(1);
+    let h = s.geometry.height.max(1);
+    px.fill_rounded_rect(s.geometry.x, s.geometry.y, w, h, radius, bg);
+    px.stroke_rounded_rect(
+        s.geometry.x,
+        s.geometry.y,
+        w,
+        h,
+        radius,
+        s.border.unwrap_or(chrome::BORDER_DEFAULT),
+    );
+    let clip = clip::ClipRect {
+        x: s.geometry.x,
+        y: s.geometry.y,
+        width: w,
+        height: h,
+    };
+    let rows: Vec<&str> = if !s.items.is_empty() {
+        s.items.iter().map(|s| s.as_str()).collect()
+    } else if !s.label.is_empty() {
+        s.label.split('\n').collect()
+    } else {
+        Vec::new()
+    };
+    let row_h = 36i32;
+    let font_px = text::resolve_px(s.font_px, s.font_scale);
+    let weight = text::FontWeight::parse(&s.font_weight);
+    let family = text::FontFamily::parse(&s.font_family);
+    for (i, row) in rows.iter().enumerate() {
+        let y = s.geometry.y + 4 + (i as i32) * row_h - s.scroll_y;
+        if y + row_h < s.geometry.y || y > s.geometry.y + h as i32 {
+            continue;
+        }
+        let row_bg = if i % 2 == 0 {
+            chrome::SURFACE_CARD
+        } else {
+            chrome::SURFACE_RAISED
+        };
+        clip::fill_rect_clipped(
+            px,
+            Some(clip),
+            s.geometry.x + 2,
+            y,
+            w.saturating_sub(4),
+            (row_h as u32).saturating_sub(2),
+            row_bg,
+        );
+        // Soft clip: only draw text if baseline is inside the list.
+        if y >= s.geometry.y && y + font_px as i32 <= s.geometry.y + h as i32 {
+            text::draw_text(
+                px,
+                s.geometry.x + 12,
+                y + 8,
+                row,
+                fg,
+                font_px,
+                weight,
+                family,
+            );
+        }
     }
 }
 
@@ -273,6 +471,16 @@ async fn handle_request(
         "compositor.focus" => handle_focus(params, comp, &id).await,
         "compositor.input" => handle_input(params, comp, &id).await,
         "compositor.present" => {
+            let damage_mode = params
+                .get("damage")
+                .and_then(|v| v.as_str())
+                .unwrap_or("full");
+            {
+                let mut c = comp.lock().await;
+                if damage_mode == "full" {
+                    c.damage.mark_full();
+                }
+            }
             paint_frame(comp, pixels).await;
             let c = comp.lock().await;
             success_response(
@@ -282,6 +490,8 @@ async fn handle_request(
                     "surfaces": c.surfaces.len(),
                     "pixels": true,
                     "confirmation_active": c.confirmation_active,
+                    "dialog_active": c.dialog_active,
+                    "damage": damage_mode,
                     "backend": pixels.lock().await.backend_name(),
                     "text": text::backend_name(),
                 }),
@@ -348,8 +558,15 @@ async fn handle_surface(
                 blurred: false,
                 kind: "window".into(),
                 focused: false,
+                pressed: false,
                 label: String::new(),
                 confirmation: false,
+                checked: false,
+                value: 0.0,
+                value_min: 0.0,
+                value_max: 100.0,
+                scroll_y: 0,
+                items: vec![],
                 bg: None,
                 fg: None,
                 border: None,
@@ -367,34 +584,14 @@ async fn handle_surface(
             if s.geometry.height == 0 {
                 s.geometry.height = 60;
             }
-            if let Some(label) = params.get("label").and_then(|v| v.as_str()) {
-                s.label = label.to_string();
-            }
-            if let Some(kind) = params.get("kind").and_then(|v| v.as_str()) {
-                s.kind = kind.to_string();
-            }
-            if let Some(v) = params.get("variant").and_then(|v| v.as_str()) {
-                s.variant = v.to_string();
-            }
-            if let Some(r) = params.get("radius").and_then(|v| v.as_u64()) {
-                s.radius = r as u32;
-            }
-            if let Some(fs) = params.get("font_scale").and_then(|v| v.as_u64()) {
-                s.font_scale = fs as u32;
-            }
-            if let Some(fp) = params.get("font_px").and_then(|v| v.as_u64()) {
-                s.font_px = fp as u32;
-            }
-            if let Some(fw) = params.get("font_weight").and_then(|v| v.as_str()) {
-                s.font_weight = fw.to_string();
-            }
-            if let Some(ff) = params.get("font_family").and_then(|v| v.as_str()) {
-                s.font_family = ff.to_string();
-            }
-            s.bg = parse_rgb(params.get("bg")).or(s.bg);
-            s.fg = parse_rgb(params.get("fg")).or(s.fg);
-            s.border = parse_rgb(params.get("border")).or(s.border);
+            apply_surface_fields(&mut s, &params);
             let mut c = comp.lock().await;
+            c.damage.add(s.geometry.clone());
+            if s.kind == "dialog" {
+                c.dialog_active = true;
+                c.dialog_surface = Some(sid.clone());
+                s.z_order = s.z_order.max(5_000);
+            }
             c.surfaces.insert(sid.clone(), s);
             c.recompute_order();
             drop(c);
@@ -411,8 +608,17 @@ async fn handle_surface(
                 .unwrap_or("")
                 .to_string();
             let mut c = comp.lock().await;
-            c.surfaces.remove(&sid);
+            if let Some(old) = c.surfaces.remove(&sid) {
+                c.damage.add(old.geometry.clone());
+                if c.dialog_surface.as_ref() == Some(&sid) {
+                    c.dialog_active = false;
+                    c.dialog_surface = None;
+                    c.damage.mark_full();
+                }
+            }
             c.recompute_order();
+            drop(c);
+            paint_frame(comp, pixels).await;
             success_response(id, serde_json::json!({ "ok": true }))
         }
         "geometry" => {
@@ -444,44 +650,23 @@ async fn handle_surface(
                 .unwrap_or("")
                 .to_string();
             let mut c = comp.lock().await;
-            if let Some(s) = c.surfaces.get_mut(&sid) {
-                if let Some(g) = params.get("geometry") {
-                    if let Ok(geo) = serde_json::from_value::<Geometry>(g.clone()) {
-                        s.geometry = geo;
-                    }
+            let patched = if let Some(s) = c.surfaces.get_mut(&sid) {
+                let old_geo = s.geometry.clone();
+                apply_surface_fields(s, &params);
+                let new_geo = s.geometry.clone();
+                let is_dialog = s.kind == "dialog";
+                if is_dialog {
+                    s.z_order = s.z_order.max(5_000);
                 }
-                if let Some(label) = params.get("label").and_then(|v| v.as_str()) {
-                    s.label = label.to_string();
-                }
-                if let Some(kind) = params.get("kind").and_then(|v| v.as_str()) {
-                    s.kind = kind.to_string();
-                }
-                if let Some(v) = params.get("variant").and_then(|v| v.as_str()) {
-                    s.variant = v.to_string();
-                }
-                if let Some(r) = params.get("radius").and_then(|v| v.as_u64()) {
-                    s.radius = r as u32;
-                }
-                if let Some(fs) = params.get("font_scale").and_then(|v| v.as_u64()) {
-                    s.font_scale = fs as u32;
-                }
-                if let Some(fp) = params.get("font_px").and_then(|v| v.as_u64()) {
-                    s.font_px = fp as u32;
-                }
-                if let Some(fw) = params.get("font_weight").and_then(|v| v.as_str()) {
-                    s.font_weight = fw.to_string();
-                }
-                if let Some(ff) = params.get("font_family").and_then(|v| v.as_str()) {
-                    s.font_family = ff.to_string();
-                }
-                if let Some(bg) = parse_rgb(params.get("bg")) {
-                    s.bg = Some(bg);
-                }
-                if let Some(fg) = parse_rgb(params.get("fg")) {
-                    s.fg = Some(fg);
-                }
-                if let Some(border) = parse_rgb(params.get("border")) {
-                    s.border = Some(border);
+                Some((old_geo, new_geo, is_dialog))
+            } else {
+                None
+            };
+            if let Some((old_geo, new_geo, is_dialog)) = patched {
+                c.damage.add_union(&old_geo, &new_geo);
+                if is_dialog {
+                    c.dialog_active = true;
+                    c.dialog_surface = Some(sid.clone());
                 }
                 drop(c);
                 paint_frame(comp, pixels).await;
@@ -491,6 +676,74 @@ async fn handle_surface(
             }
         }
         _ => error_response(id, "E_INVALID", "unknown surface action"),
+    }
+}
+
+fn apply_surface_fields(s: &mut Surface, params: &serde_json::Value) {
+    if let Some(g) = params.get("geometry") {
+        if let Ok(geo) = serde_json::from_value::<Geometry>(g.clone()) {
+            s.geometry = geo;
+        }
+    }
+    if let Some(label) = params.get("label").and_then(|v| v.as_str()) {
+        s.label = label.to_string();
+    }
+    if let Some(kind) = params.get("kind").and_then(|v| v.as_str()) {
+        s.kind = kind.to_string();
+    }
+    if let Some(v) = params.get("variant").and_then(|v| v.as_str()) {
+        s.variant = v.to_string();
+    }
+    if let Some(r) = params.get("radius").and_then(|v| v.as_u64()) {
+        s.radius = r as u32;
+    }
+    if let Some(fs) = params.get("font_scale").and_then(|v| v.as_u64()) {
+        s.font_scale = fs as u32;
+    }
+    if let Some(fp) = params.get("font_px").and_then(|v| v.as_u64()) {
+        s.font_px = fp as u32;
+    }
+    if let Some(fw) = params.get("font_weight").and_then(|v| v.as_str()) {
+        s.font_weight = fw.to_string();
+    }
+    if let Some(ff) = params.get("font_family").and_then(|v| v.as_str()) {
+        s.font_family = ff.to_string();
+    }
+    if let Some(z) = params.get("z_order").and_then(|v| v.as_i64()) {
+        s.z_order = z as i32;
+    }
+    if let Some(p) = params.get("pressed").and_then(|v| v.as_bool()) {
+        s.pressed = p;
+    }
+    if let Some(p) = params.get("checked").and_then(|v| v.as_bool()) {
+        s.checked = p;
+    }
+    if let Some(v) = params.get("value").and_then(|v| v.as_f64()) {
+        s.value = v;
+    }
+    if let Some(v) = params.get("value_min").and_then(|v| v.as_f64()) {
+        s.value_min = v;
+    }
+    if let Some(v) = params.get("value_max").and_then(|v| v.as_f64()) {
+        s.value_max = v;
+    }
+    if let Some(v) = params.get("scroll_y").and_then(|v| v.as_i64()) {
+        s.scroll_y = v as i32;
+    }
+    if let Some(arr) = params.get("items").and_then(|v| v.as_array()) {
+        s.items = arr
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect();
+    }
+    if let Some(bg) = parse_rgb(params.get("bg")) {
+        s.bg = Some(bg);
+    }
+    if let Some(fg) = parse_rgb(params.get("fg")) {
+        s.fg = Some(fg);
+    }
+    if let Some(border) = parse_rgb(params.get("border")) {
+        s.border = Some(border);
     }
 }
 
@@ -575,11 +828,23 @@ async fn handle_input(
             if event == "click" || event == "press" {
                 for s in c.surfaces.values_mut() {
                     s.focused = false;
+                    if event == "press" {
+                        s.pressed = false;
+                    }
                 }
                 if let Some(s) = c.surfaces.get_mut(&sid) {
                     s.focused = true;
+                    if event == "press" {
+                        s.pressed = true;
+                    }
                 }
                 c.focused = Some(sid.clone());
+                c.damage.mark_full();
+            } else if event == "release" {
+                for s in c.surfaces.values_mut() {
+                    s.pressed = false;
+                }
+                c.damage.mark_full();
             }
             success_response(
                 id,
@@ -588,6 +853,8 @@ async fn handle_input(
                     "widget_id": widget_id,
                     "handled": true,
                     "confirmation_only": c.confirmation_active,
+                    "event": event,
+                    "delta_y": params.get("delta_y"),
                 }),
             )
         }

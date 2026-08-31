@@ -42,6 +42,7 @@ pub mod dark {
 
     pub const ACCENT_DEFAULT: Rgb = Rgb(0x9C, 0x7C, 0xF2);
     pub const ACCENT_HOVER: Rgb = Rgb(0xA9, 0x8E, 0xF5);
+    pub const ACCENT_PRESSED: Rgb = Rgb(0x7E, 0x5F, 0xD6);
     pub const ACCENT_SUBTLE: Rgb = Rgb(0x2B, 0x1F, 0x4A);
 
     pub const BORDER_DEFAULT: Rgb = Rgb(0x3B, 0x3E, 0x52); // approx 12% of N10 over canvas

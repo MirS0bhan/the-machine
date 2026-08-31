@@ -9,6 +9,7 @@ use tracing::{error, info};
 
 mod audio;
 mod cli;
+mod clipboard;
 mod display;
 mod hotplug;
 mod input;
@@ -160,6 +161,18 @@ async fn handle_request(
         "net.get_wifi_status" => {
             let status = state.kernel_handler.lock().await.get_wifi_status();
             success_response(id, status)
+        }
+        "clipboard.get" => {
+            success_response(id, serde_json::json!({ "text": clipboard::get() }))
+        }
+        "clipboard.set" => {
+            let text = params
+                .as_ref()
+                .and_then(|p| p.get("text"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            clipboard::set(text);
+            success_response(id, serde_json::json!({ "ok": true, "len": text.len() }))
         }
         "system-daemon.stats" => {
             let stats = state.stats.read().await;

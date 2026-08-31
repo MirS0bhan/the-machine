@@ -15,6 +15,7 @@ const EV_ABS: u16 = 0x03;
 const BTN_LEFT: u16 = 0x110;
 const REL_X: u16 = 0x00;
 const REL_Y: u16 = 0x01;
+const REL_WHEEL: u16 = 0x08;
 const ABS_X: u16 = 0x00;
 const ABS_Y: u16 = 0x01;
 const KEY_LEFTSHIFT: u16 = 42;
@@ -157,6 +158,16 @@ fn dispatch_event(
         EV_REL => match ev.code {
             REL_X => *x += ev.value,
             REL_Y => *y += ev.value,
+            REL_WHEEL => {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build();
+                if let Ok(rt) = rt {
+                    // evdev wheel: positive = up; convert to pixel-ish delta.
+                    let dy = -ev.value * 40;
+                    rt.block_on(forward_wheel(*x, *y, dy));
+                }
+            }
             _ => {}
         },
         EV_ABS => match ev.code {
@@ -164,14 +175,25 @@ fn dispatch_event(
             ABS_Y => *y = ev.value,
             _ => {}
         },
-        EV_KEY if ev.code == BTN_LEFT && ev.value == 1 => {
-            *seq += 1;
-            let marker = verifier.generate_marker(ev.time.tv_sec as u64, 13, 0, *seq);
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build();
-            if let Ok(rt) = rt {
-                rt.block_on(forward_pointer(*x, *y, "click", Some(marker)));
+        EV_KEY if ev.code == BTN_LEFT => {
+            if ev.value == 1 {
+                *seq += 1;
+                let marker = verifier.generate_marker(ev.time.tv_sec as u64, 13, 0, *seq);
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build();
+                if let Ok(rt) = rt {
+                    // Click carries provenance; ui-runtime applies local press chrome
+                    // before bindings. Release clears pressed state.
+                    rt.block_on(forward_pointer(*x, *y, "click", Some(marker)));
+                }
+            } else if ev.value == 0 {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build();
+                if let Ok(rt) = rt {
+                    rt.block_on(forward_pointer(*x, *y, "release", None));
+                }
             }
         }
         EV_KEY => {
@@ -236,6 +258,27 @@ fn map_keycode(code: u16, shift: bool) -> Option<(String, Option<String>)> {
             Some((ch.to_string(), Some(ch.to_string())))
         }
         _ => None,
+    }
+}
+
+async fn forward_wheel(x: i32, y: i32, delta_y: i32) {
+    let params = json!({ "x": x, "y": y, "event": "wheel", "delta_y": delta_y });
+    let hit = bus_call("compositor.input", params.clone()).await;
+    let widget = hit
+        .as_ref()
+        .and_then(|h| h.get("widget_id"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if !widget.is_empty() {
+        let _ = bus_call(
+            "ui.event",
+            json!({
+                "id": widget,
+                "event": "wheel",
+                "payload": { "x": x, "y": y, "delta_y": delta_y },
+            }),
+        )
+        .await;
     }
 }
 

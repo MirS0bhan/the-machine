@@ -6,6 +6,7 @@ mod focus;
 mod input_edit;
 mod layout;
 mod renderer;
+mod scroll;
 mod tokens;
 mod widgets;
 
@@ -342,7 +343,7 @@ async fn handle_request(
         "ui.event" => {
             // Widget event: execute bindings on the target node.
             let params = params.unwrap_or(serde_json::Value::Null);
-            let nid = params
+            let mut nid = params
                 .get("id")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
@@ -357,14 +358,79 @@ async fn handle_request(
                 .cloned()
                 .unwrap_or(serde_json::Value::Null);
 
-            // Click focuses interactive widgets.
+            // Local press feedback — swap chrome before agent bindings.
+            // Both `press` (AUIL / agent) and `click` (pointer) activate.
             if matches!(event.as_str(), "click" | "press") {
-                let mut t = tree.lock().await;
-                if t.get(&nid)
-                    .is_some_and(|n| focus::is_interactive(&n.kind))
-                {
-                    t.set_focused(Some(nid.clone()));
-                }
+                let snapshot = {
+                    let mut t = tree.lock().await;
+                    if t.get(&nid)
+                        .is_some_and(|n| focus::is_interactive(&n.kind))
+                    {
+                        t.set_focused(Some(nid.clone()));
+                    }
+                    if let Some(node) = t.get_mut(&nid) {
+                        if node.kind == "button" {
+                            node.props
+                                .insert("pressed".into(), serde_json::json!(true));
+                        }
+                        if node.kind == "toggle" {
+                            let on = node
+                                .props
+                                .get("checked")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false);
+                            node.props
+                                .insert("checked".into(), serde_json::json!(!on));
+                        }
+                    }
+                    t.revision += 1;
+                    renderer::serialize_subtree(&t, t.root_id())
+                };
+                let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+            }
+            if event == "release" {
+                let snapshot = {
+                    let mut t = tree.lock().await;
+                    if let Some(node) = t.get_mut(&nid) {
+                        node.props
+                            .insert("pressed".into(), serde_json::json!(false));
+                    }
+                    renderer::serialize_subtree(&t, t.root_id())
+                };
+                let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+            }
+
+            // Wheel → scroll focused list / overflow container.
+            if event == "wheel" {
+                let dy = event_payload
+                    .get("delta_y")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0) as i32;
+                let snapshot = {
+                    let mut t = tree.lock().await;
+                    let target = t
+                        .focused()
+                        .map(|s| s.to_string())
+                        .filter(|id| t.get(id).is_some_and(|n| n.kind == "list"))
+                        .unwrap_or_else(|| nid.clone());
+                    if let Some(node) = t.get_mut(&target) {
+                        if node.kind == "list" {
+                            let vh = node
+                                .props
+                                .get("height")
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(160) as u32;
+                            scroll::apply_wheel(&mut node.props, dy, vh);
+                            t.revision += 1;
+                        }
+                    }
+                    renderer::serialize_subtree(&t, t.root_id())
+                };
+                let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                return success_response(
+                    &id,
+                    serde_json::json!({ "handled": 1, "action": "scroll" }),
+                );
             }
 
             // Keyboard editing on the focused field.
@@ -403,6 +469,214 @@ async fn handle_request(
                         serde_json::json!({ "handled": 1, "focused": next, "action": "tab" }),
                     );
                 }
+
+                // Enter / Return activates the focused button (same as press).
+                if matches!(key, "Enter" | "Return") {
+                    let focus_id = {
+                        let t = tree.lock().await;
+                        t.focused().unwrap_or(&nid).to_string()
+                    };
+                    let is_button = {
+                        let t = tree.lock().await;
+                        t.get(&focus_id)
+                            .is_some_and(|n| n.kind == "button")
+                    };
+                    if is_button {
+                        nid = focus_id;
+                        // Fall through to binding execution as a press.
+                        let snapshot = {
+                            let mut t = tree.lock().await;
+                            if let Some(node) = t.get_mut(&nid) {
+                                node.props
+                                    .insert("pressed".into(), serde_json::json!(true));
+                            }
+                            renderer::serialize_subtree(&t, t.root_id())
+                        };
+                        let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                        // Reuse press binding path below by rewriting event.
+                        let event = "press".to_string();
+                        let bindings = {
+                            let t = tree.lock().await;
+                            let node = t.get(&nid);
+                            let props = node
+                                .map(|n| {
+                                    serde_json::to_value(&n.props)
+                                        .unwrap_or(serde_json::Value::Null)
+                                })
+                                .unwrap_or(serde_json::Value::Null);
+                            let b = node.map(|n| n.bindings.clone()).unwrap_or_default();
+                            let chat_text = t.get("ui.chat_input").and_then(|n| {
+                                n.props
+                                    .get("text")
+                                    .or_else(|| n.props.get("value"))
+                                    .and_then(|v| v.as_str())
+                                    .filter(|s| !s.is_empty())
+                                    .map(|s| s.to_string())
+                            });
+                            (b, props, chat_text)
+                        };
+                        let mut results = Vec::new();
+                        for b in &bindings.0 {
+                            let mut merged = event_payload.clone();
+                            if let Some(obj) = merged.as_object_mut() {
+                                if let Some(pobj) = bindings.1.as_object() {
+                                    for (k, v) in pobj {
+                                        obj.insert(k.clone(), v.clone());
+                                    }
+                                }
+                                if let Some(text) = &bindings.2 {
+                                    obj.insert("text".into(), serde_json::json!(text));
+                                }
+                            }
+                            let r = execute_binding(b, &event, &merged).await;
+                            results.push(serde_json::json!({ "target": b.target, "result": r }));
+                        }
+                        // Clear press feedback.
+                        let snapshot = {
+                            let mut t = tree.lock().await;
+                            if let Some(node) = t.get_mut(&nid) {
+                                node.props
+                                    .insert("pressed".into(), serde_json::json!(false));
+                            }
+                            renderer::serialize_subtree(&t, t.root_id())
+                        };
+                        let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                        return success_response(
+                            &id,
+                            serde_json::json!({
+                                "handled": results.len(),
+                                "results": results,
+                                "action": "activate",
+                            }),
+                        );
+                    }
+                }
+
+                // Ctrl/Cmd-C/V/X clipboard on focused field.
+                if mods.ctrl || mods.meta {
+                    let focus_id = {
+                        let t = tree.lock().await;
+                        t.focused().unwrap_or(&nid).to_string()
+                    };
+                    let key_l = key.to_ascii_lowercase();
+                    if matches!(key_l.as_str(), "c" | "v" | "x") {
+                        let mut t = tree.lock().await;
+                        let edited = if let Some(node) = t.get(&focus_id) {
+                            if matches!(node.kind.as_str(), "field" | "input") {
+                                let current = node
+                                    .props
+                                    .get("text")
+                                    .or_else(|| node.props.get("value"))
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+                                Some(current)
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+                        if let Some(current) = edited {
+                            match key_l.as_str() {
+                                "c" => {
+                                    drop(t);
+                                    let _ = mcp_call(
+                                        "clipboard.set",
+                                        serde_json::json!({ "text": current }),
+                                    )
+                                    .await;
+                                    return success_response(
+                                        &id,
+                                        serde_json::json!({
+                                            "handled": 1,
+                                            "action": "clipboard.copy",
+                                        }),
+                                    );
+                                }
+                                "x" => {
+                                    if let Some(node) = t.get_mut(&focus_id) {
+                                        node.props
+                                            .insert("text".into(), serde_json::json!(""));
+                                        node.props
+                                            .insert("value".into(), serde_json::json!(""));
+                                        node.props
+                                            .insert("caret".into(), serde_json::json!(0));
+                                    }
+                                    t.revision += 1;
+                                    let snapshot =
+                                        renderer::serialize_subtree(&t, t.root_id());
+                                    drop(t);
+                                    let _ = mcp_call(
+                                        "clipboard.set",
+                                        serde_json::json!({ "text": current }),
+                                    )
+                                    .await;
+                                    let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                                    return success_response(
+                                        &id,
+                                        serde_json::json!({
+                                            "handled": 1,
+                                            "action": "clipboard.cut",
+                                        }),
+                                    );
+                                }
+                                "v" => {
+                                    drop(t);
+                                    let clip = mcp_call("clipboard.get", serde_json::json!({}))
+                                        .await
+                                        .and_then(|v| {
+                                            v.get("text")
+                                                .and_then(|t| t.as_str())
+                                                .map(|s| s.to_string())
+                                        })
+                                        .unwrap_or_default();
+                                    let mut t = tree.lock().await;
+                                    if let Some(node) = t.get_mut(&focus_id) {
+                                        let mut buf = input_edit::TextBuffer::from_props(
+                                            node.props
+                                                .get("text")
+                                                .or_else(|| node.props.get("value"))
+                                                .and_then(|v| v.as_str())
+                                                .unwrap_or(""),
+                                            node.props
+                                                .get("caret")
+                                                .and_then(|v| v.as_u64())
+                                                .map(|n| n as usize),
+                                        );
+                                        buf.insert_str(&clip);
+                                        node.props.insert(
+                                            "text".into(),
+                                            serde_json::json!(buf.text.clone()),
+                                        );
+                                        node.props.insert(
+                                            "value".into(),
+                                            serde_json::json!(buf.text.clone()),
+                                        );
+                                        node.props.insert(
+                                            "caret".into(),
+                                            serde_json::json!(buf.caret),
+                                        );
+                                    }
+                                    t.revision += 1;
+                                    let snapshot =
+                                        renderer::serialize_subtree(&t, t.root_id());
+                                    drop(t);
+                                    let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                                    return success_response(
+                                        &id,
+                                        serde_json::json!({
+                                            "handled": 1,
+                                            "action": "clipboard.paste",
+                                        }),
+                                    );
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+
                 let mut t = tree.lock().await;
                 let focus_id = t.focused().unwrap_or(&nid).to_string();
                 let edited = if let Some(node) = t.get(&focus_id) {
@@ -494,6 +768,18 @@ async fn handle_request(
                 }
                 let r = execute_binding(b, &event, &merged).await;
                 results.push(serde_json::json!({ "target": b.target, "result": r }));
+            }
+            // Clear local press after bindings fire.
+            if matches!(event.as_str(), "click" | "press") {
+                let snapshot = {
+                    let mut t = tree.lock().await;
+                    if let Some(node) = t.get_mut(&nid) {
+                        node.props
+                            .insert("pressed".into(), serde_json::json!(false));
+                    }
+                    renderer::serialize_subtree(&t, t.root_id())
+                };
+                let _ = renderer::sync_tree_to_compositor(&snapshot).await;
             }
             success_response(
                 &id,

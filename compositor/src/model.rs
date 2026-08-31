@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Geometry {
     pub x: i32,
     pub y: i32,
@@ -31,10 +31,29 @@ pub struct Surface {
     pub kind: String,
     #[serde(default)]
     pub focused: bool,
+    /// Local press feedback (pointer down) — painted without agent round-trip.
+    #[serde(default)]
+    pub pressed: bool,
     #[serde(default)]
     pub label: String,
     #[serde(default)]
     pub confirmation: bool,
+    /// Toggle checked state.
+    #[serde(default)]
+    pub checked: bool,
+    /// Slider / progress value in [0, 1] (normalized) or absolute when `value_max` > 0.
+    #[serde(default)]
+    pub value: f64,
+    #[serde(default)]
+    pub value_min: f64,
+    #[serde(default)]
+    pub value_max: f64,
+    /// Vertical scroll offset for list / overflow containers.
+    #[serde(default)]
+    pub scroll_y: i32,
+    /// List row labels (newline-joined fallback lives in `label`).
+    #[serde(default)]
+    pub items: Vec<String>,
     /// Fill color (design-system token resolved by ui-runtime). Absent → kind fallback.
     #[serde(default)]
     pub bg: Option<Rgb>,
@@ -86,6 +105,10 @@ pub struct Compositor {
     pub focused: Option<String>,
     pub confirmation_active: bool,
     pub confirmation_surface: Option<String>,
+    /// Soft modal exclusivity for generic `dialog` (not confirmation/e4).
+    pub dialog_active: bool,
+    pub dialog_surface: Option<String>,
+    pub damage: crate::damage::DamageTracker,
 }
 
 impl Compositor {
@@ -96,6 +119,9 @@ impl Compositor {
             focused: None,
             confirmation_active: false,
             confirmation_surface: None,
+            dialog_active: false,
+            dialog_surface: None,
+            damage: crate::damage::DamageTracker::new(),
         }
     }
 
@@ -110,6 +136,29 @@ impl Compositor {
             if let Some(ref sid) = self.confirmation_surface {
                 if self.hit(sid, x, y) {
                     return Some(sid.clone());
+                }
+            }
+            return None;
+        }
+        if self.dialog_active {
+            if let Some(ref sid) = self.dialog_surface {
+                if self.hit(sid, x, y) {
+                    return Some(sid.clone());
+                }
+            }
+            // Allow hitting dialog children that share the dialog id prefix.
+            for id in self.order.iter().rev() {
+                if self.hit(id, x, y) {
+                    if let Some(s) = self.surfaces.get(id) {
+                        if s.kind == "dialog"
+                            || self
+                                .dialog_surface
+                                .as_ref()
+                                .is_some_and(|d| id.starts_with(d) || d.starts_with(id))
+                        {
+                            return Some(id.clone());
+                        }
+                    }
                 }
             }
             return None;
