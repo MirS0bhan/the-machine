@@ -65,6 +65,71 @@ fn collect(id: &str, tree: &UiTree, out: &mut Vec<String>) {
     }
 }
 
+/// Top-level surfaces for Alt+Tab: agent-placed workspace controls, any open
+/// dialog or menu, then the chat field as the always-present home surface.
+///
+/// This is "surface" in the compositor sense — each of these owns a
+/// `surface.<id>` — not every focusable leaf, so Alt+Tab steps between
+/// app-sized things rather than walking the whole tab ring.
+pub fn top_level_surfaces(tree: &UiTree) -> Vec<String> {
+    let mut out = Vec::new();
+    // Dialogs and menus are modal-ish and come first.
+    collect_surfaces(tree.root_id(), tree, &mut out, &|node| {
+        node.kind == "dialog" || node.props.get("surface").and_then(|v| v.as_str()) == Some("menu")
+    });
+    if let Some(workspace) = tree.get("ui.workspace") {
+        for child in &workspace.children {
+            if let Some(node) = tree.get(child) {
+                if is_interactive(&node.kind) && !out.contains(&node.id) {
+                    out.push(node.id.clone());
+                }
+            }
+        }
+    }
+    // The shell chrome is one surface, not one entry per control, so Alt+Tab
+    // steps between app-sized things instead of walking the chat row twice.
+    for home in ["ui.chat_input", "ui.chat_send", "ui.root"] {
+        if tree.get(home).is_some() {
+            if !out.contains(&home.to_string()) {
+                out.push(home.to_string());
+            }
+            break;
+        }
+    }
+    out
+}
+
+fn collect_surfaces(
+    id: &str,
+    tree: &UiTree,
+    out: &mut Vec<String>,
+    pred: &dyn Fn(&crate::UiNode) -> bool,
+) {
+    if let Some(node) = tree.get(id) {
+        if pred(node) && !out.contains(&node.id) {
+            out.push(node.id.clone());
+        }
+        for child in &node.children {
+            collect_surfaces(child, tree, out, pred);
+        }
+    }
+}
+
+/// Ordered focusable ids with their roles, for `ui.a11y.focus_order`.
+pub fn focus_order(tree: &UiTree) -> Vec<(String, &'static str, String)> {
+    focusable_ids_trapped(tree)
+        .into_iter()
+        .filter_map(|id| {
+            let node = tree.get(&id)?;
+            Some((
+                id.clone(),
+                crate::a11y::role_for(&node.kind, &node.props),
+                crate::a11y::name_for(&node.kind, &node.id, &node.props),
+            ))
+        })
+        .collect()
+}
+
 pub fn next_focus(tree: &UiTree, current: Option<&str>, reverse: bool) -> Option<String> {
     let ids = focusable_ids_trapped(tree);
     if ids.is_empty() {
