@@ -7,7 +7,7 @@ stack#ui.root dir=v gap=md
     text#ui.activity(role=caption) ""
   stack.SessionGreeting#ui.session dir=v gap=lg align=center
     text#ui.greeting(role=title size=title-2) "Welcome back"
-    text#ui.chat_log(role=caption) ""
+    list#ui.chat_log(label=Conversation live=polite) ""
     field#ui.chat_input(input-mode=hybrid placeholder="Ask, request status, or place a control") ""
     button#ui.chat_send(variant=primary label=Send) on:press=mcp:agent.chat.send
   stack#ui.workspace dir=v gap=md

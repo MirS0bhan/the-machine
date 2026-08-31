@@ -95,6 +95,42 @@ scale space: xs=4 sm=8 md=12 lg=16 xl=24 xxl=32 xxxl=48
 "#
 }
 
+pub fn design_system_light_asl() -> &'static str {
+    r#"
+token surface.canvas = #F7F8FC
+token surface.sunken = #EEF0F7
+token surface.card = #FFFFFF
+token surface.raised = #FFFFFF
+token text.primary = #12131C
+token text.secondary = #3B3E52
+token text.tertiary = #5C6078
+token text.on-accent = #FFFFFF
+token accent.default = #6C3CE0
+token border.default = #D0D3E0
+token border.focus = #6C3CE0
+scale radius: sm=6 md=10 lg=16 xl=24
+scale space: xs=4 sm=8 md=12 lg=16 xl=24 xxl=32 xxxl=48
+"#
+}
+
+pub fn design_system_high_contrast_asl() -> &'static str {
+    r#"
+token surface.canvas = #000000
+token surface.sunken = #000000
+token surface.card = #000000
+token surface.raised = #111111
+token text.primary = #FFFFFF
+token text.secondary = #FFFFFF
+token text.tertiary = #FFFF00
+token text.on-accent = #000000
+token accent.default = #FFFF00
+token border.default = #FFFFFF
+token border.focus = #FFFF00
+scale radius: sm=6 md=10 lg=16 xl=24
+scale space: xs=4 sm=8 md=12 lg=16 xl=24 xxl=32 xxxl=48
+"#
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

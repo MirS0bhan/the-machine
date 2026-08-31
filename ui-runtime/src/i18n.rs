@@ -144,10 +144,28 @@ fn builtin_catalog(locale: &str) -> HashMap<String, String> {
             ("dialog.deny", "Deny"),
         ],
     };
-    pairs
+    // Named locales with small builtin catalogs; unknown locales keep English fallback.
+    let extra: &[(&str, &[(&str, &str)])] = &[
+        ("fr", &[("app.welcome", "Bon retour"), ("chat.send", "Envoyer")]),
+        ("de", &[("app.welcome", "Willkommen zurück"), ("chat.send", "Senden")]),
+        ("es", &[("app.welcome", "Bienvenido de nuevo"), ("chat.send", "Enviar")]),
+        ("he", &[("app.welcome", "ברוך שובך"), ("chat.send", "שלח")]),
+        ("ur", &[("app.welcome", "خوش آمدید"), ("chat.send", "بھیجیں")]),
+        ("ja", &[("app.welcome", "おかえりなさい"), ("chat.send", "送信")]),
+        ("zh", &[("app.welcome", "欢迎回来"), ("chat.send", "发送")]),
+    ];
+    let mut map: HashMap<String, String> = pairs
         .iter()
         .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
-        .collect()
+        .collect();
+    for (loc, catalog) in extra {
+        if locale == *loc || locale.starts_with(&format!("{loc}-")) {
+            for (k, v) in catalog.iter() {
+                map.insert((*k).to_string(), (*v).to_string());
+            }
+        }
+    }
+    map
 }
 
 #[cfg(test)]
@@ -158,6 +176,13 @@ mod tests {
     fn english_welcome() {
         load_locale("en").unwrap();
         assert_eq!(t("app.welcome"), "Welcome back");
+    }
+
+    #[test]
+    fn french_builtin_overrides_welcome() {
+        load_locale("fr").unwrap();
+        assert_eq!(t("app.welcome"), "Bon retour");
+        load_locale("en").unwrap();
     }
 
     #[test]

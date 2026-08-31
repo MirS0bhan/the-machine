@@ -179,6 +179,7 @@ async fn main() -> anyhow::Result<()> {
             "ui.i18n.t",
             "ui.i18n.load",
             "ui.components.list",
+            "ui.workspace.clear",
         ] {
             reg.register(m, "ui-runtime", true).unwrap();
         }

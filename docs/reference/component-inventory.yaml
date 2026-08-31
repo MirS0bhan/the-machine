@@ -123,6 +123,7 @@ mcp_services:
     - ui.i18n.t
     - ui.i18n.load
     - ui.components.list
+    - ui.workspace.clear
   agent-core:
     - agent.status
     - agent.cloud.status

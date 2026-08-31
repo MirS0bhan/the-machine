@@ -42,6 +42,11 @@ impl ScrollState {
         self.offset_y += dy;
         self.clamp();
     }
+
+    pub fn scroll_page(&mut self, direction: i32) {
+        let page = (self.viewport_h as i32).max(1);
+        self.scroll_by(page * direction);
+    }
 }
 
 /// Apply a wheel delta to a node's scroll_y prop (mutates props map via JSON).
@@ -49,6 +54,15 @@ pub fn apply_wheel(
     props: &mut std::collections::HashMap<String, Value>,
     delta_y: i32,
     viewport_h: u32,
+) {
+    apply_wheel_scaled(props, delta_y, viewport_h, 1.0);
+}
+
+fn apply_wheel_scaled(
+    props: &mut std::collections::HashMap<String, Value>,
+    delta_y: i32,
+    viewport_h: u32,
+    scale: f32,
 ) {
     let content_h = props
         .get("content_h")
@@ -63,8 +77,17 @@ pub fn apply_wheel(
         content_h,
         viewport_h,
     };
-    state.scroll_by(delta_y);
+    state.scroll_by((delta_y as f32 * scale) as i32);
     props.insert("scroll_y".into(), serde_json::json!(state.offset_y));
+}
+
+/// Wheel with a 1.5× leftover so a flick covers more than one notch (Machine-native kinetic).
+pub fn apply_wheel_kinetic(
+    props: &mut std::collections::HashMap<String, Value>,
+    delta_y: i32,
+    viewport_h: u32,
+) {
+    apply_wheel_scaled(props, delta_y, viewport_h, 1.5);
 }
 
 #[cfg(test)]

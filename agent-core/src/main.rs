@@ -351,6 +351,12 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
     );
 
     let prior_chat_log = load_chat_log().await;
+    let mut payload = payload;
+    if let serde_json::Value::Object(ref mut map) = payload {
+        if !map.contains_key("prior_log") {
+            map.insert("prior_log".into(), serde_json::json!(prior_chat_log.clone()));
+        }
+    }
 
     let target_method = infer_target_method(&classification.intent, &text, &payload);
     if let Some(method) = &target_method {
@@ -382,40 +388,121 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
 
     let trace = new_trace();
     let mut routing = routing;
-    let plan = if classification.intent == "chat.message" || classification.intent == "generic"
-    {
+    let plan = if from_chat {
+        if let Some(cmd) = planner::chat_command_from_text(&text) {
+            match cmd {
+                "chat.undo" => planner::chat_undo_plan(&prior_chat_log),
+                "chat.regenerate" => {
+                    let (_without_last, last_user) =
+                        planner::split_last_user_turn(&prior_chat_log);
+                    let prompt = if last_user.is_empty() {
+                        text.clone()
+                    } else {
+                        last_user
+                    };
+                    let (reply, r) =
+                        resolve_chat_reply(&state, &prompt, privacy_tag, local_only, &trace).await;
+                    routing = r;
+                    let stripped = planner::strip_last_turn(&prior_chat_log);
+                    planner::chat_message_plan(
+                        &prompt,
+                        &format!("(regenerated) {reply}"),
+                        &stripped,
+                    )
+                }
+                "chat.pin" => {
+                    let mut p = planner::chat_message_plan(
+                        &text,
+                        "Pinned the last assistant turn into the workspace.",
+                        &prior_chat_log,
+                    );
+                    p.extend(planner::chat_pin_plan(&prior_chat_log));
+                    p
+                }
+                "chat.export" => {
+                    let mut p = planner::chat_message_plan(
+                        &text,
+                        "Exported the conversation into a workspace list.",
+                        &prior_chat_log,
+                    );
+                    p.extend(planner::chat_export_plan(&prior_chat_log));
+                    p
+                }
+                "chat.suggestions" => {
+                    let mut p = planner::chat_message_plan(
+                        &text,
+                        "Here are some things you can ask me to do.",
+                        &prior_chat_log,
+                    );
+                    p.extend(planner::chat_suggestions_plan());
+                    p
+                }
+                "desktop.tour" => {
+                    let mut p = planner::chat_message_plan(
+                        &text,
+                        "Tour: chat here, Tab to move focus, Enter to send, ask me to place controls.",
+                        &prior_chat_log,
+                    );
+                    p.extend(planner::desktop_tour_plan());
+                    p
+                }
+                _ => planner::chat_message_plan(&text, "OK.", &prior_chat_log),
+            }
+        } else if classification.intent == "chat.message" || classification.intent == "generic" {
+            let (reply, reply_routing) =
+                resolve_chat_reply(&state, &text, privacy_tag, local_only, &trace).await;
+            info!("chat reply via {reply_routing}");
+            routing = reply_routing;
+            let follow_on = planner::desktop_actions_for_text(&text);
+            planner::agentic_turn_plan(&text, &reply, &prior_chat_log, follow_on)
+        } else if !matches!(classification.intent.as_str(), "boot.greet" | "heartbeat") {
+            let (ack, ack_routing) = if cloud_router && !privacy_tag && !local_only {
+                let (reply, r) =
+                    resolve_chat_reply(&state, &text, privacy_tag, local_only, &trace).await;
+                (reply, r)
+            } else {
+                (
+                    format!("On it — handling {}.", classification.intent),
+                    "local".into(),
+                )
+            };
+            routing = ack_routing;
+            let action_plan = resolve_action_plan(
+                &state,
+                &classification,
+                &text,
+                &payload,
+                &active_skills,
+                &routing,
+                &trace,
+                privacy_tag,
+                local_only,
+            )
+            .await;
+            planner::agentic_turn_plan(&text, &ack, &prior_chat_log, action_plan)
+        } else if planner::uses_heuristic_plan(&classification.intent) {
+            planner::build_plan_heuristic(&classification.intent, &payload, &text)
+        } else {
+            resolve_action_plan(
+                &state,
+                &classification,
+                &text,
+                &payload,
+                &active_skills,
+                &routing,
+                &trace,
+                privacy_tag,
+                local_only,
+            )
+            .await
+        }
+    } else if classification.intent == "chat.message" || classification.intent == "generic" {
         let (reply, reply_routing) =
             resolve_chat_reply(&state, &text, privacy_tag, local_only, &trace).await;
         info!("chat reply via {reply_routing}");
         routing = reply_routing;
         let follow_on = planner::desktop_actions_for_text(&text);
         planner::agentic_turn_plan(&text, &reply, &prior_chat_log, follow_on)
-    } else if from_chat && !matches!(classification.intent.as_str(), "boot.greet" | "heartbeat") {
-        // Chat UI + actionable intent: acknowledge in the multi-turn log, then run the plan.
-        let (ack, ack_routing) = if cloud_router && !privacy_tag && !local_only {
-            let (reply, r) =
-                resolve_chat_reply(&state, &text, privacy_tag, local_only, &trace).await;
-            (reply, r)
-        } else {
-            (
-                format!("On it — handling {}.", classification.intent),
-                "local".into(),
-            )
-        };
-        routing = ack_routing;
-        let action_plan = resolve_action_plan(
-            &state,
-            &classification,
-            &text,
-            &payload,
-            &active_skills,
-            &routing,
-            &trace,
-            privacy_tag,
-            local_only,
-        )
-        .await;
-        planner::agentic_turn_plan(&text, &ack, &prior_chat_log, action_plan)
     } else if planner::uses_heuristic_plan(&classification.intent) {
         planner::build_plan_heuristic(&classification.intent, &payload, &text)
     } else {
@@ -434,13 +521,55 @@ async fn process_wake(params: serde_json::Value, state: Arc<Mutex<AppState>>) {
     };
 
     let mut results = Vec::new();
+    let mut net_interfaces_result: Option<serde_json::Value> = None;
+    let mut power_result: Option<serde_json::Value> = None;
+    let mut wifi_result: Option<serde_json::Value> = None;
+    let mut display_result: Option<serde_json::Value> = None;
     for step in &plan {
         if state.lock().await.interrupted {
             warn!("wake interrupted mid-plan");
             break;
         }
         let r = mcp_call(&step.action, step.params.clone()).await;
+        if step.action == "net.list_interfaces" {
+            net_interfaces_result = r.clone();
+        }
+        if step.action == "power.get_profile" {
+            power_result = r.clone();
+        }
+        if step.action == "net.get_wifi_status" {
+            wifi_result = r.clone();
+        }
+        if step.action == "display.get_modes" {
+            display_result = r.clone();
+        }
         results.push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
+    }
+
+    if let Some(iface_result) = net_interfaces_result {
+        let items = planner::network_interface_items(&iface_result);
+        for step in planner::network_status_patch_plan(&items) {
+            let r = mcp_call(&step.action, step.params.clone()).await;
+            results.push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
+        }
+    }
+    if let Some(pr) = power_result {
+        for step in planner::power_status_patch_plan(&pr) {
+            let r = mcp_call(&step.action, step.params.clone()).await;
+            results.push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
+        }
+    }
+    if let Some(wr) = wifi_result {
+        for step in planner::wifi_status_patch_plan(&wr) {
+            let r = mcp_call(&step.action, step.params.clone()).await;
+            results.push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
+        }
+    }
+    if let Some(dr) = display_result {
+        for step in planner::display_modes_patch_plan(&dr) {
+            let r = mcp_call(&step.action, step.params.clone()).await;
+            results.push(serde_json::json!({ "action": step.action, "result": r, "trace_id": trace }));
+        }
     }
 
     record_wake(

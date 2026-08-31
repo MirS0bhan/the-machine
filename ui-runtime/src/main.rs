@@ -57,6 +57,8 @@ fn default_kind() -> String {
 #[derive(Clone, Serialize, Deserialize, Default)]
 struct Theme {
     #[serde(default)]
+    name: String,
+    #[serde(default)]
     colors: HashMap<String, serde_json::Value>,
     #[serde(default)]
     spacing: HashMap<String, serde_json::Value>,
@@ -103,6 +105,62 @@ impl Theme {
         }
         typography.insert("family.numeric".into(), serde_json::json!("JetBrains Mono"));
         Theme {
+            name: "dark".into(),
+            colors,
+            spacing,
+            rounding,
+            typography,
+        }
+    }
+
+    fn named(name: &str) -> Self {
+        match name {
+            "light" => Self::from_asl(asl::design_system_light_asl(), "light"),
+            "high-contrast" | "high_contrast" | "hc" => {
+                Self::from_asl(asl::design_system_high_contrast_asl(), "high-contrast")
+            }
+            _ => Self::design_system_dark(),
+        }
+    }
+
+    fn from_asl(src: &str, name: &str) -> Self {
+        let mut t = Self::from_asl_inner(src);
+        t.name = name.to_string();
+        t
+    }
+
+    fn from_asl_inner(src: &str) -> Self {
+        let doc = asl::parse_asl(src);
+        let mut colors = HashMap::new();
+        for (k, v) in &doc.tokens {
+            colors.insert(k.clone(), serde_json::json!(v));
+        }
+        let mut spacing = HashMap::new();
+        if let Some(space) = doc.scales.get("space") {
+            for (k, v) in space {
+                spacing.insert(k.clone(), serde_json::json!(v));
+            }
+        }
+        spacing.insert("min-target".into(), serde_json::json!(tokens::space::MIN_TARGET));
+        let mut rounding = HashMap::new();
+        if let Some(radius) = doc.scales.get("radius") {
+            for (k, v) in radius {
+                rounding.insert(k.clone(), serde_json::json!(v));
+            }
+        }
+        let mut typography = HashMap::new();
+        for (k, v) in [
+            ("title-2", tokens::type_size::TITLE_2),
+            ("body", tokens::type_size::BODY),
+            ("caption", tokens::type_size::CAPTION),
+            ("label", tokens::type_size::LABEL),
+        ] {
+            typography.insert(k.into(), serde_json::json!(v));
+        }
+        typography.insert("family.default".into(), serde_json::json!("Inter"));
+        typography.insert("family.numeric".into(), serde_json::json!("JetBrains Mono"));
+        Theme {
+            name: "dark".into(),
             colors,
             spacing,
             rounding,
@@ -306,6 +364,18 @@ async fn handle_request(
                 Err(e) => error_response(&id, "E_PATCH_FAILED", &e),
             }
         }
+        "ui.workspace.clear" => {
+            let preserve_hint = params
+                .and_then(|p| p.get("preserve_hint").and_then(|v| v.as_bool()))
+                .unwrap_or(true);
+            match clear_workspace(tree, preserve_hint, true).await {
+                Ok(removed) => success_response(
+                    &id,
+                    serde_json::json!({ "ok": true, "removed": removed }),
+                ),
+                Err(e) => error_response(&id, "E_CLEAR_FAILED", &e),
+            }
+        }
         "ui.get" => {
             let params = params.unwrap_or(serde_json::Value::Null);
             let idp = params
@@ -433,6 +503,40 @@ async fn handle_request(
                                     .insert("value".into(), serde_json::json!(value));
                             }
                         }
+                        if node.kind == "chart" {
+                            let data = node
+                                .props
+                                .get("data")
+                                .or_else(|| node.props.get("items"))
+                                .cloned()
+                                .unwrap_or(serde_json::Value::Null);
+                            let idx = event_payload
+                                .get("index")
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(0) as usize;
+                            let tip = data
+                                .as_array()
+                                .and_then(|a| a.get(idx))
+                                .map(|v| v.to_string())
+                                .unwrap_or_else(|| data.to_string());
+                            node.props
+                                .insert("tooltip".into(), serde_json::json!(tip));
+                        }
+                        if node.kind == "media" {
+                            let playing = node
+                                .props
+                                .get("playing")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false);
+                            node.props
+                                .insert("playing".into(), serde_json::json!(!playing));
+                        }
+                        if node.kind == "list" {
+                            if let Some(idx) = event_payload.get("index").and_then(|v| v.as_u64()) {
+                                node.props
+                                    .insert("selected_index".into(), serde_json::json!(idx));
+                            }
+                        }
                     }
                     // Begin drag outside the get_mut borrow.
                     let start_drag = t.get(&nid).and_then(|node| {
@@ -557,6 +661,56 @@ async fn handle_request(
                 );
             }
 
+            if event == "context"
+                || event_payload
+                    .get("button")
+                    .and_then(|v| v.as_u64())
+                    .is_some_and(|b| b == 3)
+            {
+                let snapshot = {
+                    let mut t = tree.lock().await;
+                    let label = t
+                        .get(&nid)
+                        .map(|n| {
+                            n.props
+                                .get("label")
+                                .or_else(|| n.props.get("text"))
+                                .and_then(|v| v.as_str())
+                                .unwrap_or(&n.id)
+                                .to_string()
+                        })
+                        .unwrap_or_else(|| nid.clone());
+                    let dialog = UiNode {
+                        id: "ui.context_menu".into(),
+                        kind: "dialog".into(),
+                        props: {
+                            let mut m = HashMap::new();
+                            m.insert("label".into(), serde_json::json!("Actions"));
+                            m.insert("text".into(), serde_json::json!(format!("For {label}")));
+                            m.insert("dismissible".into(), serde_json::json!(true));
+                            m
+                        },
+                        children: vec![],
+                        asl_style: None,
+                        bindings: vec![],
+                    };
+                    t.nodes.insert("ui.context_menu".into(), dialog);
+                    let root_id = t.root_id.clone();
+                    if let Some(root) = t.get_mut(&root_id) {
+                        if !root.children.contains(&"ui.context_menu".to_string()) {
+                            root.children.push("ui.context_menu".into());
+                        }
+                    }
+                    t.revision += 1;
+                    renderer::serialize_subtree(&t, t.root_id())
+                };
+                let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                return success_response(
+                    &id,
+                    serde_json::json!({ "handled": 1, "action": "context-menu", "id": nid }),
+                );
+            }
+
             // Wheel → scroll focused list / overflow container.
             if event == "wheel" {
                 let dy = event_payload
@@ -577,7 +731,7 @@ async fn handle_request(
                                 .get("height")
                                 .and_then(|v| v.as_u64())
                                 .unwrap_or(160) as u32;
-                            scroll::apply_wheel(&mut node.props, dy, vh);
+                            scroll::apply_wheel_kinetic(&mut node.props, dy, vh);
                             t.revision += 1;
                         }
                     }
@@ -637,6 +791,187 @@ async fn handle_request(
                     );
                 }
 
+                // Desktop chords → Machine-native AUIL/MCP actions (not OS window manager).
+                if (mods.alt && key == "Tab") || key == "Super_L" || key == "Super" || key == "Meta_L"
+                {
+                    let next = {
+                        let mut t = tree.lock().await;
+                        let next = focus::next_focus(&t, t.focused(), mods.shift);
+                        t.set_focused(next.clone());
+                        next
+                    };
+                    return success_response(
+                        &id,
+                        serde_json::json!({ "handled": 1, "action": "workspace.cycle", "focused": next }),
+                    );
+                }
+                if key == "F1" {
+                    let snapshot = {
+                        let mut t = tree.lock().await;
+                        let node = UiNode {
+                            id: "ui.help_dialog".into(),
+                            kind: "dialog".into(),
+                            props: {
+                                let mut m = HashMap::new();
+                                m.insert("label".into(), serde_json::json!("Help"));
+                                m.insert(
+                                    "text".into(),
+                                    serde_json::json!(
+                                        "Enter sends chat. Tab moves focus. Ask to place controls."
+                                    ),
+                                );
+                                m.insert("dismissible".into(), serde_json::json!(true));
+                                m
+                            },
+                            children: vec![],
+                            asl_style: None,
+                            bindings: vec![],
+                        };
+                        t.nodes.insert("ui.help_dialog".into(), node);
+                        let root = t.root_id.clone();
+                        if let Some(p) = t.get_mut(&root) {
+                            if !p.children.contains(&"ui.help_dialog".to_string()) {
+                                p.children.push("ui.help_dialog".into());
+                            }
+                        }
+                        t.revision += 1;
+                        renderer::serialize_subtree(&t, t.root_id())
+                    };
+                    let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                    return success_response(
+                        &id,
+                        serde_json::json!({ "handled": 1, "action": "help" }),
+                    );
+                }
+                if key == "F5" {
+                    let _ = mcp_call("agent.status", serde_json::json!({})).await;
+                    return success_response(
+                        &id,
+                        serde_json::json!({ "handled": 1, "action": "refresh" }),
+                    );
+                }
+                if key == "F12" {
+                    let _ = mcp_call("ui.status", serde_json::json!({})).await;
+                    return success_response(
+                        &id,
+                        serde_json::json!({ "handled": 1, "action": "debug.status" }),
+                    );
+                }
+                if key == "Print" || key == "PrintScreen" {
+                    let _ = mcp_call(
+                        "clipboard.set",
+                        serde_json::json!({ "text": "The Machine · session screenshot token" }),
+                    )
+                    .await;
+                    return success_response(
+                        &id,
+                        serde_json::json!({ "handled": 1, "action": "clipboard.capture" }),
+                    );
+                }
+                if mods.ctrl && mods.shift && key.to_ascii_lowercase() == "t" {
+                    let _ = mcp_call(
+                        "agent.chat.send",
+                        serde_json::json!({ "text": "show suggestions", "source": "chat_ui" }),
+                    )
+                    .await;
+                    return success_response(
+                        &id,
+                        serde_json::json!({ "handled": 1, "action": "chat.suggestions" }),
+                    );
+                }
+                if mods.ctrl && mods.alt && (key == "F9" || key == "f9") {
+                    let _ = mcp_call("hello", serde_json::json!({})).await;
+                    return success_response(
+                        &id,
+                        serde_json::json!({ "handled": 1, "action": "fallback.hello" }),
+                    );
+                }
+                if matches!(key, "PageUp" | "PageDown") {
+                    let handled = {
+                        let mut t = tree.lock().await;
+                        let target = t
+                            .focused()
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| nid.clone());
+                        let is_list = t.get(&target).is_some_and(|n| n.kind == "list");
+                        if is_list {
+                            if let Some(node) = t.get_mut(&target) {
+                                let vh = node
+                                    .props
+                                    .get("height")
+                                    .and_then(|v| v.as_u64())
+                                    .unwrap_or(160) as u32;
+                                let dir = if key == "PageUp" { -1 } else { 1 };
+                                let mut state = scroll::ScrollState::from_props(
+                                    &serde_json::to_value(&node.props).unwrap_or_default(),
+                                    vh,
+                                    node.props
+                                        .get("content_h")
+                                        .and_then(|v| v.as_u64())
+                                        .unwrap_or(400) as u32,
+                                );
+                                state.scroll_page(dir);
+                                node.props
+                                    .insert("scroll_y".into(), serde_json::json!(state.offset_y));
+                                t.revision += 1;
+                            }
+                            let snapshot = renderer::serialize_subtree(&t, t.root_id());
+                            Some(snapshot)
+                        } else {
+                            None
+                        }
+                    };
+                    if let Some(snapshot) = handled {
+                        let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                        return success_response(
+                            &id,
+                            serde_json::json!({ "handled": 1, "action": "page-scroll" }),
+                        );
+                    }
+                }
+                if matches!(key, "ArrowUp" | "ArrowDown" | "Up" | "Down") {
+                    let handled = {
+                        let mut t = tree.lock().await;
+                        let focus_id = t.focused().unwrap_or(&nid).to_string();
+                        let is_list = t.get(&focus_id).is_some_and(|n| n.kind == "list");
+                        if is_list {
+                            if let Some(node) = t.get_mut(&focus_id) {
+                                let len = node
+                                    .props
+                                    .get("items")
+                                    .and_then(|v| v.as_array())
+                                    .map(|a| a.len())
+                                    .unwrap_or(1)
+                                    .max(1);
+                                let cur = node
+                                    .props
+                                    .get("selected_index")
+                                    .and_then(|v| v.as_u64())
+                                    .unwrap_or(0) as usize;
+                                let next = if key.contains("Up") {
+                                    cur.saturating_sub(1)
+                                } else {
+                                    (cur + 1).min(len - 1)
+                                };
+                                node.props
+                                    .insert("selected_index".into(), serde_json::json!(next));
+                                t.revision += 1;
+                            }
+                            let snapshot = renderer::serialize_subtree(&t, t.root_id());
+                            Some(snapshot)
+                        } else {
+                            None
+                        }
+                    };
+                    if let Some(snapshot) = handled {
+                        let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                        return success_response(
+                            &id,
+                            serde_json::json!({ "handled": 1, "action": "list.navigate" }),
+                        );
+                    }
+                }
+
                 // Escape: cancel pending IME first, else dismiss soft dialog.
                 if key == "Escape" {
                     let cancelled_ime = {
@@ -692,6 +1027,26 @@ async fn handle_request(
                                 "id": did,
                             }),
                         );
+                    }
+                }
+
+                // Enter in chat field → send (same as clicking Send).
+                if matches!(key, "Enter" | "Return") {
+                    let focus_id = {
+                        let t = tree.lock().await;
+                        t.focused().unwrap_or(&nid).to_string()
+                    };
+                    if focus_id == "ui.chat_input" {
+                        if let Some(result) = send_chat_from_input(tree).await {
+                            return success_response(
+                                &id,
+                                serde_json::json!({
+                                    "handled": 1,
+                                    "action": "chat.send",
+                                    "result": result,
+                                }),
+                            );
+                        }
                     }
                 }
 
@@ -754,6 +1109,9 @@ async fn handle_request(
                                 }
                             }
                             let r = execute_binding(b, &event, &merged).await;
+                            if b.target == "agent.chat.send" && r.is_some() {
+                                let _ = clear_chat_input(tree).await;
+                            }
                             results.push(serde_json::json!({ "target": b.target, "result": r }));
                         }
                         // Clear press feedback.
@@ -784,7 +1142,7 @@ async fn handle_request(
                         t.focused().unwrap_or(&nid).to_string()
                     };
                     let key_l = key.to_ascii_lowercase();
-                    if matches!(key_l.as_str(), "c" | "v" | "x") {
+                    if matches!(key_l.as_str(), "c" | "v" | "x" | "a" | "z") {
                         let mut t = tree.lock().await;
                         let edited = if let Some(node) = t.get(&focus_id) {
                             if matches!(node.kind.as_str(), "field" | "input") {
@@ -804,6 +1162,56 @@ async fn handle_request(
                         };
                         if let Some(current) = edited {
                             match key_l.as_str() {
+                                "a" => {
+                                    if let Some(node) = t.get_mut(&focus_id) {
+                                        node.props.insert("sel_anchor".into(), serde_json::json!(0));
+                                        node.props.insert(
+                                            "sel_end".into(),
+                                            serde_json::json!(current.len()),
+                                        );
+                                        node.props.insert(
+                                            "caret".into(),
+                                            serde_json::json!(current.len()),
+                                        );
+                                    }
+                                    t.revision += 1;
+                                    let snapshot = renderer::serialize_subtree(&t, t.root_id());
+                                    drop(t);
+                                    let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                                    return success_response(
+                                        &id,
+                                        serde_json::json!({
+                                            "handled": 1,
+                                            "action": "select.all",
+                                        }),
+                                    );
+                                }
+                                "z" => {
+                                    if let Some(node) = t.get_mut(&focus_id) {
+                                        let prev = node
+                                            .props
+                                            .get("last_text")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("")
+                                            .to_string();
+                                        node.props
+                                            .insert("last_text".into(), serde_json::json!(current));
+                                        node.props.insert("text".into(), serde_json::json!(prev.clone()));
+                                        node.props.insert("value".into(), serde_json::json!(prev.clone()));
+                                        node.props.insert("caret".into(), serde_json::json!(prev.len()));
+                                    }
+                                    t.revision += 1;
+                                    let snapshot = renderer::serialize_subtree(&t, t.root_id());
+                                    drop(t);
+                                    let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+                                    return success_response(
+                                        &id,
+                                        serde_json::json!({
+                                            "handled": 1,
+                                            "action": "edit.undo",
+                                        }),
+                                    );
+                                }
                                 "c" => {
                                     drop(t);
                                     let _ = mcp_call(
@@ -989,15 +1397,20 @@ async fn handle_request(
                             .get("text")
                             .or_else(|| node.props.get("value"))
                             .and_then(|v| v.as_str())
-                            .unwrap_or("");
+                            .unwrap_or("")
+                            .to_string();
                         let caret = node
                             .props
                             .get("caret")
                             .and_then(|v| v.as_u64())
                             .map(|n| n as usize);
-                        let mut buf = input_edit::TextBuffer::from_props(current, caret);
+                        let mut buf = input_edit::TextBuffer::from_props(&current, caret);
                         if input_edit::apply_key(&mut buf, key, text, &mods) {
                             if let Some(node) = t.get_mut(&focus_id) {
+                                node.props.insert(
+                                    "last_text".into(),
+                                    serde_json::json!(current),
+                                );
                                 node.props
                                     .insert("text".into(), serde_json::json!(buf.text.clone()));
                                 node.props
@@ -1070,6 +1483,9 @@ async fn handle_request(
                     }
                 }
                 let r = execute_binding(b, &event, &merged).await;
+                if b.target == "agent.chat.send" && r.is_some() {
+                    let _ = clear_chat_input(tree).await;
+                }
                 results.push(serde_json::json!({ "target": b.target, "result": r }));
             }
             // Clear local press after bindings fire.
@@ -1091,6 +1507,14 @@ async fn handle_request(
         }
         "ui.theme.set" => {
             let params = params.unwrap_or(serde_json::Value::Null);
+            if let Some(name) = params.get("name").and_then(|v| v.as_str()) {
+                let mut t = tree.lock().await;
+                t.theme = Theme::named(name);
+                return success_response(
+                    &id,
+                    serde_json::json!({ "ok": true, "name": t.theme.name }),
+                );
+            }
             let theme = params
                 .get("theme")
                 .cloned()
@@ -1098,7 +1522,7 @@ async fn handle_request(
             let mut t = tree.lock().await;
             if let Ok(th) = serde_json::from_value::<Theme>(theme) {
                 t.theme = th;
-                success_response(&id, serde_json::json!({"ok": true}))
+                success_response(&id, serde_json::json!({"ok": true, "name": t.theme.name}))
             } else {
                 error_response(&id, "E_INVALID", "bad theme")
             }
@@ -1275,7 +1699,24 @@ async fn handle_request(
 }
 
 fn parse_node(value: &serde_json::Value) -> Result<UiNode, String> {
-    serde_json::from_value(value.clone()).map_err(|e| format!("invalid node: {}", e))
+    let mut node: UiNode =
+        serde_json::from_value(value.clone()).map_err(|e| format!("invalid node: {}", e))?;
+    // Refuse empty accessible names: fall back to id so AT and HIG stay honest.
+    if matches!(node.kind.as_str(), "button" | "toggle" | "slider") {
+        let empty = node
+            .props
+            .get("label")
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().is_empty())
+            .unwrap_or(true);
+        if empty {
+            node.props
+                .insert("label".into(), serde_json::json!(node.id.clone()));
+            node.props
+                .insert("empty_label_refused".into(), serde_json::json!(true));
+        }
+    }
+    Ok(node)
 }
 
 async fn apply_patch(
@@ -1319,9 +1760,12 @@ async fn apply_patch(
                 let node = parse_node(node_val)?;
                 let nid = node.id.clone();
                 let parent = t.resolve_anchor(anchor);
-                if !t.nodes.contains_key(&nid) {
-                    t.nodes.insert(nid.clone(), node);
+                // Duplicate id: last writer wins (replace in place).
+                if t.nodes.contains_key(&nid) {
+                    t.detach(&nid);
+                    remove_subtree(&mut t, &nid);
                 }
+                t.nodes.insert(nid.clone(), node);
                 let p = t.get_mut(&parent).ok_or("insert: anchor not found")?;
                 if position == "before" || position == "after" {
                     // simplified: still appended to parent's child list
@@ -1420,6 +1864,78 @@ fn remove_subtree(t: &mut UiTree, id: &str) {
             remove_subtree(t, &c);
         }
     }
+}
+
+async fn clear_workspace(
+    tree: &SharedTree,
+    preserve_hint: bool,
+    sync_compositor: bool,
+) -> Result<Vec<String>, String> {
+    let (removed, _rev, snapshot) = {
+        let mut t = tree.lock().await;
+        let workspace_id = "ui.workspace".to_string();
+        let children: Vec<String> = t
+            .get(&workspace_id)
+            .map(|n| n.children.clone())
+            .unwrap_or_default();
+        let mut removed = Vec::new();
+        for child in children {
+            if preserve_hint && child == "ui.workspace_hint" {
+                continue;
+            }
+            t.detach(&child);
+            remove_subtree(&mut t, &child);
+            removed.push(child);
+        }
+        t.revision += 1;
+        let rev = t.revision;
+        let snapshot = renderer::serialize_subtree(&t, t.root_id());
+        (removed, rev, snapshot)
+    };
+    if sync_compositor {
+        let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+    }
+    Ok(removed)
+}
+
+async fn clear_chat_input(tree: &SharedTree) -> Result<(), String> {
+    let snapshot = {
+        let mut t = tree.lock().await;
+        if let Some(node) = t.get_mut("ui.chat_input") {
+            node.props.insert("text".into(), serde_json::json!(""));
+            node.props.insert("value".into(), serde_json::json!(""));
+            node.props.insert("caret".into(), serde_json::json!(0));
+        }
+        t.revision += 1;
+        renderer::serialize_subtree(&t, t.root_id())
+    };
+    let _ = renderer::sync_tree_to_compositor(&snapshot).await;
+    Ok(())
+}
+
+async fn send_chat_from_input(tree: &SharedTree) -> Option<serde_json::Value> {
+    let text = {
+        let t = tree.lock().await;
+        t.get("ui.chat_input").and_then(|n| {
+            n.props
+                .get("text")
+                .or_else(|| n.props.get("value"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        })
+    }?;
+    if text.trim().is_empty() {
+        return None;
+    }
+    let result = mcp_call(
+        "agent.chat.send",
+        serde_json::json!({ "text": text, "source": "chat_ui" }),
+    )
+    .await;
+    if result.is_some() {
+        let _ = clear_chat_input(tree).await;
+    }
+    result
 }
 
 /// Resolve an ASL token reference like "$colors.primary" against the theme.
@@ -1751,5 +2267,171 @@ mod tests {
         let theme = Theme::default();
         let resolved = resolve_token("$colors.missing", &theme);
         assert_eq!(resolved, serde_json::json!("$colors.missing"));
+    }
+
+    #[tokio::test]
+    async fn workspace_clear_preserves_hint() {
+        let tree = test_tree();
+        let _ = handle_request(
+            "ui.patch".into(),
+            Some(serde_json::json!({
+                "ops": [
+                    {
+                        "op": "insert",
+                        "anchor": "ui.root",
+                        "node": { "id": "ui.workspace", "type": "stack", "children": ["ui.workspace_hint", "ui.agent_button"] }
+                    },
+                    {
+                        "op": "insert",
+                        "anchor": "ui.workspace",
+                        "node": { "id": "ui.workspace_hint", "type": "text", "props": { "text": "hint" } }
+                    },
+                    {
+                        "op": "insert",
+                        "anchor": "ui.workspace",
+                        "node": { "id": "ui.agent_button", "type": "button", "props": { "label": "Go" } }
+                    }
+                ]
+            })),
+            &tree,
+        )
+        .await;
+        let resp = handle_request(
+            "ui.workspace.clear".into(),
+            Some(serde_json::json!({ "preserve_hint": true })),
+            &tree,
+        )
+        .await;
+        assert!(resp.error.is_none(), "{:?}", resp.error);
+        let removed = resp
+            .result
+            .as_ref()
+            .and_then(|v| v.get("removed"))
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        assert!(removed.iter().any(|v| v.as_str() == Some("ui.agent_button")));
+        assert!(!removed.iter().any(|v| v.as_str() == Some("ui.workspace_hint")));
+    }
+
+    #[tokio::test]
+    async fn insert_replaces_duplicate_id() {
+        let tree = test_tree();
+        let _ = handle_request(
+            "ui.patch".into(),
+            Some(serde_json::json!({
+                "ops": [{
+                    "op": "insert",
+                    "anchor": "ui.root",
+                    "node": { "id": "ui.agent_button", "type": "button", "props": { "label": "One" } }
+                }]
+            })),
+            &tree,
+        )
+        .await;
+        let _ = handle_request(
+            "ui.patch".into(),
+            Some(serde_json::json!({
+                "ops": [{
+                    "op": "insert",
+                    "anchor": "ui.root",
+                    "node": { "id": "ui.agent_button", "type": "button", "props": { "label": "Two" } }
+                }]
+            })),
+            &tree,
+        )
+        .await;
+        let got = handle_request(
+            "ui.get".into(),
+            Some(serde_json::json!({ "id": "ui.agent_button" })),
+            &tree,
+        )
+        .await;
+        assert_eq!(
+            got.result
+                .as_ref()
+                .and_then(|v| v.get("props"))
+                .and_then(|p| p.get("label"))
+                .and_then(|v| v.as_str()),
+            Some("Two")
+        );
+    }
+
+    #[tokio::test]
+    async fn refuse_empty_button_label() {
+        let tree = test_tree();
+        let _ = handle_request(
+            "ui.patch".into(),
+            Some(serde_json::json!({
+                "ops": [{
+                    "op": "insert",
+                    "anchor": "ui.root",
+                    "node": { "id": "ui.blank", "type": "button", "props": { "label": "" } }
+                }]
+            })),
+            &tree,
+        )
+        .await;
+        let got = handle_request(
+            "ui.get".into(),
+            Some(serde_json::json!({ "id": "ui.blank" })),
+            &tree,
+        )
+        .await;
+        let label = got
+            .result
+            .as_ref()
+            .and_then(|v| v.get("props"))
+            .and_then(|p| p.get("label"))
+            .and_then(|v| v.as_str());
+        assert_eq!(label, Some("ui.blank"));
+    }
+
+    #[tokio::test]
+    async fn theme_named_light_and_high_contrast() {
+        let tree = test_tree();
+        let resp = handle_request(
+            "ui.theme.set".into(),
+            Some(serde_json::json!({ "name": "light" })),
+            &tree,
+        )
+        .await;
+        assert!(resp.error.is_none());
+        let get = handle_request("ui.theme.get".into(), None, &tree).await;
+        assert_eq!(
+            get.result
+                .as_ref()
+                .and_then(|v| v.get("name"))
+                .and_then(|v| v.as_str()),
+            Some("light")
+        );
+        let _ = handle_request(
+            "ui.theme.set".into(),
+            Some(serde_json::json!({ "name": "high-contrast" })),
+            &tree,
+        )
+        .await;
+        let get = handle_request("ui.theme.get".into(), None, &tree).await;
+        assert_eq!(
+            get.result
+                .as_ref()
+                .and_then(|v| v.get("name"))
+                .and_then(|v| v.as_str()),
+            Some("high-contrast")
+        );
+    }
+
+    #[test]
+    fn parse_node_refuses_empty_toggle_label() {
+        let n = parse_node(&serde_json::json!({
+            "id": "t1",
+            "type": "toggle",
+            "props": {}
+        }))
+        .unwrap();
+        assert_eq!(
+            n.props.get("label").and_then(|v| v.as_str()),
+            Some("t1")
+        );
     }
 }

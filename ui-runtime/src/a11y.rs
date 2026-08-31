@@ -88,6 +88,7 @@ fn serialize_node(tree: &UiTree, id: &str) -> Value {
             "checked": checked,
         },
         "value": value,
+        "live": node.props.get("live").cloned().unwrap_or(Value::Null),
         "children": children,
     })
 }

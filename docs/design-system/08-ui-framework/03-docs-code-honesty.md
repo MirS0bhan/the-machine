@@ -68,7 +68,7 @@ Mirrored in `docs/reference/component-inventory.yaml` (`mcp_services`) and `mcp-
 `ui.auil.parse`, `ui.auil.load`,  
 `ui.a11y.tree`, `ui.atspi.status`,  
 `ui.i18n.status`, `ui.i18n.t`, `ui.i18n.load`,  
-`ui.components.list`
+`ui.components.list`, `ui.workspace.clear`
 
 ### compositor
 
