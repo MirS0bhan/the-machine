@@ -273,7 +273,8 @@ jobs:
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
             busybox-static grub-pc-bin grub-common xorriso mtools \
-            linux-image-generic qemu-system-x86
+            linux-image-generic qemu-system-x86 \
+            libfreetype6-dev pkg-config
 
       - name: Build release initramfs + ISO
         run: |
